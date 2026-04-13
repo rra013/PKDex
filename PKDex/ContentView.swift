@@ -220,22 +220,50 @@ private struct PokemonDetailView: View {
     }
 }
 
-private struct PokemonWebView: NSViewRepresentable {
+private struct PokemonWebView: ViewRepresentable {
     let url: URL
 
-    func makeNSView(context: Context) -> WKWebView {
+    func makeView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.allowsBackForwardNavigationGestures = true
+        #if os(macOS)
         webView.setValue(false, forKey: "drawsBackground")
+        #endif
         return webView
     }
 
-    func updateNSView(_ webView: WKWebView, context: Context) {
+    func updateView(_ webView: WKWebView, context: Context) {
         guard webView.url != url else { return }
         webView.load(URLRequest(url: url))
     }
 }
+
+#if os(iOS)
+private typealias ViewRepresentable = UIViewRepresentable
+
+private extension PokemonWebView {
+    func makeUIView(context: Context) -> WKWebView {
+        makeView(context: context)
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        updateView(webView, context: context)
+    }
+}
+#else
+private typealias ViewRepresentable = NSViewRepresentable
+
+private extension PokemonWebView {
+    func makeNSView(context: Context) -> WKWebView {
+        makeView(context: context)
+    }
+
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        updateView(webView, context: context)
+    }
+}
+#endif
 
 private extension PKMN {
     func detailURL(for filter: PokedexFilter) -> URL? {

@@ -109,13 +109,13 @@ actor PokeSyncManager {
 }
 
 // MARK: - DTOs
-struct PokedexResponseDTO: Codable {
+nonisolated struct PokedexResponseDTO: Codable, Sendable {
     let pokemon_entries: [PokemonEntryDTO]
 }
-struct PokemonEntryDTO: Codable {
+nonisolated struct PokemonEntryDTO: Codable, Sendable {
     let entry_number: Int
     let pokemon_species: PokemonSpeciesDTO
 }
-struct PokemonSpeciesDTO: Codable {
+nonisolated struct PokemonSpeciesDTO: Codable, Sendable {
     let name: String
 }
