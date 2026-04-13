@@ -7,11 +7,13 @@
 
 import SwiftUI
 import SwiftData
+import WebKit
 
 struct ContentView: View {
     @Query(sort: \PKMN.nationalPokedexNumber) private var allPokemon: [PKMN]
     @Environment(\.modelContext) private var modelContext
-    @State private var selectedFilter: PokedexFilter = .all
+    @State private var selectedFilter: PokedexFilter = .champions
+    @State private var searchText = ""
 
     var body: some View {
         NavigationStack {
@@ -23,10 +25,11 @@ struct ContentView: View {
                         Text("Syncing with PokeAPI... please wait.")
                     }
                 } else {
-                    FilteredList(filter: selectedFilter)
+                    FilteredList(filter: selectedFilter, searchText: searchText)
                 }
             }
             .navigationTitle("Pokedex")
+            .searchable(text: $searchText, prompt: "Search Pokemon")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Menu("Reset") {
@@ -105,8 +108,12 @@ enum PokedexFilter: String, CaseIterable, Identifiable {
 // 3. Sub-view to handle the Dynamic Query
 struct FilteredList: View {
     @Query private var filteredPokemon: [PKMN]
+    private let filter: PokedexFilter
+    private let searchText: String
 
-    init(filter: PokedexFilter) {
+    init(filter: PokedexFilter, searchText: String) {
+        self.filter = filter
+        self.searchText = searchText
         let predicate: Predicate<PKMN> = {
             switch filter {
             case .all:
@@ -137,14 +144,127 @@ struct FilteredList: View {
         _filteredPokemon = Query(filter: predicate, sort: \.nationalPokedexNumber)
     }
 
+    private var visiblePokemon: [PKMN] {
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSearch.isEmpty else { return filteredPokemon }
+
+        return filteredPokemon.filter { pokemon in
+            pokemon.name.localizedStandardContains(trimmedSearch) ||
+            String(pokemon.nationalPokedexNumber).contains(trimmedSearch)
+        }
+    }
+
     var body: some View {
-        List(filteredPokemon) { pokemon in
+        VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("#\(pokemon.nationalPokedexNumber)")
+                Text(filter.title)
+                    .font(.headline)
+
+                Spacer()
+
+                Text("\(visiblePokemon.count)")
                     .foregroundStyle(.secondary)
-                    .frame(width: 40)
-                Text(pokemon.name)
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+
+            List(visiblePokemon) { pokemon in
+                if let detailURL = pokemon.detailURL(for: filter) {
+                    NavigationLink {
+                        PokemonDetailView(pokemon: pokemon, filter: filter, detailURL: detailURL)
+                    } label: {
+                        PokemonRow(pokemon: pokemon)
+                    }
+                } else {
+                    PokemonRow(pokemon: pokemon)
+                }
             }
         }
+    }
+}
+
+private struct PokemonRow: View {
+    let pokemon: PKMN
+
+    var body: some View {
+        HStack {
+            Text("#\(pokemon.nationalPokedexNumber)")
+                .foregroundStyle(.secondary)
+                .frame(width: 48, alignment: .leading)
+            Text(pokemon.name)
+        }
+    }
+}
+
+private struct PokemonDetailView: View {
+    let pokemon: PKMN
+    let filter: PokedexFilter
+    let detailURL: URL
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(filter.title)
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            Link(detailURL.absoluteString, destination: detailURL)
+                .font(.footnote)
+
+            PokemonWebView(url: detailURL)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .navigationTitle(pokemon.name)
+        .padding()
+    }
+}
+
+private struct PokemonWebView: NSViewRepresentable {
+    let url: URL
+
+    func makeNSView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.allowsBackForwardNavigationGestures = true
+        webView.setValue(false, forKey: "drawsBackground")
+        return webView
+    }
+
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        guard webView.url != url else { return }
+        webView.load(URLRequest(url: url))
+    }
+}
+
+private extension PKMN {
+    func detailURL(for filter: PokedexFilter) -> URL? {
+        let link: String? = switch filter {
+        case .all:
+            champsLink ?? genNineLink ?? genEightLink ?? genSevenLink ?? genSixLink ?? genFiveLink ?? genFourLink ?? genThreeLink ?? genTwoLink ?? genOneLink
+        case .gen1:
+            genOneLink
+        case .gen2:
+            genTwoLink
+        case .gen3:
+            genThreeLink
+        case .gen4:
+            genFourLink
+        case .gen5:
+            genFiveLink
+        case .gen6:
+            genSixLink
+        case .gen7:
+            genSevenLink
+        case .gen8:
+            genEightLink
+        case .gen9:
+            genNineLink
+        case .champions:
+            champsLink
+        }
+
+        guard let link else { return nil }
+        return URL(string: link)
     }
 }
