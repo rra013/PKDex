@@ -52,7 +52,7 @@ private struct PokedexTab: View {
                     Menu("Reset") {
                         Button("Emergency Reset", role: .destructive) {
                             UserDefaults.standard.removeObject(forKey: "hasCompletedInitialSync")
-                            UserDefaults.standard.removeObject(forKey: "hasCompletedCalcSync")
+                            UserDefaults.standard.removeObject(forKey: "hasCompletedCalcSyncV2")
                             try? modelContext.delete(model: PKMN.self)
                             try? modelContext.delete(model: Gen8Pokemon.self)
                             try? modelContext.delete(model: Gen9Pokemon.self)

@@ -162,6 +162,55 @@ let allNatures: [Nature] = [
     Nature(id: "naive",   name: "Naive",   boosted: .speed, lowered: .spDef),
 ]
 
+// MARK: - Saved Spread
+
+@Model
+final class SavedSpread {
+    var name: String
+    var pokemonID: Int?
+    var pokemonName: String?
+    var abilityName: String?
+    var itemRawValue: String?
+    var championsMode: Bool
+    var natureID: String
+    var level: Int
+    var evHP: Int; var evAtk: Int; var evDef: Int
+    var evSpAtk: Int; var evSpDef: Int; var evSpeed: Int
+    var ivHP: Int; var ivAtk: Int; var ivDef: Int
+    var ivSpAtk: Int; var ivSpDef: Int; var ivSpeed: Int
+    var moveID1: Int?
+    var moveID2: Int?
+    var moveID3: Int?
+    var moveID4: Int?
+    var createdAt: Date
+
+    init(name: String, pokemonID: Int? = nil, pokemonName: String? = nil,
+         abilityName: String? = nil, itemRawValue: String? = nil,
+         championsMode: Bool = false, natureID: String = "adamant", level: Int = 50,
+         evHP: Int = 0, evAtk: Int = 0, evDef: Int = 0,
+         evSpAtk: Int = 0, evSpDef: Int = 0, evSpeed: Int = 0,
+         ivHP: Int = 31, ivAtk: Int = 31, ivDef: Int = 31,
+         ivSpAtk: Int = 31, ivSpDef: Int = 31, ivSpeed: Int = 31,
+         moveID1: Int? = nil, moveID2: Int? = nil,
+         moveID3: Int? = nil, moveID4: Int? = nil) {
+        self.name = name
+        self.pokemonID = pokemonID
+        self.pokemonName = pokemonName
+        self.abilityName = abilityName
+        self.itemRawValue = itemRawValue
+        self.championsMode = championsMode
+        self.natureID = natureID
+        self.level = level
+        self.evHP = evHP; self.evAtk = evAtk; self.evDef = evDef
+        self.evSpAtk = evSpAtk; self.evSpDef = evSpDef; self.evSpeed = evSpeed
+        self.ivHP = ivHP; self.ivAtk = ivAtk; self.ivDef = ivDef
+        self.ivSpAtk = ivSpAtk; self.ivSpDef = ivSpDef; self.ivSpeed = ivSpeed
+        self.moveID1 = moveID1; self.moveID2 = moveID2
+        self.moveID3 = moveID3; self.moveID4 = moveID4
+        self.createdAt = Date()
+    }
+}
+
 // MARK: - EV System
 
 // Main-series scale
@@ -169,7 +218,7 @@ let maxEVPerStat = 252
 let maxTotalEVs = 510
 
 // Champions scale: 0-32 per stat, where 32 == 252 in the main formula.
-// Total cap: 66
+// Total cap scales proportionally: floor(510 * 32 / 252) = 64
 let championsMaxEVPerStat = 32
 let championsMaxTotalEVs = 66
 
@@ -197,6 +246,86 @@ func statStageMultiplier(stage: Int) -> Double {
     } else {
         return 2.0 / Double(2 - clamped)
     }
+}
+
+// MARK: - Weather
+
+// MARK: - Held Items
+
+enum HeldItem: String, CaseIterable, Identifiable {
+    case none = "None"
+
+    // Offensive
+    case choiceBand = "Choice Band"
+    case choiceSpecs = "Choice Specs"
+    case lifeOrb = "Life Orb"
+    case expertBelt = "Expert Belt"
+    case metronome = "Metronome"
+
+    // Type-boosting plates / gems
+    case typeBoost = "Type-Boost (1.2x)"
+
+    // Defensive
+    case assaultVest = "Assault Vest"
+    case eviolite = "Eviolite"
+
+    // Species-specific
+    case lightBall = "Light Ball"
+    case thickClub = "Thick Club"
+
+    var id: String { rawValue }
+}
+
+struct ItemModResult {
+    var atkMultiplier: Double = 1.0
+    var spAtkMultiplier: Double = 1.0
+    var defMultiplier: Double = 1.0
+    var spDefMultiplier: Double = 1.0
+    var damageMult: Double = 1.0
+}
+
+func computeItemModifiers(
+    attackerItem: HeldItem,
+    defenderItem: HeldItem,
+    isPhysical: Bool,
+    typeEffectiveness: Double,
+    moveType: String
+) -> ItemModResult {
+    var r = ItemModResult()
+
+    // Attacker items
+    switch attackerItem {
+    case .choiceBand:
+        if isPhysical { r.atkMultiplier = 1.5 }
+    case .choiceSpecs:
+        if !isPhysical { r.spAtkMultiplier = 1.5 }
+    case .lifeOrb:
+        r.damageMult = 5324.0 / 4096.0 // ~1.3, exact game value
+    case .expertBelt:
+        if typeEffectiveness > 1.0 { r.damageMult = 1.2 }
+    case .metronome:
+        break // user adjusts via misc multiplier
+    case .typeBoost:
+        r.damageMult = 1.2
+    case .lightBall:
+        r.atkMultiplier = 2.0; r.spAtkMultiplier = 2.0
+    case .thickClub:
+        if isPhysical { r.atkMultiplier = 2.0 }
+    default:
+        break
+    }
+
+    // Defender items
+    switch defenderItem {
+    case .assaultVest:
+        r.spDefMultiplier = 1.5
+    case .eviolite:
+        r.defMultiplier = 1.5; r.spDefMultiplier = 1.5
+    default:
+        break
+    }
+
+    return r
 }
 
 // MARK: - Weather
@@ -242,7 +371,7 @@ enum WeatherCondition: String, CaseIterable, Identifiable {
 
 /// All competitively relevant abilities that modify damage calculation.
 enum DamageAbility: String, CaseIterable, Identifiable {
-    // Attacker
+    // Attacker — stat / power multipliers
     case adaptability = "adaptability"
     case aerilate = "aerilate"
     case analytic = "analytic"
@@ -256,23 +385,31 @@ enum DamageAbility: String, CaseIterable, Identifiable {
     case hustle = "hustle"
     case ironFist = "iron-fist"
     case megaLauncher = "mega-launcher"
+    case normalize = "normalize"
     case overgrow = "overgrow"
     case pixilate = "pixilate"
+    case protean = "protean"
+    case libero = "libero"
     case purePower = "pure-power"
+    case punkRock = "punk-rock"
     case reckless = "reckless"
     case refrigerate = "refrigerate"
+    case sandForce = "sand-force"
     case sheerForce = "sheer-force"
     case sniperAbility = "sniper"
     case solarPower = "solar-power"
     case stakeout = "stakeout"
     case steelworker = "steelworker"
     case strongJaw = "strong-jaw"
+    case supremeOverlord = "supreme-overlord"
     case swarm = "swarm"
     case technician = "technician"
+    case tintedLens = "tinted-lens"
     case torrent = "torrent"
     case toughClaws = "tough-claws"
     case transistor = "transistor"
-    // Defender
+    case waterBubble = "water-bubble"
+    // Defender — damage reduction / immunities
     case drySkin = "dry-skin"
     case filter = "filter"
     case flashFire = "flash-fire"
@@ -282,9 +419,11 @@ enum DamageAbility: String, CaseIterable, Identifiable {
     case iceScales = "ice-scales"
     case levitate = "levitate"
     case lightningRod = "lightning-rod"
+    case marvelScale = "marvel-scale"
     case motorDrive = "motor-drive"
     case multiscale = "multiscale"
     case prismArmor = "prism-armor"
+    case punkRockDefense = "punk-rock-def" // same ability, defender side
     case sapSipper = "sap-sipper"
     case shadowShield = "shadow-shield"
     case solidRock = "solid-rock"
@@ -292,6 +431,7 @@ enum DamageAbility: String, CaseIterable, Identifiable {
     case thickFat = "thick-fat"
     case voltAbsorb = "volt-absorb"
     case waterAbsorb = "water-absorb"
+    case waterBubbleDefense = "water-bubble-def" // same ability, defender side
     case wonderGuard = "wonder-guard"
 
     var id: String { rawValue }
@@ -334,6 +474,10 @@ func computeAbilityModifiers(
     case "adaptability":
         if isSTAB { r.stabOverride = 2.0 }
 
+    case "protean", "libero":
+        // Grants STAB on every move (type changes to match move)
+        if !isSTAB { r.stabOverride = 1.5 }
+
     case "huge-power", "pure-power":
         if isPhysical { r.atkMultiplier *= 2.0 }
 
@@ -345,6 +489,10 @@ func computeAbilityModifiers(
 
     case "solar-power":
         if weather == .sun && !isPhysical { r.atkMultiplier *= 1.5 }
+
+    case "water-bubble":
+        // 2x Water move power + halves incoming Fire damage (defender handled below)
+        if moveType == "Water" { r.powerMultiplier *= 2.0 }
 
     case "transistor":
         if moveType == "Electric" { r.powerMultiplier *= 1.3 }
@@ -362,7 +510,7 @@ func computeAbilityModifiers(
         if moveType == "Fairy" { r.powerMultiplier *= 1.33 }
 
     case "blaze":
-        if moveType == "Fire" && attackerAtFullHP == false { r.powerMultiplier *= 1.5 }
+        if moveType == "Fire" && !attackerAtFullHP { r.powerMultiplier *= 1.5 }
 
     case "torrent":
         if moveType == "Water" && !attackerAtFullHP { r.powerMultiplier *= 1.5 }
@@ -388,11 +536,20 @@ func computeAbilityModifiers(
     case "mega-launcher":
         r.powerMultiplier *= 1.5 // applies to pulse/aura moves; simplified
 
+    case "punk-rock":
+        r.powerMultiplier *= 1.3 // applies to sound moves; simplified
+
     case "reckless":
         r.powerMultiplier *= 1.2 // applies to recoil moves; simplified
 
     case "sheer-force":
         r.powerMultiplier *= 1.3 // applies to moves with secondary effects; simplified
+
+    case "sand-force":
+        // 1.3x to Rock/Ground/Steel in sand
+        if weather == .sand && (moveType == "Rock" || moveType == "Ground" || moveType == "Steel") {
+            r.powerMultiplier *= 1.3
+        }
 
     case "analytic":
         r.powerMultiplier *= 1.3 // if moving last; user toggled
@@ -400,8 +557,21 @@ func computeAbilityModifiers(
     case "stakeout":
         r.powerMultiplier *= 2.0 // if target switched in; simplified
 
+    case "supreme-overlord":
+        r.powerMultiplier *= 1.1 // 1.1x per fainted ally, simplified to 1 fainted
+
+    case "tinted-lens":
+        // Doubles damage of "not very effective" moves
+        if typeEffectiveness < 1.0 && typeEffectiveness > 0 {
+            r.finalMultiplier *= 2.0
+        }
+
     case "sniper":
         r.critMultiplierOverride = 2.25
+
+    case "normalize":
+        // All moves become Normal type; 1.2x power boost (Gen VII+)
+        r.powerMultiplier *= 1.2
 
     case "aerilate":
         if moveType == "Normal" { r.powerMultiplier *= 1.2 }
@@ -421,6 +591,10 @@ func computeAbilityModifiers(
     case "multiscale", "shadow-shield":
         if defenderAtFullHP { r.finalMultiplier *= 0.5 }
 
+    case "marvel-scale":
+        // 1.5x Def when statused; simplified as always active when selected
+        if isPhysical { r.defMultiplier *= 1.5 }
+
     case "thick-fat":
         if moveType == "Fire" || moveType == "Ice" { r.atkMultiplier *= 0.5 }
 
@@ -429,6 +603,14 @@ func computeAbilityModifiers(
 
     case "fur-coat":
         if isPhysical { r.defMultiplier *= 2.0 }
+
+    case "punk-rock":
+        // Defender side: halves incoming sound move damage; simplified
+        r.finalMultiplier *= 0.5
+
+    case "water-bubble":
+        // Defender side: halves incoming Fire damage
+        if moveType == "Fire" { r.finalMultiplier *= 0.5 }
 
     case "fluffy":
         if isContact { r.finalMultiplier *= 0.5 }

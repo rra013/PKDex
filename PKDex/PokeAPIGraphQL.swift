@@ -46,7 +46,7 @@ actor PokeGraphQLFetcher {
               pokemon_v2_ability { name }
               is_hidden
             }
-            pokemon_v2_pokemonmoves(distinct_on: move_id, where: {pokemon_v2_move: {pokemon_v2_movedamageclass: {name: {_in: ["physical", "special"]}}}}) {
+            pokemon_v2_pokemonmoves(distinct_on: move_id) {
               move_id
             }
           }
@@ -91,7 +91,7 @@ actor PokeGraphQLFetcher {
     func fetchAllMoves() async throws -> [GQLMove] {
         let query = """
         {
-          pokemon_v2_move(where: {pokemon_v2_movedamageclass: {name: {_in: ["physical", "special"]}}}) {
+          pokemon_v2_move {
             id
             name
             power

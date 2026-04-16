@@ -11,7 +11,7 @@ import SwiftData
 @main
 struct PokedexApp: App {
     let container: ModelContainer = {
-        let schema = Schema([PKMN.self, Gen8Pokemon.self, Gen9Pokemon.self, PKMNStats.self, MoveData.self])
+        let schema = Schema([PKMN.self, Gen8Pokemon.self, Gen9Pokemon.self, PKMNStats.self, MoveData.self, SavedSpread.self])
         let config = ModelConfiguration(schema: schema)
 
         do {

@@ -36,6 +36,11 @@ let typeEffectivenessChart: [String: [String: Double]] = [
 
 // MARK: - Damage Engine (Gen V+ formula)
 
+private func pokeFloor(_ value: Int, _ modifier: Double) -> Int {
+    if modifier == 1.0 { return value }
+    return Int(floor(Double(value) * modifier))
+}
+
 func calcDamageRange(
     level: Int, movePower: Int, userAtk: Int, defenderDef: Int,
     multi: Bool, parentalBond: Bool,
@@ -47,32 +52,34 @@ func calcDamageRange(
 ) -> (min: Double, max: Double) {
     guard movePower > 0 && userAtk > 0 && defenderDef > 0 else { return (0, 0) }
 
-    let effectiveAtk = Int(Double(userAtk) * abilityMods.atkMultiplier)
-    let effectiveDef = Int(Double(defenderDef) * abilityMods.defMultiplier)
-    let effectivePower = Int(Double(movePower) * abilityMods.powerMultiplier)
+    let effectiveAtk = Int(floor(Double(userAtk) * abilityMods.atkMultiplier))
+    let effectiveDef = Int(floor(Double(defenderDef) * abilityMods.defMultiplier))
+    let effectivePower = Int(floor(Double(movePower) * abilityMods.powerMultiplier))
 
     let scaledLevel = (2 * level / 5) + 2
-    let attackTerm = scaledLevel * effectivePower * effectiveAtk / max(effectiveDef, 1)
-    var base = Double(attackTerm / 50 + 2)
+    var base = scaledLevel * effectivePower * effectiveAtk / max(effectiveDef, 1)
+    base = base / 50 + 2
 
-    if multi         { base *= 0.75 }
-    if parentalBond  { base *= 1.25 }
-    base *= weatherMult
-    if glaiveRush    { base *= 1.5 }
-    if crit          { base *= abilityMods.critMultiplierOverride ?? critMultiplier }
+    if multi        { base = pokeFloor(base, 0.75) }
+    if parentalBond { base = pokeFloor(base, 1.25) }
+    base = pokeFloor(base, weatherMult)
+    if glaiveRush   { base = pokeFloor(base, 2.0) }
+    if crit         { base = pokeFloor(base, abilityMods.critMultiplierOverride ?? critMultiplier) }
 
-    let effectiveStab = abilityMods.stabOverride ?? stabBonus
-    base *= effectiveStab
+    let minBase = base * 85 / 100
+    let maxBase = base
 
-    let effectiveTypeEff = abilityMods.typeEffOverride ?? typeEffect
-    base *= effectiveTypeEff
+    func applyPostRandom(_ d: Int) -> Int {
+        var v = d
+        v = pokeFloor(v, abilityMods.stabOverride ?? stabBonus)
+        v = pokeFloor(v, abilityMods.typeEffOverride ?? typeEffect)
+        v = pokeFloor(v, burnReduction)
+        v = pokeFloor(v, abilityMods.finalMultiplier)
+        if zMoveBypass { v = pokeFloor(v, 0.25) }
+        return v
+    }
 
-    base *= burnReduction
-    base *= abilityMods.finalMultiplier
-
-    if zMoveBypass { base *= 0.25 }
-
-    return (base * 0.85, base * 1.0)
+    return (Double(applyPostRandom(minBase)), Double(applyPostRandom(maxBase)))
 }
 
 func computeTypeEffectiveness(moveType: String, defenderTypes: [String]) -> Double {
@@ -84,7 +91,7 @@ func computeTypeEffectiveness(moveType: String, defenderTypes: [String]) -> Doub
     return mult
 }
 
-// MARK: - Side Model (Attacker or Defender)
+// MARK: - Side Model
 
 @Observable
 class CalcSide {
@@ -93,12 +100,18 @@ class CalcSide {
     var nature: Nature = allNatures.first(where: { $0.id == "adamant" })!
     var level: Int = 50
     var selectedAbility: String?
+    var heldItem: HeldItem = .none
     var atFullHP: Bool = true
+    var loadedSpreadName: String?
+
+    // Moves (4 slots)
+    var moves: [MoveData?] = [nil, nil, nil, nil]
+    var moveSearchTexts: [String] = ["", "", "", ""]
+    var filterLegalMoves: Bool = true
 
     /// When true, EVs use the Champions 0-32 scale and IVs are fixed at 31.
     var championsMode: Bool = false
 
-    // EVs -- stored in whichever scale is active (0-252 normal, 0-32 champions)
     var evHP: Int = 0
     var evAtk: Int = 0
     var evDef: Int = 0
@@ -106,7 +119,6 @@ class CalcSide {
     var evSpDef: Int = 0
     var evSpeed: Int = 0
 
-    // IVs (ignored in Champions mode — always treated as 31)
     var ivHP: Int = 31
     var ivAtk: Int = 31
     var ivDef: Int = 31
@@ -114,24 +126,85 @@ class CalcSide {
     var ivSpDef: Int = 31
     var ivSpeed: Int = 31
 
-    // Stat stages
     var atkStage: Int = 0
     var defStage: Int = 0
     var spAtkStage: Int = 0
     var spDefStage: Int = 0
     var speedStage: Int = 0
 
-    // Scale-aware limits
     var evPerStatMax: Int { championsMode ? championsMaxEVPerStat : maxEVPerStat }
     var evTotalMax: Int { championsMode ? championsMaxTotalEVs : maxTotalEVs }
     var totalEVs: Int { evHP + evAtk + evDef + evSpAtk + evSpDef + evSpeed }
 
-    /// Convert stored EV to main-series value for the stat formula.
+    func maxAllowedEV(excluding current: Int) -> Int {
+        let othersTotal = totalEVs - current
+        return min(evPerStatMax, max(0, evTotalMax - othersTotal))
+    }
+
+    func cappedEVBinding(_ kp: ReferenceWritableKeyPath<CalcSide, Int>) -> Binding<Int> {
+        Binding(
+            get: { self[keyPath: kp] },
+            set: { newVal in
+                let cap = self.maxAllowedEV(excluding: self[keyPath: kp])
+                self[keyPath: kp] = max(0, min(newVal, cap))
+            }
+        )
+    }
+
+    // MARK: - Save / Load Spreads
+
+    func toSavedSpread(name: String) -> SavedSpread {
+        SavedSpread(
+            name: name,
+            pokemonID: pokemon?.id,
+            pokemonName: pokemon?.name,
+            abilityName: selectedAbility,
+            itemRawValue: heldItem != .none ? heldItem.rawValue : nil,
+            championsMode: championsMode,
+            natureID: nature.id,
+            level: level,
+            evHP: evHP, evAtk: evAtk, evDef: evDef,
+            evSpAtk: evSpAtk, evSpDef: evSpDef, evSpeed: evSpeed,
+            ivHP: ivHP, ivAtk: ivAtk, ivDef: ivDef,
+            ivSpAtk: ivSpAtk, ivSpDef: ivSpDef, ivSpeed: ivSpeed,
+            moveID1: moves[0]?.id, moveID2: moves[1]?.id,
+            moveID3: moves[2]?.id, moveID4: moves[3]?.id
+        )
+    }
+
+    func loadSpread(_ spread: SavedSpread, allPokemon: [PKMNStats], allMoves: [MoveData]) {
+        if let pid = spread.pokemonID {
+            if let match = allPokemon.first(where: { $0.id == pid }) {
+                pokemon = match
+            }
+        }
+        selectedAbility = spread.abilityName
+        heldItem = spread.itemRawValue.flatMap { HeldItem(rawValue: $0) } ?? .none
+        championsMode = spread.championsMode
+        nature = allNatures.first(where: { $0.id == spread.natureID }) ?? allNatures[0]
+        level = spread.level
+        evHP = spread.evHP; evAtk = spread.evAtk; evDef = spread.evDef
+        evSpAtk = spread.evSpAtk; evSpDef = spread.evSpDef; evSpeed = spread.evSpeed
+        ivHP = spread.ivHP; ivAtk = spread.ivAtk; ivDef = spread.ivDef
+        ivSpAtk = spread.ivSpAtk; ivSpDef = spread.ivSpDef; ivSpeed = spread.ivSpeed
+
+        let moveIDs = [spread.moveID1, spread.moveID2, spread.moveID3, spread.moveID4]
+        for i in 0..<4 {
+            if let mid = moveIDs[i] {
+                moves[i] = allMoves.first(where: { $0.id == mid })
+            } else {
+                moves[i] = nil
+            }
+            moveSearchTexts[i] = ""
+        }
+
+        loadedSpreadName = spread.name
+    }
+
     private func formulaEV(_ stored: Int) -> Int {
         championsMode ? championsEVToMain(stored) : stored
     }
 
-    /// In Champions mode IVs are always 31.
     private func formulaIV(_ stored: Int) -> Int {
         championsMode ? 31 : stored
     }
@@ -139,19 +212,16 @@ class CalcSide {
     func setChampionsMode(_ on: Bool) {
         guard on != championsMode else { return }
         if on {
-            // Scale EVs from main-series → Champions
             evHP    = evHP * 32 / 252
             evAtk   = evAtk * 32 / 252
             evDef   = evDef * 32 / 252
             evSpAtk = evSpAtk * 32 / 252
             evSpDef = evSpDef * 32 / 252
             evSpeed = evSpeed * 32 / 252
-            // Lock IVs
             ivHP = 31; ivAtk = 31; ivDef = 31
             ivSpAtk = 31; ivSpDef = 31; ivSpeed = 31
             championsMode = true
         } else {
-            // Scale EVs from Champions → main-series
             evHP    = championsEVToMain(evHP)
             evAtk   = championsEVToMain(evAtk)
             evDef   = championsEVToMain(evDef)
@@ -195,19 +265,31 @@ class CalcSide {
     }
 }
 
+// MARK: - Per-Move Result
+
+struct MoveResult: Identifiable {
+    let id = UUID()
+    let move: MoveData
+    let damageMin: Double
+    let damageMax: Double
+    let minPercent: Double
+    let maxPercent: Double
+    let hitsToKO: String
+    let effectiveness: Double
+    let effectivenessLabel: String
+    let effectivenessColor: Color
+    let isSTAB: Bool
+}
+
 // MARK: - View Model
 
 @MainActor
 @Observable
 class DamageCalcVM {
-    var attacker = CalcSide()
-    var defender = CalcSide()
+    var side1 = CalcSide()
+    var side2 = CalcSide()
 
-    var selectedMove: MoveData?
-    var moveSearchText: String = ""
-    var filterLegalMoves: Bool = true // Only show moves the attacker can learn
-
-    // Modifiers
+    // Global modifiers
     var crit: Bool = false
     var burn: Bool = false
     var multi: Bool = false
@@ -217,40 +299,42 @@ class DamageCalcVM {
     var weather: WeatherCondition = .none
     var miscMultiplier: Double = 1.0
 
-    var moveType: String { selectedMove?.type ?? "Normal" }
-    var movePower: Int { selectedMove?.power ?? 0 }
-    var isPhysical: Bool { (selectedMove?.damageClass ?? "physical") == "physical" }
-    var isContact: Bool { selectedMove?.makesContact ?? false }
+    // MARK: Computed Results
 
-    var stab: Bool { attacker.types.contains(moveType) }
-    var stabBonus: Double { stab ? 1.5 : 1.0 }
-    var burnReduction: Double { (burn && isPhysical) ? 0.5 : 1.0 }
-
-    var typeEffect: Double {
-        computeTypeEffectiveness(moveType: moveType, defenderTypes: defender.types)
+    var side1Results: [MoveResult] {
+        computeResults(attacker: side1, defender: side2)
     }
 
-    // Weather-adjusted stats
-    var weatherMoveMult: Double {
-        weather.moveDamageMultiplier(moveType: moveType)
+    var side2Results: [MoveResult] {
+        computeResults(attacker: side2, defender: side1)
     }
 
-    var effectiveAtk: Int { isPhysical ? attacker.atk : attacker.spAtk }
-
-    var effectiveDef: Int {
-        if isPhysical {
-            let baseDef = defender.def
-            let snowMult = weather.snowDefMultiplier(defenderTypes: defender.types)
-            return Int(Double(baseDef) * snowMult)
-        } else {
-            let baseSpDef = defender.spDef
-            let sandMult = weather.sandSpDefMultiplier(defenderTypes: defender.types)
-            return Int(Double(baseSpDef) * sandMult)
+    private func computeResults(attacker: CalcSide, defender: CalcSide) -> [MoveResult] {
+        attacker.moves.compactMap { $0 }.map { move in
+            computeSingleResult(move: move, attacker: attacker, defender: defender)
         }
     }
 
-    var abilityMods: AbilityModResult {
-        computeAbilityModifiers(
+    private func computeSingleResult(move: MoveData, attacker: CalcSide, defender: CalcSide) -> MoveResult {
+        let moveType = move.type
+        let movePower = move.power ?? 0
+        let isPhysical = move.damageClass == "physical"
+        let isContact = move.makesContact
+        let stab = attacker.types.contains(moveType)
+        let stabBonus = stab ? 1.5 : 1.0
+        let burnReduction = (burn && isPhysical) ? 0.5 : 1.0
+        let typeEff = computeTypeEffectiveness(moveType: moveType, defenderTypes: defender.types)
+        let weatherMult = weather.moveDamageMultiplier(moveType: moveType)
+
+        let itemMods = computeItemModifiers(
+            attackerItem: attacker.heldItem,
+            defenderItem: defender.heldItem,
+            isPhysical: isPhysical,
+            typeEffectiveness: typeEff,
+            moveType: moveType
+        )
+
+        let abilityMods = computeAbilityModifiers(
             attackerAbility: attacker.selectedAbility,
             defenderAbility: defender.selectedAbility,
             moveType: moveType,
@@ -258,84 +342,94 @@ class DamageCalcVM {
             isPhysical: isPhysical,
             isContact: isContact,
             isSTAB: stab,
-            typeEffectiveness: typeEffect,
+            typeEffectiveness: typeEff,
             weather: weather,
             attackerAtFullHP: attacker.atFullHP,
             defenderAtFullHP: defender.atFullHP
         )
-    }
 
-    var result: (min: Double, max: Double) {
-        calcDamageRange(
+        let baseAtk = isPhysical ? attacker.atk : attacker.spAtk
+        let itemAtkMult = isPhysical ? itemMods.atkMultiplier : itemMods.spAtkMultiplier
+        let effectiveAtk = Int(floor(Double(baseAtk) * itemAtkMult))
+
+        let effectiveDef: Int
+        if isPhysical {
+            let snowMult = weather.snowDefMultiplier(defenderTypes: defender.types)
+            effectiveDef = Int(floor(Double(defender.def) * snowMult * itemMods.defMultiplier))
+        } else {
+            let sandMult = weather.sandSpDefMultiplier(defenderTypes: defender.types)
+            effectiveDef = Int(floor(Double(defender.spDef) * sandMult * itemMods.spDefMultiplier))
+        }
+
+        let raw = calcDamageRange(
             level: attacker.level, movePower: movePower,
             userAtk: effectiveAtk, defenderDef: effectiveDef,
             multi: multi, parentalBond: parentalBond,
-            weatherMult: weatherMoveMult, glaiveRush: glaiveRush,
+            weatherMult: weatherMult, glaiveRush: glaiveRush,
             crit: crit, critMultiplier: 1.5,
-            stabBonus: stabBonus, typeEffect: typeEffect,
+            stabBonus: stabBonus, typeEffect: typeEff,
             burnReduction: burnReduction, abilityMods: abilityMods,
             zMoveBypass: zMoveBypass
         )
+
+        let im = itemMods.damageMult
+        let dMin = floor(raw.min * im)
+        let dMax = floor(raw.max * im)
+        let minPct = defender.hp > 0 ? min(dMin / Double(defender.hp) * 100, 999) : 0
+        let maxPct = defender.hp > 0 ? min(dMax / Double(defender.hp) * 100, 999) : 0
+
+        let hitsToKO: String = {
+            guard maxPct > 0 else { return "--" }
+            let minHits = Int(ceil(100.0 / maxPct))
+            let maxHits = minPct > 0 ? Int(ceil(100.0 / minPct)) : 0
+            if minHits == maxHits { return "\(minHits)HKO" }
+            return "\(minHits)-\(maxHits)HKO"
+        }()
+
+        let eff = abilityMods.typeEffOverride ?? typeEff
+        let effLabel: String = {
+            switch eff {
+            case 0:    return "Immune"
+            case 0.25: return "1/4x"
+            case 0.5:  return "1/2x"
+            case 1:    return "1x"
+            case 2:    return "2x"
+            case 4:    return "4x"
+            default:   return String(format: "%.2fx", eff)
+            }
+        }()
+        let effColor: Color = {
+            switch eff {
+            case 0:          return .gray
+            case 0.25, 0.5:  return .blue
+            case 1:          return .primary
+            case 2:          return .orange
+            case 4:          return .red
+            default:         return .primary
+            }
+        }()
+
+        return MoveResult(
+            move: move,
+            damageMin: dMin, damageMax: dMax,
+            minPercent: minPct, maxPercent: maxPct,
+            hitsToKO: hitsToKO,
+            effectiveness: eff,
+            effectivenessLabel: effLabel,
+            effectivenessColor: effColor,
+            isSTAB: stab
+        )
     }
 
-    var minPercent: Double {
-        guard defender.hp > 0 else { return 0 }
-        return min(result.min / Double(defender.hp) * 100, 999)
-    }
-    var maxPercent: Double {
-        guard defender.hp > 0 else { return 0 }
-        return min(result.max / Double(defender.hp) * 100, 999)
-    }
+    // MARK: Move Search
 
-    var hitsToKO: String {
-        guard maxPercent > 0 else { return "--" }
-        let minHits = Int(ceil(100.0 / maxPercent))
-        let maxHits = minPercent > 0 ? Int(ceil(100.0 / minPercent)) : 0
-        if minHits == maxHits { return "\(minHits)HKO" }
-        return "\(minHits)-\(maxHits)HKO"
-    }
-
-    var effectivenessLabel: String {
-        let eff = abilityMods.typeEffOverride ?? typeEffect
-        switch eff {
-        case 0:    return "Immune"
-        case 0.25: return "1/4x"
-        case 0.5:  return "1/2x"
-        case 1:    return "1x"
-        case 2:    return "2x"
-        case 4:    return "4x"
-        default:   return String(format: "%.2fx", eff)
-        }
-    }
-
-    var effectivenessColor: Color {
-        let eff = abilityMods.typeEffOverride ?? typeEffect
-        switch eff {
-        case 0:          return .gray
-        case 0.25, 0.5:  return .blue
-        case 1:          return .primary
-        case 2:          return .orange
-        case 4:          return .red
-        default:         return .primary
-        }
-    }
-
-    var summaryText: String {
-        let atkName = attacker.pokemon?.name ?? "???"
-        let defName = defender.pokemon?.name ?? "???"
-        let moveName = selectedMove?.name ?? "???"
-        return "\(atkName) \(moveName) vs. \(defName): \(String(format: "%.0f", result.min))-\(String(format: "%.0f", result.max)) (\(String(format: "%.1f", minPercent)) - \(String(format: "%.1f", maxPercent))%) -- \(hitsToKO)"
-    }
-
-    /// Returns moves filtered to the attacker's learnset (if enabled and a Pokemon is selected).
-    func filteredMoves(from allMoves: [MoveData], allPokemon: [PKMNStats]) -> [MoveData] {
-        let q = moveSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    func filteredMoves(for side: CalcSide, slotIndex: Int, allMoves: [MoveData], allPokemon: [PKMNStats]) -> [MoveData] {
+        let q = side.moveSearchTexts[slotIndex].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !q.isEmpty else { return [] }
 
         var pool = allMoves
-        if filterLegalMoves, let pkmn = attacker.pokemon {
+        if side.filterLegalMoves, let pkmn = side.pokemon {
             var legalIDs = Set(pkmn.learnableMoveIDs)
-            // For alternate forms with no learnset, fall back to base species
             if legalIDs.isEmpty {
                 if let base = allPokemon.first(where: { $0.speciesID == pkmn.speciesID && !$0.isForm }) {
                     legalIDs = Set(base.learnableMoveIDs)
@@ -376,9 +470,8 @@ struct DamageCalculatorView: View {
                         SyncingCard()
                     } else {
                         ResultCard(vm: vm)
-                        SideCard(title: "Attacker", icon: "figure.fencing", side: vm.attacker, allPokemon: allPokemon, isAttacker: true)
-                        MoveCard(vm: vm, allMoves: allMoves, allPokemon: allPokemon)
-                        SideCard(title: "Defender", icon: "shield.fill", side: vm.defender, allPokemon: allPokemon, isAttacker: false)
+                        SideCard(title: "Pokemon 1", icon: "circle.fill", side: vm.side1, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
+                        SideCard(title: "Pokemon 2", icon: "circle.fill", side: vm.side2, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
                         ModifiersCard(vm: vm)
                     }
                 }
@@ -412,76 +505,136 @@ private struct ResultCard: View {
     var vm: DamageCalcVM
 
     var body: some View {
-        VStack(spacing: 14) {
-            if vm.selectedMove != nil && vm.attacker.pokemon != nil && vm.defender.pokemon != nil {
-                Text(vm.summaryText)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        CalcSection(title: "Results", icon: "bolt.fill") {
+            // Active modifier badges
+            HStack(spacing: 6) {
+                if vm.weather != .none {
+                    InfoBadge(text: vm.weather.rawValue, color: .cyan)
+                }
+                if vm.crit { InfoBadge(text: "Crit", color: .orange) }
+                if vm.burn { InfoBadge(text: "Burn", color: .red) }
+                if let a1 = vm.side1.selectedAbility, !a1.isEmpty {
+                    InfoBadge(text: formatAbilityName(a1), color: .orange)
+                }
+                if let a2 = vm.side2.selectedAbility, !a2.isEmpty {
+                    InfoBadge(text: formatAbilityName(a2), color: .purple)
+                }
+                if vm.side1.heldItem != .none {
+                    InfoBadge(text: vm.side1.heldItem.rawValue, color: .green)
+                }
+                if vm.side2.heldItem != .none {
+                    InfoBadge(text: vm.side2.heldItem.rawValue, color: .mint)
+                }
+                Spacer()
             }
 
-            HStack {
-                Label("Result", systemImage: "bolt.fill").font(.headline)
+            if vm.side1.pokemon != nil && vm.side2.pokemon != nil {
+                DirectionResultsView(
+                    attackerName: vm.side1.pokemon?.name ?? "???",
+                    defenderName: vm.side2.pokemon?.name ?? "???",
+                    defenderHP: vm.side2.hp,
+                    results: vm.side1Results
+                )
+
+                Divider()
+
+                DirectionResultsView(
+                    attackerName: vm.side2.pokemon?.name ?? "???",
+                    defenderName: vm.side1.pokemon?.name ?? "???",
+                    defenderHP: vm.side1.hp,
+                    results: vm.side2Results
+                )
+            } else {
+                Text("Select two Pokemon to see results")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            }
+        }
+    }
+}
+
+private struct DirectionResultsView: View {
+    let attackerName: String
+    let defenderName: String
+    let defenderHP: Int
+    let results: [MoveResult]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 4) {
+                Text(attackerName).font(.subheadline.bold())
+                Image(systemName: "arrow.right").font(.caption).foregroundStyle(.secondary)
+                Text(defenderName).font(.subheadline.bold())
                 Spacer()
-                Text(vm.effectivenessLabel)
-                    .font(.headline.bold())
-                    .foregroundStyle(vm.effectivenessColor)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(vm.effectivenessColor.opacity(0.15), in: Capsule())
-                if vm.movePower > 0 {
-                    Text(vm.hitsToKO)
-                        .font(.headline.bold()).foregroundStyle(.red)
-                        .padding(.horizontal, 10).padding(.vertical, 4)
+                Text("\(defenderHP) HP")
+                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+
+            if results.isEmpty {
+                Text("No moves selected")
+                    .font(.caption).foregroundStyle(.tertiary)
+            } else {
+                ForEach(results) { result in
+                    MoveResultRow(result: result)
+                }
+            }
+        }
+    }
+}
+
+private struct MoveResultRow: View {
+    let result: MoveResult
+
+    private var isStatus: Bool { result.move.damageClass == "status" }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text(result.move.name)
+                    .font(.subheadline.bold())
+                    .lineLimit(1)
+                TypeBadge(type: result.move.type)
+                DamageClassBadge(damageClass: result.move.damageClass)
+                if result.isSTAB && !isStatus {
+                    Text("STAB")
+                        .font(.system(size: 9, weight: .bold))
+                        .padding(.horizontal, 4).padding(.vertical, 1)
+                        .foregroundStyle(.yellow)
+                        .background(Color.yellow.opacity(0.2), in: Capsule())
+                }
+                Spacer()
+                if !isStatus {
+                    Text(result.effectivenessLabel)
+                        .font(.caption.bold())
+                        .foregroundStyle(result.effectivenessColor)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(result.effectivenessColor.opacity(0.15), in: Capsule())
+                    Text(result.hitsToKO)
+                        .font(.caption.bold())
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(Color.red.opacity(0.15), in: Capsule())
                 }
             }
 
-            Divider()
+            if isStatus {
+                Text("Status move — no damage")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 4) {
+                    Text("\(String(format: "%.0f", result.damageMin))-\(String(format: "%.0f", result.damageMax))")
+                        .font(.caption.monospacedDigit())
+                    Text("(\(String(format: "%.1f", result.minPercent))% - \(String(format: "%.1f", result.maxPercent))%)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
 
-            HStack(spacing: 0) {
-                damageColumn(label: "Min", value: vm.result.min, pct: vm.minPercent)
-                Divider().frame(height: 44)
-                damageColumn(label: "Max", value: vm.result.max, pct: vm.maxPercent)
-            }
-
-            PercentageBar(minPct: vm.minPercent, maxPct: vm.maxPercent)
-
-            // Active modifier badges
-            HStack(spacing: 6) {
-                if vm.stab && vm.selectedMove != nil {
-                    InfoBadge(text: "STAB", color: .yellow)
-                }
-                if vm.weather != .none {
-                    InfoBadge(text: vm.weather.rawValue, color: .cyan)
-                }
-                if let atkA = vm.attacker.selectedAbility, !atkA.isEmpty {
-                    InfoBadge(text: formatAbilityName(atkA), color: .orange)
-                }
-                if let defA = vm.defender.selectedAbility, !defA.isEmpty {
-                    InfoBadge(text: formatAbilityName(defA), color: .purple)
-                }
-                if vm.attacker.championsMode {
-                    InfoBadge(text: "Champions", color: .red)
-                }
-                Spacer()
+                PercentageBar(minPct: result.minPercent, maxPct: result.maxPercent)
             }
         }
-        .padding()
-        .background(.background, in: RoundedRectangle(cornerRadius: 14))
-        .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
-    }
-
-    private func damageColumn(label: String, value: Double, pct: Double) -> some View {
-        VStack(spacing: 2) {
-            Text(label).font(.caption).foregroundStyle(.secondary)
-            Text(String(format: "%.0f", value))
-                .font(.system(size: 32, weight: .bold, design: .rounded))
-            Text(String(format: "%.1f%%", pct))
-                .font(.callout)
-                .foregroundStyle(pct >= 100 ? .red : .secondary)
-        }
-        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
     }
 }
 
@@ -532,7 +685,13 @@ private struct SideCard: View {
     let icon: String
     @Bindable var side: CalcSide
     let allPokemon: [PKMNStats]
-    let isAttacker: Bool
+    let allMoves: [MoveData]
+    var vm: DamageCalcVM
+
+    @Query(sort: \SavedSpread.createdAt, order: .reverse) private var savedSpreads: [SavedSpread]
+    @Environment(\.modelContext) private var modelContext
+    @State private var showSaveSheet = false
+    @State private var showLoadSheet = false
 
     private var filteredPokemon: [PKMNStats] {
         let q = side.searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -582,6 +741,9 @@ private struct SideCard: View {
                                         side.pokemon = p
                                         side.searchText = ""
                                         side.selectedAbility = p.ability1
+                                        side.moves = [nil, nil, nil, nil]
+                                        side.moveSearchTexts = ["", "", "", ""]
+                                        side.loadedSpreadName = nil
                                     } label: {
                                         HStack {
                                             Text("#\(p.id)").foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
@@ -603,22 +765,71 @@ private struct SideCard: View {
                 }
             }
 
+            // Moves section
+            if side.pokemon != nil {
+                Divider()
+                MoveSlotsSection(side: side, allMoves: allMoves, allPokemon: allPokemon, vm: vm)
+            }
+
+            // Save / Load Spreads
+            Divider()
+            if let spreadName = side.loadedSpreadName {
+                HStack(spacing: 6) {
+                    Image(systemName: "bookmark.fill")
+                        .font(.caption2).foregroundStyle(.red)
+                    Text(spreadName)
+                        .font(.caption.bold()).foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        side.loadedSpreadName = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.caption).foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            HStack {
+                Button { showSaveSheet = true } label: {
+                    Label("Save Spread", systemImage: "square.and.arrow.down")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered).tint(.red)
+
+                Button { showLoadSheet = true } label: {
+                    Label("Load", systemImage: "tray.and.arrow.up")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered).tint(.secondary)
+                .disabled(savedSpreads.isEmpty)
+            }
+
             if let pkmn = side.pokemon {
                 Divider()
 
                 // Ability Picker
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Ability").font(.caption).foregroundStyle(.secondary)
-                    Picker("Ability", selection: $side.selectedAbility) {
-                        Text("None").tag(String?.none)
-                        ForEach(pkmn.allAbilities, id: \.self) { a in
-                            Text(formatAbilityName(a)).tag(Optional(a))
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Ability").font(.caption).foregroundStyle(.secondary)
+                        Picker("Ability", selection: $side.selectedAbility) {
+                            Text("None").tag(String?.none)
+                            ForEach(pkmn.allAbilities, id: \.self) { a in
+                                Text(formatAbilityName(a)).tag(Optional(a))
+                            }
                         }
+                        .labelsHidden()
                     }
-                    .labelsHidden()
+                    Spacer()
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Item").font(.caption).foregroundStyle(.secondary)
+                        Picker("Item", selection: $side.heldItem) {
+                            ForEach(HeldItem.allCases) { item in
+                                Text(item.rawValue).tag(item)
+                            }
+                        }
+                        .labelsHidden()
+                    }
                 }
 
-                // Full HP toggle (for Multiscale etc.)
                 Toggle("At Full HP", isOn: $side.atFullHP)
                     .font(.subheadline)
 
@@ -661,11 +872,17 @@ private struct SideCard: View {
                     }
 
                     HStack {
+                        let pct = side.evTotalMax > 0
+                            ? Double(side.totalEVs) / Double(side.evTotalMax)
+                            : 0
                         Text("\(side.totalEVs)/\(side.evTotalMax) EVs")
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(side.totalEVs > side.evTotalMax ? .red : .secondary)
+                        ProgressView(value: min(pct, 1.0))
+                            .tint(pct >= 1.0 ? .red : .accentColor)
+                            .frame(maxWidth: 80)
                         Spacer()
-                        Button("Reset EVs") {
+                        Button("Reset") {
                             side.evHP = 0; side.evAtk = 0; side.evDef = 0
                             side.evSpAtk = 0; side.evSpDef = 0; side.evSpeed = 0
                         }
@@ -675,20 +892,17 @@ private struct SideCard: View {
                     }
                 }
 
-                // EVs
-                let evMax = side.evPerStatMax
                 let evStep = side.championsMode ? 1 : 4
                 DisclosureGroup("EVs (\(side.totalEVs)/\(side.evTotalMax))") {
-                    EVIVRow(label: "HP", value: $side.evHP, range: 0...evMax, step: evStep)
-                    EVIVRow(label: "Atk", value: $side.evAtk, range: 0...evMax, step: evStep)
-                    EVIVRow(label: "Def", value: $side.evDef, range: 0...evMax, step: evStep)
-                    EVIVRow(label: "Sp.Atk", value: $side.evSpAtk, range: 0...evMax, step: evStep)
-                    EVIVRow(label: "Sp.Def", value: $side.evSpDef, range: 0...evMax, step: evStep)
-                    EVIVRow(label: "Speed", value: $side.evSpeed, range: 0...evMax, step: evStep)
+                    CappedEVRow(label: "HP", side: side, keyPath: \.evHP, step: evStep)
+                    CappedEVRow(label: "Atk", side: side, keyPath: \.evAtk, step: evStep)
+                    CappedEVRow(label: "Def", side: side, keyPath: \.evDef, step: evStep)
+                    CappedEVRow(label: "Sp.Atk", side: side, keyPath: \.evSpAtk, step: evStep)
+                    CappedEVRow(label: "Sp.Def", side: side, keyPath: \.evSpDef, step: evStep)
+                    CappedEVRow(label: "Speed", side: side, keyPath: \.evSpeed, step: evStep)
                 }
                 .font(.subheadline)
 
-                // IVs — hidden in Champions mode (always 31)
                 if !side.championsMode {
                     DisclosureGroup("IVs") {
                         EVIVRow(label: "HP", value: $side.ivHP, range: 0...31, step: 1)
@@ -725,58 +939,84 @@ private struct SideCard: View {
                 }
             }
         }
+        .sheet(isPresented: $showSaveSheet) {
+            SaveSpreadSheet(side: side, modelContext: modelContext, isPresented: $showSaveSheet)
+        }
+        .sheet(isPresented: $showLoadSheet) {
+            LoadSpreadSheet(side: side, spreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves, modelContext: modelContext, isPresented: $showLoadSheet)
+        }
     }
 }
 
-// MARK: - Move Card
+// MARK: - Move Slots Section
 
-private struct MoveCard: View {
-    @Bindable var vm: DamageCalcVM
+private struct MoveSlotsSection: View {
+    @Bindable var side: CalcSide
     let allMoves: [MoveData]
     let allPokemon: [PKMNStats]
+    var vm: DamageCalcVM
 
     var body: some View {
-        CalcSection(title: "Move", icon: "bolt.horizontal.fill") {
-            if let move = vm.selectedMove {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(move.name).font(.title3.bold())
-                            TypeBadge(type: move.type)
-                        }
-                        HStack(spacing: 16) {
-                            Label("\(move.power ?? 0)", systemImage: "flame.fill")
-                            Label(move.damageClass.capitalized, systemImage: move.damageClass == "physical" ? "figure.boxing" : "sparkles")
-                            if let acc = move.accuracy { Label("\(acc)%", systemImage: "target") }
-                            Label("\(move.pp) PP", systemImage: "circle.grid.2x2")
-                        }
-                        .font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button { vm.selectedMove = nil; vm.moveSearchText = "" } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                    }
-                }
-            } else {
-                HStack {
-                    TextField("Search moves...", text: $vm.moveSearchText)
-                        .textFieldStyle(.roundedBorder)
-                }
-
-                if vm.attacker.pokemon != nil {
-                    Toggle("Legal moves only", isOn: $vm.filterLegalMoves)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Moves").font(.subheadline.bold())
+                Spacer()
+                if side.pokemon != nil {
+                    Toggle("Legal only", isOn: $side.filterLegalMoves)
                         .font(.caption)
                         .tint(.red)
+                        .fixedSize()
+                }
+            }
+
+            ForEach(0..<4, id: \.self) { index in
+                MoveSlotView(index: index, side: side, allMoves: allMoves, allPokemon: allPokemon, vm: vm)
+            }
+        }
+    }
+}
+
+private struct MoveSlotView: View {
+    let index: Int
+    @Bindable var side: CalcSide
+    let allMoves: [MoveData]
+    let allPokemon: [PKMNStats]
+    var vm: DamageCalcVM
+
+    var body: some View {
+        if let move = side.moves[index] {
+            HStack(spacing: 6) {
+                Text("\(index + 1).").font(.caption).foregroundStyle(.tertiary)
+                Text(move.name).font(.subheadline.bold()).lineLimit(1)
+                TypeBadge(type: move.type)
+                Text("\(move.power ?? 0) BP")
+                    .font(.caption).foregroundStyle(.secondary)
+                DamageClassBadge(damageClass: move.damageClass)
+                Spacer()
+                Button { side.moves[index] = nil } label: {
+                    Image(systemName: "xmark.circle.fill").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 4) {
+                    Text("\(index + 1).").font(.caption).foregroundStyle(.tertiary)
+                    TextField("Move \(index + 1)...", text: Binding(
+                        get: { side.moveSearchTexts[index] },
+                        set: { side.moveSearchTexts[index] = $0 }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.subheadline)
                 }
 
-                let results = vm.filteredMoves(from: allMoves, allPokemon: allPokemon)
+                let results = vm.filteredMoves(for: side, slotIndex: index, allMoves: allMoves, allPokemon: allPokemon)
                 if !results.isEmpty {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0) {
                             ForEach(results) { move in
                                 Button {
-                                    vm.selectedMove = move
-                                    vm.moveSearchText = ""
+                                    side.moves[index] = move
+                                    side.moveSearchTexts[index] = ""
                                 } label: {
                                     HStack {
                                         Text(move.name)
@@ -784,19 +1024,16 @@ private struct MoveCard: View {
                                         TypeBadge(type: move.type)
                                         Text("\(move.power ?? 0) BP")
                                             .font(.caption).foregroundStyle(.secondary)
-                                        Text(move.damageClass == "physical" ? "Phys" : "Spec")
-                                            .font(.caption2)
-                                            .padding(.horizontal, 6).padding(.vertical, 2)
-                                            .background(move.damageClass == "physical" ? Color.orange.opacity(0.2) : Color.indigo.opacity(0.2), in: Capsule())
+                                        DamageClassBadge(damageClass: move.damageClass)
                                     }
-                                    .padding(.vertical, 6).padding(.horizontal, 8)
+                                    .padding(.vertical, 4).padding(.horizontal, 8)
                                 }
                                 .buttonStyle(.plain)
                                 Divider()
                             }
                         }
                     }
-                    .frame(maxHeight: 200)
+                    .frame(maxHeight: 150)
                     .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
                 }
             }
@@ -811,7 +1048,6 @@ private struct ModifiersCard: View {
 
     var body: some View {
         CalcSection(title: "Modifiers", icon: "slider.horizontal.3") {
-            // Weather
             VStack(alignment: .leading, spacing: 6) {
                 Text("Weather").font(.subheadline).foregroundStyle(.secondary)
                 Picker("Weather", selection: $vm.weather) {
@@ -821,20 +1057,13 @@ private struct ModifiersCard: View {
                 }
                 .pickerStyle(.segmented)
 
-                if vm.weather != .none {
-                    let mult = vm.weatherMoveMult
-                    if mult != 1.0 {
-                        Text("\(vm.weather.rawValue) \(mult > 1 ? "boosts" : "weakens") \(vm.moveType) moves (\(String(format: "%.1fx", mult)))")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    if vm.weather == .sand {
-                        Text("Rock-type defenders get 1.5x Sp.Def in Sand")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    if vm.weather == .snow {
-                        Text("Ice-type defenders get 1.5x Def in Snow")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
+                if vm.weather == .sand {
+                    Text("Rock-type defenders get 1.5x Sp.Def in Sand")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if vm.weather == .snow {
+                    Text("Ice-type defenders get 1.5x Def in Snow")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
 
@@ -864,6 +1093,143 @@ private struct ModifiersCard: View {
     }
 }
 
+// MARK: - Save / Load Spread Sheets
+
+private struct SaveSpreadSheet: View {
+    var side: CalcSide
+    var modelContext: ModelContext
+    @Binding var isPresented: Bool
+    @State private var name: String
+
+    init(side: CalcSide, modelContext: ModelContext, isPresented: Binding<Bool>) {
+        self.side = side
+        self.modelContext = modelContext
+        self._isPresented = isPresented
+        self._name = State(initialValue: side.loadedSpreadName ?? "")
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Spread Name") {
+                    TextField("e.g. Physical Sweeper", text: $name)
+                }
+                Section("Summary") {
+                    if let pkmn = side.pokemon {
+                        LabeledContent("Pokemon", value: pkmn.name)
+                    }
+                    LabeledContent("Nature", value: side.nature.name)
+                    LabeledContent("EVs", value: "\(side.evHP)/\(side.evAtk)/\(side.evDef)/\(side.evSpAtk)/\(side.evSpDef)/\(side.evSpeed)")
+                    if !side.championsMode {
+                        LabeledContent("IVs", value: "\(side.ivHP)/\(side.ivAtk)/\(side.ivDef)/\(side.ivSpAtk)/\(side.ivSpDef)/\(side.ivSpeed)")
+                    }
+                    if side.championsMode {
+                        LabeledContent("Mode", value: "Champions")
+                    }
+                    let moveNames = side.moves.compactMap { $0?.name }
+                    if !moveNames.isEmpty {
+                        LabeledContent("Moves", value: moveNames.joined(separator: ", "))
+                    }
+                }
+            }
+            .navigationTitle("Save Spread")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { isPresented = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        let finalName = name.isEmpty ? "Untitled" : name
+                        let spread = side.toSavedSpread(name: finalName)
+                        modelContext.insert(spread)
+                        side.loadedSpreadName = finalName
+                        isPresented = false
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+}
+
+private struct LoadSpreadSheet: View {
+    var side: CalcSide
+    let spreads: [SavedSpread]
+    let allPokemon: [PKMNStats]
+    let allMoves: [MoveData]
+    var modelContext: ModelContext
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(spreads) { spread in
+                    Button {
+                        side.loadSpread(spread, allPokemon: allPokemon, allMoves: allMoves)
+                        isPresented = false
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(spread.name).font(.headline)
+                                Spacer()
+                                if spread.championsMode {
+                                    Text("Champions")
+                                        .font(.caption2.bold())
+                                        .padding(.horizontal, 6).padding(.vertical, 2)
+                                        .foregroundStyle(.red)
+                                        .background(Color.red.opacity(0.15), in: Capsule())
+                                }
+                            }
+                            HStack(spacing: 8) {
+                                if let pkmn = spread.pokemonName {
+                                    Text(pkmn).font(.caption).foregroundStyle(.secondary)
+                                }
+                                Text(allNatures.first(where: { $0.id == spread.natureID })?.name ?? "")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                if let ability = spread.abilityName {
+                                    Text(formatAbilityName(ability))
+                                        .font(.caption2)
+                                        .padding(.horizontal, 4).padding(.vertical, 1)
+                                        .foregroundStyle(.orange)
+                                        .background(Color.orange.opacity(0.12), in: Capsule())
+                                }
+                                if let item = spread.itemRawValue {
+                                    Text(item)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 4).padding(.vertical, 1)
+                                        .foregroundStyle(.green)
+                                        .background(Color.green.opacity(0.12), in: Capsule())
+                                }
+                            }
+                            Text("EVs: \(spread.evHP)/\(spread.evAtk)/\(spread.evDef)/\(spread.evSpAtk)/\(spread.evSpDef)/\(spread.evSpeed)")
+                                .font(.caption.monospaced()).foregroundStyle(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .onDelete { indices in
+                    for i in indices {
+                        modelContext.delete(spreads[i])
+                    }
+                }
+            }
+            .navigationTitle("Load Spread")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    EditButton()
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { isPresented = false }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
 // MARK: - Reusable Components
 
 private struct CalcSection<Content: View>: View {
@@ -879,6 +1245,33 @@ private struct CalcSection<Content: View>: View {
         .padding()
         .background(.background, in: RoundedRectangle(cornerRadius: 14))
         .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+    }
+}
+
+private struct DamageClassBadge: View {
+    let damageClass: String
+    private var label: String {
+        switch damageClass {
+        case "physical": return "Phys"
+        case "special":  return "Spec"
+        case "status":   return "Status"
+        default:         return damageClass.capitalized
+        }
+    }
+    private var color: Color {
+        switch damageClass {
+        case "physical": return .orange
+        case "special":  return .indigo
+        case "status":   return .gray
+        default:         return .secondary
+        }
+    }
+    var body: some View {
+        Text(label)
+            .font(.system(size: 9, weight: .semibold))
+            .padding(.horizontal, 4).padding(.vertical, 1)
+            .foregroundStyle(color)
+            .background(color.opacity(0.15), in: Capsule())
     }
 }
 
@@ -902,6 +1295,45 @@ private struct StatMini: View {
             Text("\(value)").bold()
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+private struct CappedEVRow: View {
+    let label: String
+    var side: CalcSide
+    let keyPath: ReferenceWritableKeyPath<CalcSide, Int>
+    var step: Int = 4
+
+    private var cap: Int {
+        side.maxAllowedEV(excluding: side[keyPath: keyPath])
+    }
+
+    var body: some View {
+        let perStatMax = side.evPerStatMax
+        HStack {
+            Text(label).frame(width: 55, alignment: .leading)
+            Slider(value: Binding(
+                get: { Double(side[keyPath: keyPath]) },
+                set: { newVal in
+                    let clamped = max(0, min(Int(newVal), cap))
+                    side[keyPath: keyPath] = clamped
+                    side.loadedSpreadName = nil
+                }
+            ), in: 0...Double(max(perStatMax, 1)), step: Double(step))
+            .tint(.red)
+            TextField("", value: Binding(
+                get: { side[keyPath: keyPath] },
+                set: { newVal in
+                    let clamped = max(0, min(newVal, cap))
+                    side[keyPath: keyPath] = clamped
+                    side.loadedSpreadName = nil
+                }
+            ), format: .number)
+                .textFieldStyle(.roundedBorder).frame(width: 50)
+                #if os(iOS)
+                .keyboardType(.numberPad)
+                #endif
+        }
     }
 }
 
