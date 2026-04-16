@@ -43,7 +43,7 @@ private func pokeFloor(_ value: Int, _ modifier: Double) -> Int {
 
 func calcDamageRange(
     level: Int, movePower: Int, userAtk: Int, defenderDef: Int,
-    multi: Bool, parentalBond: Bool,
+    multi: Bool,
     weatherMult: Double, glaiveRush: Bool,
     crit: Bool, critMultiplier: Double,
     stabBonus: Double, typeEffect: Double,
@@ -61,7 +61,6 @@ func calcDamageRange(
     base = base / 50 + 2
 
     if multi        { base = pokeFloor(base, 0.75) }
-    if parentalBond { base = pokeFloor(base, 1.25) }
     base = pokeFloor(base, weatherMult)
     if glaiveRush   { base = pokeFloor(base, 2.0) }
     if crit         { base = pokeFloor(base, abilityMods.critMultiplierOverride ?? critMultiplier) }
@@ -293,10 +292,10 @@ class DamageCalcVM {
     var crit: Bool = false
     var burn: Bool = false
     var multi: Bool = false
-    var parentalBond: Bool = false
     var glaiveRush: Bool = false
     var zMoveBypass: Bool = false
     var weather: WeatherCondition = .none
+    var terrain: TerrainCondition = .none
     var miscMultiplier: Double = 1.0
 
     // MARK: Computed Results
@@ -345,7 +344,9 @@ class DamageCalcVM {
             typeEffectiveness: typeEff,
             weather: weather,
             attackerAtFullHP: attacker.atFullHP,
-            defenderAtFullHP: defender.atFullHP
+            defenderAtFullHP: defender.atFullHP,
+            defenderTypes: defender.types,
+            terrain: terrain
         )
 
         let baseAtk = isPhysical ? attacker.atk : attacker.spAtk
@@ -361,10 +362,12 @@ class DamageCalcVM {
             effectiveDef = Int(floor(Double(defender.spDef) * sandMult * itemMods.spDefMultiplier))
         }
 
+        let terrainMult = terrain.moveDamageMultiplier(moveType: moveType)
+
         let raw = calcDamageRange(
             level: attacker.level, movePower: movePower,
             userAtk: effectiveAtk, defenderDef: effectiveDef,
-            multi: multi, parentalBond: parentalBond,
+            multi: multi,
             weatherMult: weatherMult, glaiveRush: glaiveRush,
             crit: crit, critMultiplier: 1.5,
             stabBonus: stabBonus, typeEffect: typeEff,
@@ -372,7 +375,7 @@ class DamageCalcVM {
             zMoveBypass: zMoveBypass
         )
 
-        let im = itemMods.damageMult
+        let im = itemMods.damageMult * terrainMult
         let dMin = floor(raw.min * im)
         let dMax = floor(raw.max * im)
         let minPct = defender.hp > 0 ? min(dMin / Double(defender.hp) * 100, 999) : 0
@@ -513,6 +516,9 @@ private struct ResultCard: View {
             HStack(spacing: 6) {
                 if vm.weather != .none {
                     InfoBadge(text: vm.weather.rawValue, color: .cyan)
+                }
+                if vm.terrain != .none {
+                    InfoBadge(text: "\(vm.terrain.rawValue) Terrain", color: .green)
                 }
                 if vm.crit { InfoBadge(text: "Crit", color: .orange) }
                 if vm.burn { InfoBadge(text: "Burn", color: .red) }
@@ -1070,18 +1076,42 @@ private struct ModifiersCard: View {
                 }
             }
 
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Terrain").font(.subheadline).foregroundStyle(.secondary)
+                Picker("Terrain", selection: $vm.terrain) {
+                    ForEach(TerrainCondition.allCases) { t in
+                        Text(t.rawValue).tag(t)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                if vm.terrain == .electric {
+                    Text("1.3x Electric moves for grounded Pokemon")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if vm.terrain == .grassy {
+                    Text("1.3x Grass moves for grounded Pokemon")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if vm.terrain == .misty {
+                    Text("0.5x Dragon moves against grounded Pokemon")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if vm.terrain == .psychic {
+                    Text("1.3x Psychic moves for grounded Pokemon")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
             HStack {
                 ToggleBadge(label: "Crit", on: $vm.crit)
                 ToggleBadge(label: "Burn", on: $vm.burn)
             }
             HStack {
                 ToggleBadge(label: "Multi-hit", on: $vm.multi)
-                ToggleBadge(label: "Parental Bond", on: $vm.parentalBond)
-            }
-            HStack {
                 ToggleBadge(label: "Glaive Rush", on: $vm.glaiveRush)
-                ToggleBadge(label: "Z-Move Bypass", on: $vm.zMoveBypass)
             }
+            ToggleBadge(label: "Z-Move Bypass", on: $vm.zMoveBypass)
 
             HStack {
                 Text("Misc Multiplier").font(.subheadline)

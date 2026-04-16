@@ -367,6 +367,35 @@ enum WeatherCondition: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Terrain
+
+enum TerrainCondition: String, CaseIterable, Identifiable {
+    case none = "None"
+    case electric = "Electric"
+    case grassy = "Grassy"
+    case misty = "Misty"
+    case psychic = "Psychic"
+
+    var id: String { rawValue }
+
+    /// Multiplier applied to the move's damage based on its type.
+    func moveDamageMultiplier(moveType: String) -> Double {
+        switch self {
+        case .electric:
+            if moveType == "Electric" { return 1.3 }
+        case .grassy:
+            if moveType == "Grass" { return 1.3 }
+        case .misty:
+            if moveType == "Dragon" { return 0.5 }
+        case .psychic:
+            if moveType == "Psychic" { return 1.3 }
+        case .none:
+            break
+        }
+        return 1.0
+    }
+}
+
 // MARK: - Ability Damage Modifiers
 
 /// All competitively relevant abilities that modify damage calculation.
@@ -434,6 +463,35 @@ enum DamageAbility: String, CaseIterable, Identifiable {
     case waterBubbleDefense = "water-bubble-def" // same ability, defender side
     case wonderGuard = "wonder-guard"
 
+    // Gen IX+ attacker abilities
+    case scrappy = "scrappy"
+    case mindsEye = "minds-eye"
+    case guts = "guts"
+    case toxicBoost = "toxic-boost"
+    case flareBoost = "flare-boost"
+    case defeatist = "defeatist"
+    case slowStart = "slow-start"
+    case rockyPayload = "rocky-payload"
+    case sharpness = "sharpness"
+    case neuroforce = "neuroforce"
+    case orichalcumPulse = "orichalcum-pulse"
+    case hadronEngine = "hadron-engine"
+    case steelySpirit = "steely-spirit"
+    case battery = "battery"
+    case powerSpot = "power-spot"
+    case parentalBond = "parental-bond"
+    case swordOfRuin = "sword-of-ruin"
+    case beadsOfRuin = "beads-of-ruin"
+
+    // Gen IX+ defender abilities
+    case purifyingSalt = "purifying-salt"
+    case wellBakedBody = "well-baked-body"
+    case earthEater = "earth-eater"
+    case teraShell = "tera-shell"
+    case tabletsOfRuin = "tablets-of-ruin"
+    case vesselOfRuin = "vessel-of-ruin"
+    case friendGuard = "friend-guard"
+
     var id: String { rawValue }
 
     var displayName: String {
@@ -462,7 +520,9 @@ func computeAbilityModifiers(
     typeEffectiveness: Double,
     weather: WeatherCondition,
     attackerAtFullHP: Bool,
-    defenderAtFullHP: Bool
+    defenderAtFullHP: Bool,
+    defenderTypes: [String] = [],
+    terrain: TerrainCondition = .none
 ) -> AbilityModResult {
     var r = AbilityModResult()
     let atk = attackerAbility ?? ""
@@ -582,6 +642,66 @@ func computeAbilityModifiers(
     case "galvanize":
         if moveType == "Normal" { r.powerMultiplier *= 1.2 }
 
+    case "scrappy", "minds-eye":
+        // Normal and Fighting moves can hit Ghost types
+        if (moveType == "Normal" || moveType == "Fighting") && typeEffectiveness == 0 {
+            var recalc = 1.0
+            let chart = typeEffectivenessChart[moveType] ?? [:]
+            for dt in defenderTypes {
+                if dt == "Ghost" { continue }
+                recalc *= chart[dt] ?? 1.0
+            }
+            r.typeEffOverride = recalc
+        }
+
+    case "guts":
+        if isPhysical { r.atkMultiplier *= 1.5 }
+
+    case "toxic-boost":
+        if isPhysical { r.atkMultiplier *= 1.5 }
+
+    case "flare-boost":
+        if !isPhysical { r.atkMultiplier *= 1.5 }
+
+    case "defeatist":
+        if !attackerAtFullHP { r.atkMultiplier *= 0.5 }
+
+    case "slow-start":
+        if isPhysical { r.atkMultiplier *= 0.5 }
+
+    case "rocky-payload":
+        if moveType == "Rock" { r.powerMultiplier *= 1.5 }
+
+    case "sharpness":
+        r.powerMultiplier *= 1.5 // applies to slicing moves; simplified
+
+    case "neuroforce":
+        if typeEffectiveness > 1.0 { r.finalMultiplier *= 1.25 }
+
+    case "orichalcum-pulse":
+        if weather == .sun && isPhysical { r.atkMultiplier *= (4.0 / 3.0) }
+
+    case "hadron-engine":
+        if !isPhysical && terrain == .electric { r.atkMultiplier *= (4.0 / 3.0) }
+
+    case "steely-spirit":
+        if moveType == "Steel" { r.powerMultiplier *= 1.5 }
+
+    case "battery":
+        if !isPhysical { r.finalMultiplier *= 1.3 }
+
+    case "power-spot":
+        r.finalMultiplier *= 1.3
+
+    case "parental-bond":
+        r.powerMultiplier *= 1.25
+
+    case "sword-of-ruin":
+        if isPhysical { r.defMultiplier *= 0.75 }
+
+    case "beads-of-ruin":
+        if !isPhysical { r.defMultiplier *= 0.75 }
+
     default: break
     }
 
@@ -643,6 +763,27 @@ func computeAbilityModifiers(
 
     case "wonder-guard":
         if typeEffectiveness <= 1.0 { r.typeEffOverride = 0.0 }
+
+    case "purifying-salt":
+        if moveType == "Ghost" { r.finalMultiplier *= 0.5 }
+
+    case "well-baked-body":
+        if moveType == "Fire" { r.typeEffOverride = 0.0 }
+
+    case "earth-eater":
+        if moveType == "Ground" { r.typeEffOverride = 0.0 }
+
+    case "tera-shell":
+        if defenderAtFullHP && typeEffectiveness > 1.0 { r.typeEffOverride = 0.5 }
+
+    case "tablets-of-ruin":
+        if isPhysical { r.atkMultiplier *= 0.75 }
+
+    case "vessel-of-ruin":
+        if !isPhysical { r.atkMultiplier *= 0.75 }
+
+    case "friend-guard":
+        r.finalMultiplier *= 0.75
 
     default: break
     }

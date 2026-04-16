@@ -12,7 +12,9 @@ struct AttackerAbilityTests {
         isPhysical: Bool = true, isContact: Bool = false,
         isSTAB: Bool = false, typeEff: Double = 1.0,
         weather: WeatherCondition = .none,
-        atkFullHP: Bool = true, defFullHP: Bool = true
+        atkFullHP: Bool = true, defFullHP: Bool = true,
+        defenderTypes: [String] = [],
+        terrain: TerrainCondition = .none
     ) -> AbilityModResult {
         computeAbilityModifiers(
             attackerAbility: ability, defenderAbility: nil,
@@ -20,7 +22,9 @@ struct AttackerAbilityTests {
             isPhysical: isPhysical, isContact: isContact,
             isSTAB: isSTAB, typeEffectiveness: typeEff,
             weather: weather,
-            attackerAtFullHP: atkFullHP, defenderAtFullHP: defFullHP
+            attackerAtFullHP: atkFullHP, defenderAtFullHP: defFullHP,
+            defenderTypes: defenderTypes,
+            terrain: terrain
         )
     }
 
@@ -192,7 +196,7 @@ struct AttackerAbilityTests {
         #expect(r.powerMultiplier == 1.3)
     }
 
-    // MARK: Conditional
+    // MARK: Conditional / Situational
 
     @Test func analyticBoosts() {
         let r = atkMods(ability: "analytic")
@@ -266,6 +270,180 @@ struct AttackerAbilityTests {
         let r = atkMods(ability: "galvanize", moveType: "Normal")
         #expect(r.powerMultiplier == 1.2)
     }
+
+    // MARK: Scrappy / Mind's Eye
+
+    @Test func scrappyNormalHitsGhost() {
+        let r = atkMods(ability: "scrappy", moveType: "Normal", typeEff: 0.0, defenderTypes: ["Ghost"])
+        #expect(r.typeEffOverride == 1.0)
+    }
+
+    @Test func scrappyFightingHitsGhost() {
+        let r = atkMods(ability: "scrappy", moveType: "Fighting", typeEff: 0.0, defenderTypes: ["Ghost"])
+        #expect(r.typeEffOverride == 1.0)
+    }
+
+    @Test func scrappyNormalVsGhostDark() {
+        // Normal vs Ghost/Dark: Ghost immunity removed, Dark is neutral to Normal = 1.0x
+        let r = atkMods(ability: "scrappy", moveType: "Normal", typeEff: 0.0, defenderTypes: ["Ghost", "Dark"])
+        #expect(r.typeEffOverride == 1.0)
+    }
+
+    @Test func scrappyFightingVsGhostDark() {
+        // Fighting vs Ghost/Dark: Ghost immunity removed, Dark is 2x SE
+        let r = atkMods(ability: "scrappy", moveType: "Fighting", typeEff: 0.0, defenderTypes: ["Ghost", "Dark"])
+        #expect(r.typeEffOverride == 2.0)
+    }
+
+    @Test func scrappyNoEffectOnOtherTypes() {
+        // Fire vs Ghost is NVE (0.5), not immune — Scrappy doesn't trigger
+        let r = atkMods(ability: "scrappy", moveType: "Fire", typeEff: 0.5, defenderTypes: ["Ghost"])
+        #expect(r.typeEffOverride == nil)
+    }
+
+    @Test func scrappyNoEffectWhenNotImmune() {
+        // Normal vs Normal: 1.0x, Scrappy doesn't activate
+        let r = atkMods(ability: "scrappy", moveType: "Normal", typeEff: 1.0, defenderTypes: ["Normal"])
+        #expect(r.typeEffOverride == nil)
+    }
+
+    @Test func mindsEyeNormalHitsGhost() {
+        let r = atkMods(ability: "minds-eye", moveType: "Normal", typeEff: 0.0, defenderTypes: ["Ghost"])
+        #expect(r.typeEffOverride == 1.0)
+    }
+
+    @Test func mindsEyeFightingHitsGhost() {
+        let r = atkMods(ability: "minds-eye", moveType: "Fighting", typeEff: 0.0, defenderTypes: ["Ghost"])
+        #expect(r.typeEffOverride == 1.0)
+    }
+
+    // MARK: Guts / Toxic Boost / Flare Boost
+
+    @Test func gutsBoostsPhysicalAtk() {
+        let phys = atkMods(ability: "guts", isPhysical: true)
+        #expect(phys.atkMultiplier == 1.5)
+        let spec = atkMods(ability: "guts", isPhysical: false)
+        #expect(spec.atkMultiplier == 1.0)
+    }
+
+    @Test func toxicBoostBoostsPhysicalAtk() {
+        let phys = atkMods(ability: "toxic-boost", isPhysical: true)
+        #expect(phys.atkMultiplier == 1.5)
+        let spec = atkMods(ability: "toxic-boost", isPhysical: false)
+        #expect(spec.atkMultiplier == 1.0)
+    }
+
+    @Test func flareBoostBoostsSpecialAtk() {
+        let spec = atkMods(ability: "flare-boost", isPhysical: false)
+        #expect(spec.atkMultiplier == 1.5)
+        let phys = atkMods(ability: "flare-boost", isPhysical: true)
+        #expect(phys.atkMultiplier == 1.0)
+    }
+
+    // MARK: Defeatist / Slow Start
+
+    @Test func defeatistHalvesAtkAtLowHP() {
+        let low = atkMods(ability: "defeatist", atkFullHP: false)
+        #expect(low.atkMultiplier == 0.5)
+        let full = atkMods(ability: "defeatist", atkFullHP: true)
+        #expect(full.atkMultiplier == 1.0)
+    }
+
+    @Test func slowStartHalvesPhysicalAtk() {
+        let phys = atkMods(ability: "slow-start", isPhysical: true)
+        #expect(phys.atkMultiplier == 0.5)
+        let spec = atkMods(ability: "slow-start", isPhysical: false)
+        #expect(spec.atkMultiplier == 1.0)
+    }
+
+    // MARK: Type-Boosting (New)
+
+    @Test func rockyPayloadBoostsRock() {
+        let rock = atkMods(ability: "rocky-payload", moveType: "Rock")
+        #expect(rock.powerMultiplier == 1.5)
+        let fire = atkMods(ability: "rocky-payload", moveType: "Fire")
+        #expect(fire.powerMultiplier == 1.0)
+    }
+
+    @Test func steelySpritBoostsSteel() {
+        let steel = atkMods(ability: "steely-spirit", moveType: "Steel")
+        #expect(steel.powerMultiplier == 1.5)
+        let fire = atkMods(ability: "steely-spirit", moveType: "Fire")
+        #expect(fire.powerMultiplier == 1.0)
+    }
+
+    @Test func sharpnessBoosts() {
+        let r = atkMods(ability: "sharpness")
+        #expect(r.powerMultiplier == 1.5)
+    }
+
+    // MARK: Neuroforce
+
+    @Test func neuroforceBoostsSuperEffective() {
+        let se = atkMods(ability: "neuroforce", typeEff: 2.0)
+        #expect(se.finalMultiplier == 1.25)
+        let neutral = atkMods(ability: "neuroforce", typeEff: 1.0)
+        #expect(neutral.finalMultiplier == 1.0)
+        let nve = atkMods(ability: "neuroforce", typeEff: 0.5)
+        #expect(nve.finalMultiplier == 1.0)
+    }
+
+    // MARK: Orichalcum Pulse / Hadron Engine
+
+    @Test func orichalcumPulseBoostsAtkInSun() {
+        let sunPhys = atkMods(ability: "orichalcum-pulse", isPhysical: true, weather: .sun)
+        #expect(sunPhys.atkMultiplier > 1.33 && sunPhys.atkMultiplier < 1.34)
+        let noSun = atkMods(ability: "orichalcum-pulse", isPhysical: true, weather: .none)
+        #expect(noSun.atkMultiplier == 1.0)
+        let sunSpec = atkMods(ability: "orichalcum-pulse", isPhysical: false, weather: .sun)
+        #expect(sunSpec.atkMultiplier == 1.0)
+    }
+
+    @Test func hadronEngineBoostsSpAtkInElectricTerrain() {
+        let specTerrain = atkMods(ability: "hadron-engine", isPhysical: false, terrain: .electric)
+        #expect(specTerrain.atkMultiplier > 1.33 && specTerrain.atkMultiplier < 1.34)
+        let noTerrain = atkMods(ability: "hadron-engine", isPhysical: false, terrain: .none)
+        #expect(noTerrain.atkMultiplier == 1.0)
+        let physTerrain = atkMods(ability: "hadron-engine", isPhysical: true, terrain: .electric)
+        #expect(physTerrain.atkMultiplier == 1.0)
+    }
+
+    // MARK: Battery / Power Spot
+
+    @Test func batteryBoostsSpecialDamage() {
+        let spec = atkMods(ability: "battery", isPhysical: false)
+        #expect(spec.finalMultiplier == 1.3)
+        let phys = atkMods(ability: "battery", isPhysical: true)
+        #expect(phys.finalMultiplier == 1.0)
+    }
+
+    @Test func powerSpotBoostsDamage() {
+        let r = atkMods(ability: "power-spot")
+        #expect(r.finalMultiplier == 1.3)
+    }
+
+    // MARK: Parental Bond
+
+    @Test func parentalBondBoostsPower() {
+        let r = atkMods(ability: "parental-bond")
+        #expect(r.powerMultiplier == 1.25)
+    }
+
+    // MARK: Ruin Abilities (Attacker Side)
+
+    @Test func swordOfRuinReducesPhysicalDef() {
+        let phys = atkMods(ability: "sword-of-ruin", isPhysical: true)
+        #expect(phys.defMultiplier == 0.75)
+        let spec = atkMods(ability: "sword-of-ruin", isPhysical: false)
+        #expect(spec.defMultiplier == 1.0)
+    }
+
+    @Test func beadsOfRuinReducesSpecialDef() {
+        let spec = atkMods(ability: "beads-of-ruin", isPhysical: false)
+        #expect(spec.defMultiplier == 0.75)
+        let phys = atkMods(ability: "beads-of-ruin", isPhysical: true)
+        #expect(phys.defMultiplier == 1.0)
+    }
 }
 
 // MARK: - Defender Abilities
@@ -279,7 +457,8 @@ struct DefenderAbilityTests {
         isPhysical: Bool = true, isContact: Bool = false,
         isSTAB: Bool = false, typeEff: Double = 1.0,
         weather: WeatherCondition = .none,
-        atkFullHP: Bool = true, defFullHP: Bool = true
+        atkFullHP: Bool = true, defFullHP: Bool = true,
+        defenderTypes: [String] = []
     ) -> AbilityModResult {
         computeAbilityModifiers(
             attackerAbility: nil, defenderAbility: ability,
@@ -287,7 +466,8 @@ struct DefenderAbilityTests {
             isPhysical: isPhysical, isContact: isContact,
             isSTAB: isSTAB, typeEffectiveness: typeEff,
             weather: weather,
-            attackerAtFullHP: atkFullHP, defenderAtFullHP: defFullHP
+            attackerAtFullHP: atkFullHP, defenderAtFullHP: defFullHP,
+            defenderTypes: defenderTypes
         )
     }
 
@@ -441,6 +621,67 @@ struct DefenderAbilityTests {
         let se = defMods(ability: "wonder-guard", typeEff: 2.0)
         #expect(se.typeEffOverride == nil)
     }
+
+    // MARK: Purifying Salt
+
+    @Test func purifyingSaltHalvesGhostDamage() {
+        let ghost = defMods(ability: "purifying-salt", moveType: "Ghost")
+        #expect(ghost.finalMultiplier == 0.5)
+        let normal = defMods(ability: "purifying-salt", moveType: "Normal")
+        #expect(normal.finalMultiplier == 1.0)
+    }
+
+    // MARK: Well-Baked Body
+
+    @Test func wellBakedBodyImmuneToFire() {
+        let fire = defMods(ability: "well-baked-body", moveType: "Fire")
+        #expect(fire.typeEffOverride == 0.0)
+        let water = defMods(ability: "well-baked-body", moveType: "Water")
+        #expect(water.typeEffOverride == nil)
+    }
+
+    // MARK: Earth Eater
+
+    @Test func earthEaterImmuneToGround() {
+        let ground = defMods(ability: "earth-eater", moveType: "Ground")
+        #expect(ground.typeEffOverride == 0.0)
+        let fire = defMods(ability: "earth-eater", moveType: "Fire")
+        #expect(fire.typeEffOverride == nil)
+    }
+
+    // MARK: Tera Shell
+
+    @Test func teraShellReducesSEAtFullHP() {
+        let seFull = defMods(ability: "tera-shell", typeEff: 2.0, defFullHP: true)
+        #expect(seFull.typeEffOverride == 0.5)
+        let seNotFull = defMods(ability: "tera-shell", typeEff: 2.0, defFullHP: false)
+        #expect(seNotFull.typeEffOverride == nil)
+        let neutralFull = defMods(ability: "tera-shell", typeEff: 1.0, defFullHP: true)
+        #expect(neutralFull.typeEffOverride == nil)
+    }
+
+    // MARK: Ruin Abilities (Defender Side)
+
+    @Test func tabletsOfRuinReducesPhysicalAtk() {
+        let phys = defMods(ability: "tablets-of-ruin", isPhysical: true)
+        #expect(phys.atkMultiplier == 0.75)
+        let spec = defMods(ability: "tablets-of-ruin", isPhysical: false)
+        #expect(spec.atkMultiplier == 1.0)
+    }
+
+    @Test func vesselOfRuinReducesSpecialAtk() {
+        let spec = defMods(ability: "vessel-of-ruin", isPhysical: false)
+        #expect(spec.atkMultiplier == 0.75)
+        let phys = defMods(ability: "vessel-of-ruin", isPhysical: true)
+        #expect(phys.atkMultiplier == 1.0)
+    }
+
+    // MARK: Friend Guard
+
+    @Test func friendGuardReducesDamage() {
+        let r = defMods(ability: "friend-guard")
+        #expect(r.finalMultiplier == 0.75)
+    }
 }
 
 // MARK: - Damage Engine Integration
@@ -452,7 +693,7 @@ struct DamageEngineTests {
         let noAbility = AbilityModResult()
         let base = calcDamageRange(
             level: 50, movePower: 90, userAtk: 150, defenderDef: 100,
-            multi: false, parentalBond: false,
+            multi: false,
             weatherMult: 1.0, glaiveRush: false,
             crit: false, critMultiplier: 1.5,
             stabBonus: 1.0, typeEffect: 1.0,
@@ -464,7 +705,7 @@ struct DamageEngineTests {
         proteanMods.stabOverride = 1.5
         let boosted = calcDamageRange(
             level: 50, movePower: 90, userAtk: 150, defenderDef: 100,
-            multi: false, parentalBond: false,
+            multi: false,
             weatherMult: 1.0, glaiveRush: false,
             crit: false, critMultiplier: 1.5,
             stabBonus: 1.0, typeEffect: 1.0,
@@ -481,7 +722,7 @@ struct DamageEngineTests {
     @Test func zeroPowerReturnsZeroDamage() {
         let r = calcDamageRange(
             level: 50, movePower: 0, userAtk: 150, defenderDef: 100,
-            multi: false, parentalBond: false,
+            multi: false,
             weatherMult: 1.0, glaiveRush: false,
             crit: false, critMultiplier: 1.5,
             stabBonus: 1.0, typeEffect: 1.0,
@@ -503,7 +744,7 @@ struct DamageEngineTests {
     @Test func minDamageIsLessThanMax() {
         let r = calcDamageRange(
             level: 50, movePower: 100, userAtk: 200, defenderDef: 100,
-            multi: false, parentalBond: false,
+            multi: false,
             weatherMult: 1.0, glaiveRush: false,
             crit: false, critMultiplier: 1.5,
             stabBonus: 1.5, typeEffect: 2.0,
