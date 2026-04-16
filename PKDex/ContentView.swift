@@ -16,7 +16,7 @@ struct ContentView: View {
     var body: some View {
         TabView {
             PokedexTab()
-                .tabItem { Label("Pokédex", systemImage: "list.bullet") }
+                .tabItem { Label("Mon Index", systemImage: "list.bullet") }
 
             DamageCalculatorView()
                 .tabItem { Label("Damage Calc", systemImage: "bolt.fill") }
@@ -37,7 +37,7 @@ private struct PokedexTab: View {
             Group {
                 if allPokemon.isEmpty {
                     ContentUnavailableView {
-                        Label("No Pokemon Found", systemImage: "antenna.radiowaves.left.and.right")
+                        Label("No Mons Found", systemImage: "antenna.radiowaves.left.and.right")
                     } description: {
                         Text("Syncing with PokeAPI... please wait.")
                     }
@@ -45,8 +45,8 @@ private struct PokedexTab: View {
                     FilteredList(filter: selectedFilter, searchText: searchText)
                 }
             }
-            .navigationTitle("Pokédex")
-            .searchable(text: $searchText, prompt: "Search Pokemon")
+            .navigationTitle("Mon Index")
+            .searchable(text: $searchText, prompt: "Search Mons")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Menu("Reset") {

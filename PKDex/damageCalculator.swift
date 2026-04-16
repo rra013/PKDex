@@ -409,6 +409,9 @@ class DamageCalcVM {
             }
         }()
 
+        // STAB is true if natural type match OR ability grants it (Protean/Libero)
+        let hasSTAB = stab || abilityMods.stabOverride != nil
+
         return MoveResult(
             move: move,
             damageMin: dMin, damageMax: dMax,
@@ -417,7 +420,7 @@ class DamageCalcVM {
             effectiveness: eff,
             effectivenessLabel: effLabel,
             effectivenessColor: effColor,
-            isSTAB: stab
+            isSTAB: hasSTAB
         )
     }
 
@@ -545,7 +548,7 @@ private struct ResultCard: View {
                     results: vm.side2Results
                 )
             } else {
-                Text("Select two Pokemon to see results")
+                Text("Select two Mons to see results")
                     .font(.subheadline).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
@@ -730,7 +733,7 @@ private struct SideCard: View {
                     }
                     .font(.caption2)
                 } else {
-                    TextField("Search Pokemon...", text: $side.searchText)
+                    TextField("Search Mons...", text: $side.searchText)
                         .textFieldStyle(.roundedBorder)
 
                     if !filteredPokemon.isEmpty {
