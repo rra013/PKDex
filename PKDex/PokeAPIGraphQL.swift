@@ -223,6 +223,42 @@ nonisolated private func parseAbilities(_ gqlAbilities: [GQLPokemon.GQLPokemonAb
     )
 }
 
+// MARK: - Learnset Inheritance
+
+/// Input for the learnset inheritance algorithm.
+struct SpeciesLearnsetEntry {
+    let speciesID: Int
+    var moveIDs: [Int]
+    let evolvesFromSpeciesID: Int?
+}
+
+/// Merges pre-evolution moves into each species' learnset by walking evolution chains.
+/// Returns a dictionary mapping speciesID -> merged move ID set.
+func inheritLearnsets(_ entries: [SpeciesLearnsetEntry]) -> [Int: Set<Int>] {
+    var speciesMap: [Int: SpeciesLearnsetEntry] = [:]
+    for entry in entries {
+        speciesMap[entry.speciesID] = entry
+    }
+
+    var result: [Int: Set<Int>] = [:]
+    for speciesID in speciesMap.keys {
+        var inherited = Set(speciesMap[speciesID]!.moveIDs)
+        var current = speciesMap[speciesID]?.evolvesFromSpeciesID
+        var visited = Set<Int>()
+        while let preEvoID = current, !visited.contains(preEvoID) {
+            visited.insert(preEvoID)
+            if let preEvo = speciesMap[preEvoID] {
+                inherited.formUnion(preEvo.moveIDs)
+                current = preEvo.evolvesFromSpeciesID
+            } else {
+                break
+            }
+        }
+        result[speciesID] = inherited
+    }
+    return result
+}
+
 // MARK: - Sync Manager
 
 @ModelActor
@@ -247,12 +283,11 @@ actor CalcDataSyncManager {
         struct SpeciesInfo {
             let stats: [String: Int]
             let types: [String]
-            var moveIDs: [Int]
-            let evolvesFromSpeciesID: Int?
         }
-        var speciesMap: [Int: SpeciesInfo] = [:]
+        var speciesInfoMap: [Int: SpeciesInfo] = [:]
 
-        // First pass: populate speciesMap with own moves + evolution chain info
+        // Build learnset entries and inherit pre-evo moves
+        var learnsetEntries: [SpeciesLearnsetEntry] = []
         for p in pokemon {
             let types = parseTypes(p.pokemon_v2_pokemontypes)
             let stats = parseStats(p.pokemon_v2_pokemonstats)
@@ -260,26 +295,11 @@ actor CalcDataSyncManager {
             let speciesID = p.pokemon_species_id ?? p.id
             let evolvesFrom = p.pokemon_v2_pokemonspecy?.evolves_from_species_id
 
-            speciesMap[speciesID] = SpeciesInfo(stats: stats, types: types, moveIDs: moveIDs, evolvesFromSpeciesID: evolvesFrom)
+            speciesInfoMap[speciesID] = SpeciesInfo(stats: stats, types: types)
+            learnsetEntries.append(SpeciesLearnsetEntry(speciesID: speciesID, moveIDs: moveIDs, evolvesFromSpeciesID: evolvesFrom))
         }
 
-        // Second pass: inherit egg moves from pre-evolutions up the chain
-        // Walk each species' evolution chain back to the base and merge moves
-        for speciesID in speciesMap.keys {
-            var inherited = Set(speciesMap[speciesID]!.moveIDs)
-            var current = speciesMap[speciesID]?.evolvesFromSpeciesID
-            var visited = Set<Int>()
-            while let preEvoID = current, !visited.contains(preEvoID) {
-                visited.insert(preEvoID)
-                if let preEvo = speciesMap[preEvoID] {
-                    inherited.formUnion(preEvo.moveIDs)
-                    current = preEvo.evolvesFromSpeciesID
-                } else {
-                    break
-                }
-            }
-            speciesMap[speciesID]!.moveIDs = Array(inherited)
-        }
+        let inheritedLearnsets = inheritLearnsets(learnsetEntries)
 
         // Insert default Pokemon with inherited learnsets
         for p in pokemon {
@@ -287,7 +307,7 @@ actor CalcDataSyncManager {
             let stats = parseStats(p.pokemon_v2_pokemonstats)
             let abilities = parseAbilities(p.pokemon_v2_pokemonabilities)
             let speciesID = p.pokemon_species_id ?? p.id
-            let moveIDs = speciesMap[speciesID]?.moveIDs ?? []
+            let moveIDs = Array(inheritedLearnsets[speciesID] ?? [])
 
             let entry = PKMNStats(
                 id: p.id,
@@ -317,14 +337,14 @@ actor CalcDataSyncManager {
             let stats = parseStats(f.pokemon_v2_pokemonstats)
 
             // Skip cosmetic forms (identical stats and types to base species)
-            if let base = speciesMap[speciesID] {
+            if let base = speciesInfoMap[speciesID] {
                 if stats == base.stats && types == base.types { continue }
             }
 
             let abilities = parseAbilities(f.pokemon_v2_pokemonabilities)
             let formName = f.pokemon_v2_pokemonforms?.first?.form_name
-            // Inherit learnset from base species
-            let moveIDs = speciesMap[speciesID]?.moveIDs ?? []
+            // Inherit learnset from base species (with egg move inheritance)
+            let moveIDs = Array(inheritedLearnsets[speciesID] ?? [])
 
             let entry = PKMNStats(
                 id: f.id,
