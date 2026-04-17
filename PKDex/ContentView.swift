@@ -10,9 +10,6 @@ import SwiftData
 import WebKit
 
 struct ContentView: View {
-    @Query(sort: \PKMN.nationalPokedexNumber) private var allPokemon: [PKMN]
-    @Environment(\.modelContext) private var modelContext
-
     var body: some View {
         TabView {
             PokedexTab()
@@ -20,6 +17,9 @@ struct ContentView: View {
 
             DamageCalculatorView()
                 .tabItem { Label("Damage Calc", systemImage: "bolt.fill") }
+
+            SettingsView()
+                .tabItem { Label("Settings", systemImage: "gear") }
         }
     }
 }
@@ -28,9 +28,13 @@ struct ContentView: View {
 
 private struct PokedexTab: View {
     @Query(sort: \PKMN.nationalPokedexNumber) private var allPokemon: [PKMN]
-    @Environment(\.modelContext) private var modelContext
-    @State private var selectedFilter: PokedexFilter = .champions
+    @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
+    @State private var selectedFilter: PokedexFilter?
     @State private var searchText = ""
+
+    private var activeFilter: PokedexFilter {
+        selectedFilter ?? PokedexFilter(rawValue: defaultGeneration) ?? .champions
+    }
 
     var body: some View {
         NavigationStack {
@@ -42,35 +46,19 @@ private struct PokedexTab: View {
                         Text("Syncing with PokeAPI... please wait.")
                     }
                 } else {
-                    FilteredList(filter: selectedFilter, searchText: searchText)
+                    FilteredList(filter: activeFilter, searchText: searchText)
                 }
             }
             .navigationTitle("Mon Index")
             .searchable(text: $searchText, prompt: "Search Mons")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Menu("Reset") {
-                        Button("Emergency Reset", role: .destructive) {
-                            UserDefaults.standard.removeObject(forKey: "hasCompletedInitialSync")
-                            UserDefaults.standard.removeObject(forKey: "hasCompletedCalcSyncV2")
-                            try? modelContext.delete(model: PKMN.self)
-                            try? modelContext.delete(model: Gen8Pokemon.self)
-                            try? modelContext.delete(model: Gen9Pokemon.self)
-                            try? modelContext.delete(model: PKMNStats.self)
-                            try? modelContext.delete(model: MoveData.self)
-                            try? modelContext.save()
-                            print("App reset! Restart the app to re-sync.")
-                        }
-                    }
-                }
-
                 ToolbarItem(placement: .automatic) {
                     Menu {
                         ForEach(PokedexFilter.allCases) { filter in
                             Button(filter.title) { selectedFilter = filter }
                         }
                     } label: {
-                        Label(selectedFilter.title, systemImage: "line.3.horizontal.decrease.circle")
+                        Label(activeFilter.title, systemImage: "line.3.horizontal.decrease.circle")
                     }
                 }
             }

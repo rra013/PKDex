@@ -467,6 +467,7 @@ struct DamageCalculatorView: View {
     @State private var vm = DamageCalcVM()
     @Query(sort: \PKMNStats.name) private var allPokemon: [PKMNStats]
     @Query(sort: \MoveData.name) private var allMoves: [MoveData]
+    @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
 
     var body: some View {
         NavigationStack {
@@ -485,6 +486,15 @@ struct DamageCalculatorView: View {
             }
             .navigationTitle("Damage Calc")
             .background(Color(.systemGroupedBackground))
+            .onAppear {
+                let isChampions = defaultGeneration == PokedexFilter.champions.rawValue
+                if isChampions != vm.side1.championsMode {
+                    vm.side1.setChampionsMode(isChampions)
+                }
+                if isChampions != vm.side2.championsMode {
+                    vm.side2.setChampionsMode(isChampions)
+                }
+            }
         }
     }
 }
