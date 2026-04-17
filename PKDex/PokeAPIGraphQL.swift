@@ -49,6 +49,9 @@ actor PokeGraphQLFetcher {
             pokemon_v2_pokemonmoves(distinct_on: move_id) {
               move_id
             }
+            pokemon_v2_pokemonspecy {
+              evolves_from_species_id
+            }
           }
         }
         """
@@ -137,6 +140,7 @@ nonisolated struct GQLPokemon: Decodable, Sendable {
     let pokemon_v2_pokemonabilities: [GQLPokemonAbility]
     let pokemon_v2_pokemonmoves: [GQLPokemonMove]?
     let pokemon_v2_pokemonforms: [GQLPokemonForm]?
+    let pokemon_v2_pokemonspecy: GQLPokemonSpecies?
 
     nonisolated struct GQLPokemonType: Decodable, Sendable {
         let pokemon_v2_type: TypeName
@@ -157,6 +161,9 @@ nonisolated struct GQLPokemon: Decodable, Sendable {
     }
     nonisolated struct GQLPokemonForm: Decodable, Sendable {
         let form_name: String?
+    }
+    nonisolated struct GQLPokemonSpecies: Decodable, Sendable {
+        let evolves_from_species_id: Int?
     }
 }
 
@@ -192,21 +199,21 @@ nonisolated struct GQLMove: Decodable, Sendable {
 
 // MARK: - Helpers
 
-private func formatPokemonName(_ raw: String) -> String {
+nonisolated private func formatPokemonName(_ raw: String) -> String {
     raw.split(separator: "-").map { $0.capitalized }.joined(separator: "-")
 }
 
-private func parseStats(_ gqlStats: [GQLPokemon.GQLPokemonStat]) -> [String: Int] {
+nonisolated private func parseStats(_ gqlStats: [GQLPokemon.GQLPokemonStat]) -> [String: Int] {
     var stats: [String: Int] = [:]
     for s in gqlStats { stats[s.pokemon_v2_stat.name] = s.base_stat }
     return stats
 }
 
-private func parseTypes(_ gqlTypes: [GQLPokemon.GQLPokemonType]) -> [String] {
+nonisolated private func parseTypes(_ gqlTypes: [GQLPokemon.GQLPokemonType]) -> [String] {
     gqlTypes.map { $0.pokemon_v2_type.name.capitalized }
 }
 
-private func parseAbilities(_ gqlAbilities: [GQLPokemon.GQLPokemonAbility]) -> (a1: String?, a2: String?, ha: String?) {
+nonisolated private func parseAbilities(_ gqlAbilities: [GQLPokemon.GQLPokemonAbility]) -> (a1: String?, a2: String?, ha: String?) {
     let normal = gqlAbilities.filter { !$0.is_hidden }
     let hidden = gqlAbilities.filter { $0.is_hidden }
     return (
@@ -240,19 +247,47 @@ actor CalcDataSyncManager {
         struct SpeciesInfo {
             let stats: [String: Int]
             let types: [String]
-            let moveIDs: [Int]
+            var moveIDs: [Int]
+            let evolvesFromSpeciesID: Int?
         }
         var speciesMap: [Int: SpeciesInfo] = [:]
 
-        // Insert default Pokemon
+        // First pass: populate speciesMap with own moves + evolution chain info
+        for p in pokemon {
+            let types = parseTypes(p.pokemon_v2_pokemontypes)
+            let stats = parseStats(p.pokemon_v2_pokemonstats)
+            let moveIDs = (p.pokemon_v2_pokemonmoves ?? []).map { $0.move_id }
+            let speciesID = p.pokemon_species_id ?? p.id
+            let evolvesFrom = p.pokemon_v2_pokemonspecy?.evolves_from_species_id
+
+            speciesMap[speciesID] = SpeciesInfo(stats: stats, types: types, moveIDs: moveIDs, evolvesFromSpeciesID: evolvesFrom)
+        }
+
+        // Second pass: inherit egg moves from pre-evolutions up the chain
+        // Walk each species' evolution chain back to the base and merge moves
+        for speciesID in speciesMap.keys {
+            var inherited = Set(speciesMap[speciesID]!.moveIDs)
+            var current = speciesMap[speciesID]?.evolvesFromSpeciesID
+            var visited = Set<Int>()
+            while let preEvoID = current, !visited.contains(preEvoID) {
+                visited.insert(preEvoID)
+                if let preEvo = speciesMap[preEvoID] {
+                    inherited.formUnion(preEvo.moveIDs)
+                    current = preEvo.evolvesFromSpeciesID
+                } else {
+                    break
+                }
+            }
+            speciesMap[speciesID]!.moveIDs = Array(inherited)
+        }
+
+        // Insert default Pokemon with inherited learnsets
         for p in pokemon {
             let types = parseTypes(p.pokemon_v2_pokemontypes)
             let stats = parseStats(p.pokemon_v2_pokemonstats)
             let abilities = parseAbilities(p.pokemon_v2_pokemonabilities)
-            let moveIDs = (p.pokemon_v2_pokemonmoves ?? []).map { $0.move_id }
             let speciesID = p.pokemon_species_id ?? p.id
-
-            speciesMap[speciesID] = SpeciesInfo(stats: stats, types: types, moveIDs: moveIDs)
+            let moveIDs = speciesMap[speciesID]?.moveIDs ?? []
 
             let entry = PKMNStats(
                 id: p.id,

@@ -1291,7 +1291,7 @@ private struct CalcSection<Content: View>: View {
     }
 }
 
-private struct DamageClassBadge: View {
+struct DamageClassBadge: View {
     let damageClass: String
     private var label: String {
         switch damageClass {
@@ -1318,7 +1318,7 @@ private struct DamageClassBadge: View {
     }
 }
 
-private struct TypeBadge: View {
+struct TypeBadge: View {
     let type: String
     var body: some View {
         Text(type)
@@ -1329,7 +1329,7 @@ private struct TypeBadge: View {
     }
 }
 
-private struct StatMini: View {
+struct StatMini: View {
     let label: String
     let value: Int
     var body: some View {

@@ -211,6 +211,82 @@ final class SavedSpread {
     }
 }
 
+// MARK: - Saved Team
+
+@Model
+final class SavedTeam {
+    var name: String
+    var createdAt: Date
+
+    /// JSON-encoded array of `TeamSlotInfo` (up to 6 slots).
+    var slotsJSON: Data
+
+    init(name: String, slots: [TeamSlotInfo] = []) {
+        self.name = name
+        self.createdAt = Date()
+        self.slotsJSON = (try? JSONEncoder().encode(slots)) ?? Data()
+    }
+
+    var slots: [TeamSlotInfo] {
+        get { (try? JSONDecoder().decode([TeamSlotInfo].self, from: slotsJSON)) ?? [] }
+        set { slotsJSON = (try? JSONEncoder().encode(newValue)) ?? Data() }
+    }
+}
+
+struct TeamSlotInfo: Codable, Identifiable, Equatable {
+    var id: UUID = UUID()
+    var spreadName: String
+    var pokemonID: Int
+    var pokemonName: String
+    var type1: String
+    var type2: String?
+    var abilityName: String?
+    var itemRawValue: String?
+    var championsMode: Bool = false
+    var natureID: String = "adamant"
+    var level: Int = 50
+    var evHP: Int = 0; var evAtk: Int = 0; var evDef: Int = 0
+    var evSpAtk: Int = 0; var evSpDef: Int = 0; var evSpeed: Int = 0
+    var moveSlots: [TeamMoveInfo]
+
+    static func from(spread: SavedSpread, pokemon: PKMNStats?, moves: [MoveData]) -> TeamSlotInfo? {
+        guard let pokemon else { return nil }
+        let moveIDs = [spread.moveID1, spread.moveID2, spread.moveID3, spread.moveID4]
+        let resolvedMoves = moveIDs.compactMap { mid -> TeamMoveInfo? in
+            guard let mid, let move = moves.first(where: { $0.id == mid }) else { return nil }
+            let pokemonTypes = [pokemon.type1] + [pokemon.type2].compactMap { $0 }
+            let isAttacking = move.damageClass != "status"
+            return TeamMoveInfo(moveID: move.id, moveName: move.name, moveType: move.type,
+                                damageClass: move.damageClass, power: move.power,
+                                isSTAB: isAttacking && pokemonTypes.contains(move.type))
+        }
+        return TeamSlotInfo(
+            spreadName: spread.name,
+            pokemonID: pokemon.id,
+            pokemonName: pokemon.name,
+            type1: pokemon.type1, type2: pokemon.type2,
+            abilityName: spread.abilityName,
+            itemRawValue: spread.itemRawValue,
+            championsMode: spread.championsMode,
+            natureID: spread.natureID,
+            level: spread.level,
+            evHP: spread.evHP, evAtk: spread.evAtk, evDef: spread.evDef,
+            evSpAtk: spread.evSpAtk, evSpDef: spread.evSpDef, evSpeed: spread.evSpeed,
+            moveSlots: resolvedMoves
+        )
+    }
+}
+
+struct TeamMoveInfo: Codable, Identifiable, Equatable {
+    var id: Int { moveID }
+    var moveID: Int
+    var moveName: String
+    var moveType: String
+    var damageClass: String
+    var power: Int?
+    var isSTAB: Bool
+}
+
 // MARK: - EV System
 
 // Main-series scale

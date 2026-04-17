@@ -18,6 +18,15 @@ struct ContentView: View {
             DamageCalculatorView()
                 .tabItem { Label("Damage Calc", systemImage: "bolt.fill") }
 
+            SetListView()
+                .tabItem { Label("Sets", systemImage: "square.and.pencil") }
+
+            TeamListView()
+                .tabItem { Label("Teams", systemImage: "person.3") }
+
+            SpeedTierView()
+                .tabItem { Label("Speed Tiers", systemImage: "hare") }
+
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gear") }
         }
