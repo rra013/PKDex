@@ -27,6 +27,9 @@ struct ContentView: View {
             SpeedTierView()
                 .tabItem { Label("Speed Tiers", systemImage: "hare") }
 
+            RNGToolsView()
+                .tabItem { Label("RNG Tools", systemImage: "dice") }
+
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gear") }
         }

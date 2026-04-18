@@ -299,7 +299,7 @@ actor CalcDataSyncManager {
             learnsetEntries.append(SpeciesLearnsetEntry(speciesID: speciesID, moveIDs: moveIDs, evolvesFromSpeciesID: evolvesFrom))
         }
 
-        let inheritedLearnsets = inheritLearnsets(learnsetEntries)
+        let inheritedLearnsets = await inheritLearnsets(learnsetEntries)
 
         // Insert default Pokemon with inherited learnsets
         for p in pokemon {
