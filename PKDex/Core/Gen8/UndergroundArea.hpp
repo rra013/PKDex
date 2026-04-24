@@ -66,7 +66,7 @@ public:
     /**
      * @brief Construct a new UndergroundArea object
      *
-     * @param location
+     * @param location Underground area location identifier
      * @param min Minimum number of pokemon spawned
      * @param max Maximum number of pokemon spawned
      * @param pokemon List of normal pokemon

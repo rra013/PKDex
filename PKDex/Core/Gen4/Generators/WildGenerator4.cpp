@@ -333,10 +333,10 @@ std::vector<WildGeneratorState4> WildGenerator4::generateMethodK(u32 seed) const
             cuteCharmFlag = go.nextUShort(3, &battleAdvances) != 0;
         }
 
-        u8 nature;
-        u32 pid;
-        u16 iv1;
-        u16 iv2;
+        u8 nature = 0;
+        u32 pid = 0;
+        u16 iv1 = 0;
+        u16 iv2 = 0;
         if (cuteCharmFlag)
         {
             nature = go.nextUShort(25, &battleAdvances);

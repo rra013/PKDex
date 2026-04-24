@@ -58,8 +58,8 @@ std::vector<EggState5> EggGenerator5::generate(u64 seed) const
 std::vector<EggState5> EggGenerator5::generateBW(u64 seed) const
 {
     const PersonalInfo *base = PersonalLoader::getPersonal(profile.getVersion(), daycare.getEggSpecie());
-    const PersonalInfo *male;
-    const PersonalInfo *female;
+    const PersonalInfo *male = nullptr;
+    const PersonalInfo *female = nullptr;
     if (daycare.getEggSpecie() == 29 || daycare.getEggSpecie() == 32)
     {
         male = PersonalLoader::getPersonal(profile.getVersion(), 32);

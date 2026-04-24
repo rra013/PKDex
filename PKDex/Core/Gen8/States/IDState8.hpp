@@ -31,7 +31,7 @@ public:
     /**
      * @brief Construct a new IDState8 object
      *
-     * @param advances Advances of the state
+     * @param advance Advances of the state
      * @param tid Trainer ID
      * @param sid Secret ID
      * @param displayTID Displayed trainer ID

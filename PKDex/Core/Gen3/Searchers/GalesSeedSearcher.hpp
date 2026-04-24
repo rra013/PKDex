@@ -41,7 +41,6 @@ public:
      * @brief Construct a new GalesSeedSearcher object
      *
      * @param criteria Filtering data
-     * @param tsv Trainer shiny value
      */
     GalesSeedSearcher(const GalesCriteria &criteria);
 

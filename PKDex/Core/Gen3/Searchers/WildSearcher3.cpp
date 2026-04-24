@@ -126,7 +126,7 @@ std::vector<WildSearcherState> WildSearcher3::search(u8 hp, u8 atk, u8 def, u8 s
 
         u32 pid;
 
-        u8 letter;
+        u8 letter = 0;
         if (tanoby)
         {
             pid = rng.nextUShort();

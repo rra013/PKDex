@@ -29,7 +29,7 @@ namespace JirachiPattern
      * @brief Calculates series of actions to take to hit the target seed
      *
      * @param seed Starting seed
-     * @param advance Target advance
+     * @param targetAdvance Target advance
      * @param bruteForce What frame range to brute force actions over
      *
      * @return List of actions to take to get the target Jirachi

@@ -50,7 +50,6 @@ public:
      * @param advances Advances of the state
      * @param low Pokemon PID low
      * @param gender Pokemon gender
-     * @param shiny Pokemon shininess
      * @param info Pokemon information
      */
     EggState3(u32 advances, u16 low, u8 gender, const PersonalInfo *info) :

@@ -64,11 +64,11 @@ void ProfileSearcher5::startSearch(int threads, u8 minVFrame, u8 maxVFrame)
     {
         if (i == threads - 1)
         {
-            threadContainer[i] = std::thread([=] { search(minVFrame, maxVFrame); });
+            threadContainer[i] = std::thread([=, this] { search(minVFrame, maxVFrame); });
         }
         else
         {
-            threadContainer[i] = std::thread([=] { search(minVFrame, minVFrame + split - 1); });
+            threadContainer[i] = std::thread([=, this] { search(minVFrame, minVFrame + split - 1); });
         }
     }
 

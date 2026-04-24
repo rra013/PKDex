@@ -1,3 +1,6 @@
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdocumentation"
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
 // Meta Flash Perfect Hash Table
 
 /**
@@ -3806,4 +3809,5 @@ namespace fph {
 
 
 } // namespace fph
+#pragma clang diagnostic pop
 

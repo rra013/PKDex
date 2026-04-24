@@ -42,7 +42,6 @@ public:
      * @param shiny Pokemon shininess
      * @param height Pokemon height
      * @param weight Pokemon weight
-     * @param specie Pokemon specie
      * @param info Pokemon personal information
      */
     State8(u32 advances, u32 ec, u32 pid, const std::array<u8, 6> &ivs, u8 ability, u8 gender, u8 level, u8 nature, u8 shiny, u8 height,

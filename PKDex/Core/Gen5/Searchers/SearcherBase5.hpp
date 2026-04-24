@@ -92,12 +92,12 @@ public:
         {
             if (i == threads - 1)
             {
-                threadContainer[i] = std::thread([=] { search(day, end); });
+                threadContainer[i] = std::thread([=, this] { search(day, end); });
             }
             else
             {
                 Date mid = day + (daysSplit - 1);
-                threadContainer[i] = std::thread([=] { search(day, mid); });
+                threadContainer[i] = std::thread([=, this] { search(day, mid); });
             }
         }
 

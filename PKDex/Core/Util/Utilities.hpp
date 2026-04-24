@@ -175,7 +175,7 @@ namespace Utilities4
      * @brief Calculates the call sequence from the \p seed and \p info
      *
      * @param seed PRNG state
-     * @param info Roamer information
+     * @param skips Number of calls to skip
      *
      * @return Call sequence string
      */
@@ -203,7 +203,6 @@ namespace Utilities5
      * @param wild Whether encounter is considered a wild battle
      * @param ratio Gender ratio
      * @param rng PRNG state
-     * @param info Pokemon information
      *
      * @return PID
      */

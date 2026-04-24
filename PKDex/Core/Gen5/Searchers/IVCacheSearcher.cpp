@@ -48,18 +48,18 @@ void IVCacheSearcher::startSearch(int threads)
 
     auto *threadContainer = new std::thread[threads];
 
-    u32 split = 0x100000000 / threads;
+    u32 split = static_cast<u32>(0x100000000 / threads);
     u32 start = 0;
 
     for (int i = 0; i < threads; i++, start += split)
     {
         if (i == threads - 1)
         {
-            threadContainer[i] = std::thread([=] { search(start, 0xffffffff); });
+            threadContainer[i] = std::thread([=, this] { search(start, 0xffffffff); });
         }
         else
         {
-            threadContainer[i] = std::thread([=] { search(start, start + split); });
+            threadContainer[i] = std::thread([=, this] { search(start, start + split); });
         }
     }
 
@@ -87,19 +87,19 @@ void IVCacheSearcher::writeResults(const std::string &file)
         for (int i = 0; i < entralink.size(); i++)
         {
             std::sort(entralink[i].begin(), entralink[i].end());
-            write<u32>(stream, entralink[i].size());
+            write<u32>(stream, static_cast<u32>(entralink[i].size()));
         }
 
         for (int i = 0; i < results.size(); i++)
         {
             std::sort(results[i].begin(), results[i].end());
-            write<u32>(stream, results[i].size());
+            write<u32>(stream, static_cast<u32>(results[i].size()));
         }
 
         for (int i = 0; i < roamer.size(); i++)
         {
             std::sort(roamer[i].begin(), roamer[i].end());
-            write<u32>(stream, roamer[i].size());
+            write<u32>(stream, static_cast<u32>(roamer[i].size()));
         }
 
         // Write seeds

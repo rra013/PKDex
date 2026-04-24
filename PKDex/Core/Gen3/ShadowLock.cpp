@@ -56,7 +56,7 @@ namespace ShadowLock
             return false;
         }
 
-        u32 pid;
+        u32 pid = 0;
         for (index--; index >= 0; index--)
         {
             const LockInfo &lock = shadowTemplate->getLock(index);
@@ -115,7 +115,7 @@ namespace ShadowLock
         XDRNGR backward(seed);
         backward.advance(1);
 
-        u32 pid;
+        u32 pid = 0;
         for (index--; index >= 0; index--)
         {
             const LockInfo &lock = shadowTemplate->getLock(index);
@@ -172,7 +172,7 @@ namespace ShadowLock
             return false;
         }
 
-        u32 pid;
+        u32 pid = 0;
         for (index--; index >= 0; index--)
         {
             const LockInfo &lock = shadowTemplate->getLock(index);
@@ -237,7 +237,7 @@ namespace ShadowLock
             return false;
         }
 
-        u32 pid;
+        u32 pid = 0;
         for (index--; index >= 0; index--)
         {
             const LockInfo &lock = shadowTemplate->getLock(index);
@@ -313,7 +313,7 @@ namespace ShadowLock
             return false;
         }
 
-        u32 pid;
+        u32 pid = 0;
         for (index--; index >= 0; index--)
         {
             const LockInfo &lock = shadowTemplate->getLock(index);

@@ -66,8 +66,8 @@ private:
 
     /**
      * @brief Searches for matching states from provided IVs
-     * @param minSpd
-     * @param maxSpd
+     * @param minSpd Minimum SpD IV
+     * @param maxSpd Maximum SpD IV
      * @param staticTemplate Pokemon template
      */
     void searchChannel(u8 minSpd, u8 maxSpd, const StaticTemplate3 *staticTemplate);

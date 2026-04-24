@@ -54,7 +54,6 @@ public:
      * @param ivs Pokemon IVs
      * @param ability Pokemon ability
      * @param nature Pokemon nature
-     * @param shiny Pokemon shininess
      * @param inheritance Pokemon IV inheritance
      * @param info Pokemon information
      */

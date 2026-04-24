@@ -100,7 +100,7 @@ namespace Utilities
 {
     void *decompress(const u8 *compressedData, u32 compressedSize, u32 &size)
     {
-        size = ZSTD_getFrameContentSize(compressedData, compressedSize);
+        size = static_cast<u32>(ZSTD_getFrameContentSize(compressedData, compressedSize));
         u8 *data = new u8[size];
 
         ZSTD_decompress(data, size, compressedData, compressedSize);

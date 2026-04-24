@@ -183,8 +183,8 @@ public:
      * @param weightMin Minimum weight threshold
      * @param weightMax Maximum weight threshold
      * @param skip If filters should be skipped
-     * @param min Minimum IV thresholds
-     * @param max Maximum IV thresholds
+     * @param ivMin Minimum IV thresholds
+     * @param ivMax Maximum IV thresholds
      * @param natures Natures to filter by
      * @param powers Hidden powers to filter by
      */

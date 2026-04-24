@@ -239,7 +239,7 @@ void GameCubeSearcher::searchChannel(u8 minSpd, u8 maxSpd, const StaticTemplate3
                 return;
             }
 
-            XDRNGR rng(seed);
+            XDRNGR rng(static_cast<u32>(seed));
 
             std::array<u8, 6> ivs;
 

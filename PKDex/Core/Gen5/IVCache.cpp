@@ -166,7 +166,7 @@ std::vector<u32> IVCache::getSeeds(Game version, CacheType type) const
     else if (type == CacheType::Normal)
     {
         int start = (version & Game::BW) != Game::None ? 0 : 2;
-        int end = (version & Game::BW) != Game::None ? normalSeeds.size() - 2 : normalSeeds.size();
+        int end = static_cast<int>((version & Game::BW) != Game::None ? normalSeeds.size() - 2 : normalSeeds.size());
         for (int i = start; i < end; i++)
         {
             seeds.insert(seeds.end(), normalSeeds[i].begin(), normalSeeds[i].end());

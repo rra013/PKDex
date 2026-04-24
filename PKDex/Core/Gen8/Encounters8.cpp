@@ -440,7 +440,7 @@ static void modifyGreatMarsh(std::array<Slot, 12> &pokemon, const std::array<u16
 /**
  * @brief Modifies encounter slots based on the pokeradar
  *
- * @param pokemon Vector of original encounters
+ * @param mons Vector of original encounters
  * @param entry Encounter area data
  * @param info Personal info array pointer
  * @param radar Whether pokeradar is active or not
@@ -459,7 +459,7 @@ static void modifyRadar(std::array<Slot, 12> &mons, const WildEncounter8 *entry,
 /**
  * @brief Modifies encounter slots based on the swarm
  *
- * @param pokemon Vector of original encounters
+ * @param mons Vector of original encounters
  * @param entry Encounter area data
  * @param info Personal info array pointer
  * @param swarm Whether swarm is active or not
@@ -476,7 +476,7 @@ static void modifySwarm(std::array<Slot, 12> &mons, const WildEncounter8 *entry,
 /**
  * @brief Modifies encounter slots based on the time
  *
- * @param pokemon Vector of original encounters
+ * @param mons Array of encounter slots
  * @param entry Encounter area data
  * @param info Personal info array pointer
  * @param time Time of day

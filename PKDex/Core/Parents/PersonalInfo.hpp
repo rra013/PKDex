@@ -34,7 +34,7 @@ public:
      *
      * @param stats Base stats
      * @param types Pokemon types
-     * @param items Pokemon items
+     * @param item Pokemon items
      * @param gender Gender ratio
      * @param ability Pokemon abilities
      * @param formCount Alternate form count

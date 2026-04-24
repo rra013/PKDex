@@ -123,11 +123,11 @@ void GalesSeedSearcher::startSearch(int threads)
     {
         if (i == threads - 1)
         {
-            threadContainer[i] = std::thread([=] { search(start, 0x10000); });
+            threadContainer[i] = std::thread([=, this] { search(start, 0x10000); });
         }
         else
         {
-            threadContainer[i] = std::thread([=] { search(start, start + split); });
+            threadContainer[i] = std::thread([=, this] { search(start, start + split); });
         }
     }
 

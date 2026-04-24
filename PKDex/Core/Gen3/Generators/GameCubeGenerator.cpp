@@ -136,9 +136,9 @@ std::vector<GeneratorState> GameCubeGenerator::generateColoShadow(u32 seed, cons
         // Trainer TID/SID
         u16 trainerTSV = go.nextUShort() ^ go.nextUShort();
 
-        u8 ability;
-        u16 high;
-        u16 low;
+        u8 ability = 0;
+        u16 high = 0;
+        u16 low = 0;
         for (s8 i = 0; i < shadowTemplate->getCount(); i++)
         {
             const LockInfo &lock = shadowTemplate->getLock(i);
@@ -320,11 +320,11 @@ std::vector<GeneratorState> GameCubeGenerator::generateNonLock(u32 seed, const S
     {
         XDRNG go(rng);
 
-        u16 iv1;
-        u16 iv2;
-        u8 ability;
-        u16 high;
-        u16 low;
+        u16 iv1 = 0;
+        u16 iv2 = 0;
+        u8 ability = 0;
+        u16 high = 0;
+        u16 low = 0;
 
         // Gales eevee
         if (staticTemplate->getSpecie() == 133)

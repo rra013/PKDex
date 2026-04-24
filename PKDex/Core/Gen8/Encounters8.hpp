@@ -100,9 +100,9 @@ namespace Encounters8
     std::array<u16, 14> getGreatMarshPokemon(const Profile8 *profile);
 
     /**
-     * @brief Gets static encounters from the \p type
+     * @brief Gets static encounters from the \p index
      *
-     * @param type Static encounter type
+     * @param index Static encounter type
      * 0: starters
      * 1: gifts
      * 2: fossils

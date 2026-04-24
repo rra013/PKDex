@@ -76,8 +76,9 @@ public:
      * @param initialAdvances Initial number of advances
      * @param maxAdvances Maximum number of advances
      * @param offset Number of advances to offset
-     * @param powerLevel Hidden grotto encounter rate
-     * @param encounterArea Hidden grotto information
+     * @param lead Lead ability
+     * @param gender Gender value
+     * @param slot Hidden grotto slot information
      * @param profile Profile Information
      * @param filter State filter
      */
@@ -99,7 +100,7 @@ public:
      * @brief Generates states for the \p encounterArea
      *
      * @param seed Starting PRNG state
-     * @param iv Vector of IV advances and IVs
+     * @param ivs Vector of IV advances and IVs
      *
      * @return Vector of computed states
      */

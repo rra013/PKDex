@@ -177,8 +177,8 @@ public:
      * @param mac DS MAC address
      * @param buttons Keypresses selected
      * @param needles Save/Unova link needles
-     * @param Whether Unova link is used to obtain needles
-     * @param Whether memory link is enabled
+     * @param unovaLink Whether Unova link is used to obtain needles
+     * @param memoryLink Whether memory link is enabled
      */
     ProfileNeedleSearcher5(const Date &date, const Time &time, int minSeconds, int maxSeconds, u8 minVCount, u8 maxVCount, u16 minTimer0,
                            u16 maxTimer0, u8 minGxStat, u8 maxGxStat, Game version, Language language, DSType dsType, u64 mac,

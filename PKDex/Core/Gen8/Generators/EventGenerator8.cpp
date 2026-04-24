@@ -49,8 +49,8 @@ std::vector<State8> EventGenerator8::generate(u64 seed0, u64 seed1) const
     {
         u32 ec = wb8.getEC() == 0 ? rngList.next() : wb8.getEC();
 
-        u32 pid;
-        u8 shiny;
+        u32 pid = 0;
+        u8 shiny = 0;
         switch (wb8.getShiny())
         {
         case 0:
@@ -99,7 +99,7 @@ std::vector<State8> EventGenerator8::generate(u64 seed0, u64 seed1) const
             }
         }
 
-        u8 ability;
+        u8 ability = 0;
         switch (wb8.getAbility())
         {
         case 0:

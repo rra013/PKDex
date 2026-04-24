@@ -39,7 +39,7 @@ public:
      * @param initialAdvances Initial number of advances
      * @param maxAdvances Maximum number of advances
      * @param badgeCount Numbers of badges
-     * @param radarTemplate Dream radar templates
+     * @param radarTemplates Dream radar templates
      * @param profile Profile Information
      * @param filter State filter
      */
@@ -50,7 +50,6 @@ public:
      * @brief Generates states
      *
      * @param seed Starting PRNG state
-     * @param memory Whether memory link is active
      *
      * @return Vector of computed states
      */

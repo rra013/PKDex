@@ -32,13 +32,9 @@ public:
     /**
      * @brief Construct a new PokeSpotState object
      *
-     * @param seed Seed of the state
+     * @param advances Advances of the state
      * @param pid Pokemon PID
-     * @param ivs Pokemon IVs
-     * @param ability Pokemon ability
      * @param gender Pokemon gender
-     * @param level Pokemon level
-     * @param nature Pokemon nature
      * @param shiny Pokemon shininess
      * @param encounterSlot Pokemon encounter slot
      * @param specie Pokemon specie

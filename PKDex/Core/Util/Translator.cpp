@@ -93,7 +93,7 @@ static void readFile(const char *data, Translation translation, std::vector<std:
     for (u32 i = start; i < end;)
     {
         const char *it = std::find(data + i, data + end, 0);
-        u32 len = it - &data[i];
+        u32 len = static_cast<u32>(it - &data[i]);
         strings.emplace_back(data + i, len);
         i += len + 1;
     }
@@ -117,7 +117,7 @@ static std::map<u16, std::string> readFile(const char *data, Translation transla
     for (u32 i = start; i < end;)
     {
         const char *it = std::find(data + i, data + end, 0);
-        u32 len = it - &data[i];
+        u32 len = static_cast<u32>(it - &data[i]);
 
         char *word;
         u16 num = std::strtoul(&data[i], &word, 10);

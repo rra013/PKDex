@@ -71,7 +71,7 @@ namespace Encounters5
     /**
      * @brief Gets static encounters from the \p type
      *
-     * @param type Static encounter type
+     * @param index Static encounter type
      * 0: starters
      * 1: fossils
      * 2: gifts

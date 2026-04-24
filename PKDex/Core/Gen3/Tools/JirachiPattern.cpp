@@ -123,7 +123,7 @@ static void incrementSearchActions(std::vector<u8> &actions)
  * @return true Target seed does pass menu pattern
  * @return false Target seed does not pass menu pattern
  */
-static bool validateMenu(u32 seed)
+[[maybe_unused]] static bool validateMenu(u32 seed)
 {
     // Impossible to stop on a 0
     u8 target = seed >> 30;

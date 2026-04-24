@@ -60,12 +60,12 @@ void SHA1CacheSearcher::startSearch(int threads)
     {
         if (i == threads - 1)
         {
-            threadContainer[i] = std::thread([=] { search(day, end); });
+            threadContainer[i] = std::thread([=, this] { search(day, end); });
         }
         else
         {
             Date mid = day + (daysSplit - 1);
-            threadContainer[i] = std::thread([=] { search(day, mid); });
+            threadContainer[i] = std::thread([=, this] { search(day, mid); });
         }
     }
 
@@ -110,9 +110,9 @@ void SHA1CacheSearcher::writeResults(const std::string &file)
         std::sort(normalResults.begin(), normalResults.end(), sort);
         std::sort(roamerResults.begin(), roamerResults.end(), sort);
 
-        write<u32>(stream, results.size());
-        write<u32>(stream, normalResults.size());
-        write<u32>(stream, roamerResults.size());
+        write<u32>(stream, static_cast<u32>(results.size()));
+        write<u32>(stream, static_cast<u32>(normalResults.size()));
+        write<u32>(stream, static_cast<u32>(roamerResults.size()));
 
         // Write seed data
         stream.write(reinterpret_cast<char *>(results.data()), results.size() * sizeof(SHA1Seed));

@@ -36,10 +36,6 @@ class SearcherBase
 public:
     /**
      * @brief Construct a new SearcherBase object
-     *
-     * @param method Encounter method
-     * @param profile Profile Information
-     * @param filter State filter
      */
     SearcherBase() : progress(0), searching(false)
     {

@@ -89,7 +89,7 @@ public:
             {
                 result = next() & mask;
             } while (result >= max);
-            return result;
+            return static_cast<u32>(result);
         }
     }
 
@@ -120,7 +120,7 @@ public:
      */
     u32 nextUInt(u32 max)
     {
-        return (next() >> 32) % max;
+        return static_cast<u32>((next() >> 32) % max);
     }
 };
 

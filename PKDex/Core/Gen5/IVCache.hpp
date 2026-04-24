@@ -52,8 +52,8 @@ public:
     /**
      * @brief Returns the IV caches for the \p type
      *
-     * @param initialAdvance Initial IV advances
-     * @param maxAdvance Maximum IV advances
+     * @param initialAdvances Initial IV advances
+     * @param maxAdvances Maximum IV advances
      * @param version Game version
      * @param type What cache type to get
      * @param filter IV filter
@@ -109,8 +109,8 @@ private:
     /**
      * @brief Returns the IV caches for entralink
      *
-     * @param initialAdvance Initial IV advances
-     * @param maxAdvance Maximum IV advances
+     * @param initialAdvances Initial IV advances
+     * @param maxAdvances Maximum IV advances
      * @param filter IV filter
      *
      * @return IV caches
@@ -120,8 +120,8 @@ private:
     /**
      * @brief Returns the IV caches for most encounter types
      *
-     * @param initialAdvance Initial IV advances
-     * @param maxAdvance Maximum IV advances
+     * @param initialAdvances Initial IV advances
+     * @param maxAdvances Maximum IV advances
      * @param version Game version
      * @param filter IV filter
      *
@@ -133,8 +133,8 @@ private:
     /**
      * @brief Returns the IV caches for roamers
      *
-     * @param initialAdvance Initial IV advances
-     * @param maxAdvance Maximum IV advances
+     * @param initialAdvances Initial IV advances
+     * @param maxAdvances Maximum IV advances
      * @param filter IV filter
      *
      * @return IV caches

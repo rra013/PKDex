@@ -76,7 +76,7 @@ public:
      *
      * @param tid Template TID
      * @param sid Template SID
-     * @param specie Template specie
+     * @param species Template species
      * @param nature Template nature
      * @param gender Template gender
      * @param ability Template ability

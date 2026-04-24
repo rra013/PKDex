@@ -305,7 +305,7 @@ std::vector<WildSearcherState4> WildSearcher4::searchMethodJ(u8 hp, u8 atk, u8 d
             {
                 u8 encounterSlot[2];
                 bool force = false;
-                u16 levelRand[2];
+                u16 levelRand[2] = {};
                 PokeRNGR test[2] = { rng, rng };
                 bool valid[2] = { false, false };
 
@@ -625,7 +625,7 @@ std::vector<WildSearcherState4> WildSearcher4::searchMethodK(u8 hp, u8 atk, u8 d
             if (rng.nextUShort(3) != 0)
             {
                 u8 encounterSlot;
-                u16 levelRand;
+                u16 levelRand = 0;
                 if (safari)
                 {
                     encounterSlot = rng.nextUShort(10);
@@ -1051,7 +1051,7 @@ std::vector<WildSearcherState4> WildSearcher4::searchPokeRadar(u8 hp, u8 atk, u8
                 PokeRNGR test(rng);
 
                 bool valid = false;
-                u32 seed;
+                u32 seed = 0;
                 switch (lead)
                 {
                 case Lead::None:

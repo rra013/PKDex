@@ -61,7 +61,7 @@ public:
      * @brief Generates states for the \p encounterArea
      *
      * @param seed Starting PRNG state
-     * @param iv Vector of IV advances and IVs
+     * @param ivs Vector of IV advances and IVs
      *
      * @return Vector of computed states
      */

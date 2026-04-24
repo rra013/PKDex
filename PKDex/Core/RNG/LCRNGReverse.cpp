@@ -82,7 +82,6 @@ static RecoverySeeds<6> recoverPokeRNGIVMethod12(u8 hp, u8 atk, u8 def, u8 spa, 
  * @param spa SpA iv
  * @param spd SpD iv
  * @param spe Spe iv
- * @param seeds Array to write results
  *
  * @return Array of origin seeds (Won't be higher than 6)
  */
@@ -165,7 +164,7 @@ namespace LCRNGReverse
             u64 tmp = t + 0x100000000 * k;
             while (r < rmax && k <= kmax)
             {
-                u32 seed = first | (tmp / mult);
+                u32 seed = first | static_cast<u32>(tmp / mult);
                 XDRNG rng(seed);
                 if ((rng.next() >> 27) == atk)
                 {
@@ -242,7 +241,7 @@ namespace LCRNGReverse
         u32 second = static_cast<u32>((spe | (spa << 5) | (spd << 10)) << 16);
 
         u64 t = ((second - mult * first) - sub) & 0x7FFFFFFF;
-        u32 kmax = (base - t) >> 31;
+        u32 kmax = static_cast<u32>((base - t) >> 31);
 
         for (u32 k = 0; k <= kmax; k++, t += 0x80000000)
         {

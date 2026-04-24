@@ -60,9 +60,7 @@ public:
     /**
      * @brief Starts the search
      *
-     * @param threads Numbers of threads to search with
-     * @param start Start date
-     * @param end End date
+     * @param threads Number of threads to search with
      */
     void startSearch(int threads);
 

@@ -42,8 +42,8 @@ EggGenerator8::EggGenerator8(u32 initialAdvances, u32 maxAdvances, u32 offset, u
 std::vector<EggState8> EggGenerator8::generate(u64 seed0, u64 seed1) const
 {
     const PersonalInfo *base = PersonalLoader::getPersonal(profile.getVersion(), daycare.getEggSpecie());
-    const PersonalInfo *male;
-    const PersonalInfo *female;
+    const PersonalInfo *male = nullptr;
+    const PersonalInfo *female = nullptr;
     if (daycare.getEggSpecie() == 29 || daycare.getEggSpecie() == 32)
     {
         male = PersonalLoader::getPersonal(profile.getVersion(), 32);
@@ -189,7 +189,7 @@ std::vector<EggState8> EggGenerator8::generate(u64 seed0, u64 seed1) const
             // Uses a rand call, maybe add later
 
             EggState8 state(initialAdvances + cnt, ec, pid, ivs, ability, gender, 1, nature, Utilities::getShiny<false>(pid, tsv),
-                            inheritance, seed, info);
+                            inheritance, static_cast<u32>(seed), info);
             if (filter.compareState(static_cast<const State &>(state)))
             {
                 states.emplace_back(state);

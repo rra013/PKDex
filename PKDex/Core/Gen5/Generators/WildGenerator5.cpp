@@ -221,7 +221,7 @@ std::vector<WildState5> WildGenerator5::generate(u64 seed, const std::vector<std
         const Slot &slot = area.getPokemon(encounterSlot);
         const PersonalInfo *info = slot.getInfo();
 
-        u32 pid;
+        u32 pid = 0;
         for (u8 i = 0; i < shinyRolls; i++)
         {
             // Only allow cute charm if the target isn't fixed gender

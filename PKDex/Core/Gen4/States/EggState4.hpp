@@ -31,7 +31,6 @@ public:
     /**
      * @brief Construct a new EggGeneratorState4 object
      *
-     * @param prng PRNG call to determine Elm/Irwin call and Chatot pitch
      * @param advances Advances of the state
      * @param pid Pokemon PID
      * @param gender Pokemon gender

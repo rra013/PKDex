@@ -35,7 +35,7 @@ public:
      *
      * @param location Location number
      * @param rate Encounter rate of the area
-     * @param encounter Encounter type of the area
+     * @param type Encounter type of the area
      * @param pokemon Available pokemon of the area
      */
     EncounterArea8(u8 location, u8 rate, Encounter type, const std::array<Slot, 12> &pokemon) : EncounterArea(location, rate, type, pokemon)

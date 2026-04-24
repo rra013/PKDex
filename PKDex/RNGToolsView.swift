@@ -553,92 +553,23 @@ nonisolated enum LCRNGReverse {
     static func calculatePIDs(hp: UInt8, atk: UInt8, def: UInt8,
                                spa: UInt8, spd: UInt8, spe: UInt8,
                                nature: UInt8, tid: UInt16) -> [IVToPIDResult] {
-        let genderThresholds: [UInt8] = [0, 0x32, 0x4b, 0x96, 0xc8]
-        var results: [IVToPIDResult] = []
-
-        // Method 1/2
-        let method12Seeds = recoverPokeRNGIVMethod12(hp: hp, atk: atk, def: def, spa: spa, spd: spd, spe: spe)
-        for ivSeed in method12Seeds {
-            // Method 1
-            var rng = makePokeRNGR(ivSeed)
-            let high1 = UInt16(rng.next() >> 16)
-            let low1 = UInt16(rng.next() >> 16)
-            let sid1 = (high1 ^ low1 ^ tid) & 0xfff8
-            let seed1 = rng.next()
-
-            let pid1 = (UInt32(high1) << 16) | UInt32(low1)
-            if pid1 % 25 == UInt32(nature) {
-                results.append(IVToPIDResult(seed: seed1, pid: pid1, sid: sid1, method: .method1))
+        let bridgeResults = PFBridge.ivToPID(hp: hp, atk: atk, def: def,
+                                              spa: spa, spd: spd, spe: spe,
+                                              nature: nature, tid: tid)
+        return bridgeResults.map { r in
+            let method: RNGMethod = switch PFMethod(rawValue: r.method) {
+            case .method1: .method1
+            case .method1Reverse: .method1Reverse
+            case .method2: .method2
+            case .method4: .method4
+            case .xdColo: .xdColo
+            case .channel: .channel
+            case .cuteCharmDPPt: .cuteCharmDPPt
+            case .cuteCharmHGSS: .cuteCharmHGSS
+            default: .method1
             }
-
-            let pid1r = (UInt32(low1) << 16) | UInt32(high1)
-            if pid1r % 25 == UInt32(nature) {
-                results.append(IVToPIDResult(seed: seed1, pid: pid1r, sid: sid1, method: .method1Reverse))
-            }
-
-            // Cute Charm checks
-            if (low1 / 0x5556) != 0 && (high1 / 0xa3e) == nature {
-                for thresh in genderThresholds {
-                    let ccPid = UInt32(nature) + UInt32(thresh)
-                    let ccSid = (UInt16(ccPid & 0xFFFF) ^ tid) & 0xfff8
-                    results.append(IVToPIDResult(seed: seed1, pid: ccPid, sid: ccSid, method: .cuteCharmDPPt))
-                }
-            }
-            if (low1 % 3) != 0 && (high1 % 25) == UInt16(nature) {
-                for thresh in genderThresholds {
-                    let ccPid = UInt32(nature) + UInt32(thresh)
-                    let ccSid = (UInt16(ccPid & 0xFFFF) ^ tid) & 0xfff8
-                    results.append(IVToPIDResult(seed: seed1, pid: ccPid, sid: ccSid, method: .cuteCharmHGSS))
-                }
-            }
-
-            // Method 2
-            var rng2 = makePokeRNGR(ivSeed)
-            rng2.advance(1)
-            let high2 = UInt16(rng2.next() >> 16)
-            let low2 = UInt16(rng2.next() >> 16)
-            let sid2 = (high2 ^ low2 ^ tid) & 0xfff8
-            let seed2 = rng2.next()
-
-            let pid2 = (UInt32(high2) << 16) | UInt32(low2)
-            if pid2 % 25 == UInt32(nature) {
-                results.append(IVToPIDResult(seed: seed2, pid: pid2, sid: sid2, method: .method2))
-            }
+            return IVToPIDResult(seed: r.seed, pid: r.pid, sid: r.sid, method: method)
         }
-
-        // Method 4
-        let method4Seeds = recoverPokeRNGIVMethod4(hp: hp, atk: atk, def: def, spa: spa, spd: spd, spe: spe)
-        for ivSeed in method4Seeds {
-            var rng = makePokeRNGR(ivSeed)
-            let high = UInt16(rng.next() >> 16)
-            let low = UInt16(rng.next() >> 16)
-            let sid = (high ^ low ^ tid) & 0xfff8
-            let seed = rng.next()
-
-            let pid = (UInt32(high) << 16) | UInt32(low)
-            if pid % 25 == UInt32(nature) {
-                results.append(IVToPIDResult(seed: seed, pid: pid, sid: sid, method: .method4))
-            }
-        }
-
-        // XD/Colo
-        let xdSeeds = recoverXDRNGIV(hp: hp, atk: atk, def: def, spa: spa, spd: spd, spe: spe)
-        for ivSeed in xdSeeds {
-            var xdRev = makeXDRNGR(ivSeed)
-            let seedVal = xdRev.next()
-            var rng = makeXDRNG(ivSeed)
-            rng.advance(2)
-            let high = UInt16(rng.next() >> 16)
-            let low = UInt16(rng.next() >> 16)
-            let sid = (high ^ low ^ tid) & 0xfff8
-
-            let pid = (UInt32(high) << 16) | UInt32(low)
-            if pid % 25 == UInt32(nature) {
-                results.append(IVToPIDResult(seed: seedVal, pid: pid, sid: sid, method: .xdColo))
-            }
-        }
-
-        return results
     }
 }
 
@@ -681,6 +612,16 @@ enum FinderLead: String, CaseIterable, Identifiable {
     case none = "None"
     case synchronize = "Synchronize"
     var id: String { rawValue }
+}
+
+nonisolated func finderMethodToPF(_ method: FinderMethod) -> PFMethod {
+    switch method {
+    case .method1: return .method1
+    case .method2: return .method2
+    case .method4: return .method4
+    case .methodJ: return .methodJ
+    case .methodK: return .methodK
+    }
 }
 
 struct StaticSearchResult: Identifiable {
@@ -828,67 +769,26 @@ nonisolated func staticGenerateGen3Streaming(
     method: FinderMethod,
     onResult: (StaticSearchResult) -> Void
 ) {
-    let tsv = tid ^ sid
-    var rng = makePokeRNG(seed)
-    rng.advance(Int(initialAdvance))
+    let pfMethod = finderMethodToPF(method)
+    var natArr = [Bool](repeating: false, count: 25)
+    for n in natures { natArr[Int(n)] = true }
+    let shinyFilter: UInt8 = shinyOnly ? 1 : 255
 
-    for adv in initialAdvance...maxAdvance {
+    let results = PFBridge.staticGenerate3(
+        seed: seed, initialAdvances: initialAdvance, maxAdvances: maxAdvance,
+        method: pfMethod, tid: tid, sid: sid,
+        filterShiny: shinyFilter, natures: natArr)
+
+    for r in results {
         if Task.isCancelled { return }
-        var go = rng
-
-        let pidLow = UInt16(go.next() >> 16)
-        let pidHigh = UInt16(go.next() >> 16)
-        let pid = (UInt32(pidHigh) << 16) | UInt32(pidLow)
-
-        let iv1: UInt16
-        let iv2: UInt16
-        switch method {
-        case .method1:
-            iv1 = UInt16(go.next() >> 16)
-            iv2 = UInt16(go.next() >> 16)
-        case .method2:
-            go.next()
-            iv1 = UInt16(go.next() >> 16)
-            iv2 = UInt16(go.next() >> 16)
-        case .method4:
-            iv1 = UInt16(go.next() >> 16)
-            go.next()
-            iv2 = UInt16(go.next() >> 16)
-        default:
-            iv1 = UInt16(go.next() >> 16)
-            iv2 = UInt16(go.next() >> 16)
-        }
-
-        let ivHP = UInt8(iv1 & 0x1F)
-        let ivAtk = UInt8((iv1 >> 5) & 0x1F)
-        let ivDef = UInt8((iv1 >> 10) & 0x1F)
-        let ivSpe = UInt8(iv2 & 0x1F)
-        let ivSpA = UInt8((iv2 >> 5) & 0x1F)
-        let ivSpD = UInt8((iv2 >> 10) & 0x1F)
-
-        let nature = UInt8(pid % 25)
-        let psv = (pid >> 16) ^ (pid & 0xFFFF)
-        let isShiny = (psv ^ UInt32(tsv)) < 8
-
-        if !natures.isEmpty && !natures.contains(nature) {
-            rng.next()
-            continue
-        }
-        if shinyOnly && !isShiny {
-            rng.next()
-            continue
-        }
-
         onResult(StaticSearchResult(
-            seed: seed, pid: pid,
-            ivHP: ivHP, ivAtk: ivAtk, ivDef: ivDef,
-            ivSpA: ivSpA, ivSpD: ivSpD, ivSpe: ivSpe,
-            nature: nature, ability: UInt8(pid & 1),
-            gender: UInt8(pid & 0xFF), shiny: isShiny,
-            advances: adv, method: method
+            seed: seed, pid: r.pid,
+            ivHP: r.ivs[0], ivAtk: r.ivs[1], ivDef: r.ivs[2],
+            ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
+            nature: r.nature, ability: r.ability,
+            gender: r.gender, shiny: r.shiny > 0,
+            advances: r.advances, method: method
         ))
-
-        rng.next()
     }
 }
 
@@ -925,75 +825,27 @@ nonisolated func staticSearchGen3Streaming(
     method: FinderMethod,
     onResult: (StaticSearchResult) -> Void
 ) {
-    let tsv = tid ^ sid
+    let pfMethod = finderMethodToPF(method)
+    var natArr = [Bool](repeating: false, count: 25)
+    for n in natures { natArr[Int(n)] = true }
+    let shinyFilter: UInt8 = shinyOnly ? 1 : 255
+    let ivMin = [minIVs.0, minIVs.1, minIVs.2, minIVs.3, minIVs.4, minIVs.5]
+    let ivMax = [maxIVs.0, maxIVs.1, maxIVs.2, maxIVs.3, maxIVs.4, maxIVs.5]
 
-    for hp in minIVs.0...maxIVs.0 {
+    let results = PFBridge.staticSearch3(
+        method: pfMethod, tid: tid, sid: sid,
+        filterShiny: shinyFilter, ivMin: ivMin, ivMax: ivMax, natures: natArr)
+
+    for r in results {
         if Task.isCancelled { return }
-        for atk in minIVs.1...maxIVs.1 {
-            if Task.isCancelled { return }
-            for def in minIVs.2...maxIVs.2 {
-                for spa in minIVs.3...maxIVs.3 {
-                    for spd in minIVs.4...maxIVs.4 {
-                        for spe in minIVs.5...maxIVs.5 {
-                            let seeds: [UInt32]
-                            switch method {
-                            case .method1, .method2:
-                                seeds = LCRNGReverse.recoverPokeRNGIVMethod12(
-                                    hp: hp, atk: atk, def: def,
-                                    spa: spa, spd: spd, spe: spe)
-                            case .method4:
-                                seeds = LCRNGReverse.recoverPokeRNGIVMethod4(
-                                    hp: hp, atk: atk, def: def,
-                                    spa: spa, spd: spd, spe: spe)
-                            default: continue
-                            }
-
-                            for ivSeed in seeds {
-                                var rev: LCRNG
-                                let pidHigh: UInt16
-                                let pidLow: UInt16
-                                let pidSeed: UInt32
-
-                                switch method {
-                                case .method1, .method4:
-                                    rev = makePokeRNGR(ivSeed)
-                                    pidHigh = UInt16(rev.next() >> 16)
-                                    pidLow = UInt16(rev.next() >> 16)
-                                    pidSeed = rev.next()
-                                case .method2:
-                                    rev = makePokeRNGR(ivSeed)
-                                    rev.next()
-                                    pidHigh = UInt16(rev.next() >> 16)
-                                    pidLow = UInt16(rev.next() >> 16)
-                                    pidSeed = rev.next()
-                                default: continue
-                                }
-
-                                let pid = (UInt32(pidHigh) << 16) | UInt32(pidLow)
-                                let nature = UInt8(pid % 25)
-
-                                if !natures.isEmpty && !natures.contains(nature) { continue }
-
-                                let psv = (pid >> 16) ^ (pid & 0xFFFF)
-                                let isShiny = (psv ^ UInt32(tsv)) < 8
-                                if shinyOnly && !isShiny { continue }
-
-                                let (originSeed, advances) = findGen3OriginSeed(pidSeed)
-
-                                onResult(StaticSearchResult(
-                                    seed: UInt32(originSeed), pid: pid,
-                                    ivHP: hp, ivAtk: atk, ivDef: def,
-                                    ivSpA: spa, ivSpD: spd, ivSpe: spe,
-                                    nature: nature, ability: UInt8(pid & 1),
-                                    gender: UInt8(pid & 0xFF), shiny: isShiny,
-                                    advances: advances, method: method
-                                ))
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        onResult(StaticSearchResult(
+            seed: r.seed, pid: r.pid,
+            ivHP: r.ivs[0], ivAtk: r.ivs[1], ivDef: r.ivs[2],
+            ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
+            nature: r.nature, ability: r.ability,
+            gender: r.gender, shiny: r.shiny > 0,
+            advances: 0, method: method
+        ))
     }
 }
 
@@ -1004,26 +856,13 @@ nonisolated func staticSearchGen3Streaming(
 /// Convert a 32-bit seed to date/time combinations (Gen 3).
 /// Ported from PokeFinder's SeedToTimeCalculator3.
 nonisolated func seedToTimeGen3(seed: UInt32) -> (originSeed: UInt16, advances: UInt32, times: [SeedToTimeResult3]) {
-    let (origin, advances) = findGen3OriginSeed(seed)
-    var times: [SeedToTimeResult3] = []
-
-    for day in 0..<366 {
-        for hour in 0..<24 {
-            for minute in 0..<60 {
-                let v = UInt32(1440 * day + 960 * (hour / 10) + 60 * (hour % 10) + 16 * (minute / 10) + (minute % 10))
-                let candidate = UInt16((v >> 16) ^ (v & 0xFFFF))
-                if candidate == origin {
-                    times.append(SeedToTimeResult3(
-                        originSeed: origin, advances: advances,
-                        day: day, hour: hour, minute: minute
-                    ))
-                }
-            }
-        }
-        if times.count >= 200 { break }
+    let origin = PFBridge.seedToTimeOriginSeed3(seed: seed)
+    let dateTimes = PFBridge.seedToTime3(seed: seed, year: 2000)
+    let times = dateTimes.prefix(200).map { dt in
+        SeedToTimeResult3(originSeed: origin.originSeed, advances: origin.advances,
+                          day: (dt.month - 1) * 31 + dt.day - 1, hour: dt.hour, minute: dt.minute)
     }
-
-    return (origin, advances, times)
+    return (origin.originSeed, origin.advances, times)
 }
 
 // ============================================================================
@@ -1034,35 +873,13 @@ nonisolated func seedToTimeGen3(seed: UInt32) -> (originSeed: UInt16, advances: 
 /// Seed format: ab|cd|efgh where ab = hash, cd = hour, efgh = delay.
 /// Ported from PokeFinder's SeedToTimeCalculator4.
 nonisolated func seedToTimeGen4(seed: UInt32) -> [SeedToTimeResult4] {
-    let ab = UInt8((seed >> 24) & 0xFF)
-    let cd = UInt8((seed >> 16) & 0xFF)
-    let efgh = UInt16(seed & 0xFFFF)
-
-    guard cd < 24 else { return [] }
-
-    var results: [SeedToTimeResult4] = []
-    let daysInMonth = [0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-
-    for month in 1...12 {
-        for day in 1...daysInMonth[month] {
-            for minute in 0..<60 {
-                for second in 0..<60 {
-                    let check = UInt8(truncatingIfNeeded: UInt16(month &* day) &+ UInt16(minute) &+ UInt16(second))
-                    if check == ab {
-                        results.append(SeedToTimeResult4(
-                            seed: seed, delay: efgh, hour: cd,
-                            month: month, day: day, minute: minute, second: second
-                        ))
-                    }
-                }
-                if results.count >= 300 { break }
-            }
-            if results.count >= 300 { break }
-        }
-        if results.count >= 300 { break }
+    let bridgeResults = PFBridge.seedToTime4(seed: seed, year: 2000)
+    return bridgeResults.prefix(300).map { r in
+        SeedToTimeResult4(seed: seed, delay: UInt16(r.delay),
+                          hour: UInt8(r.dateTime.hour),
+                          month: r.dateTime.month, day: r.dateTime.day,
+                          minute: r.dateTime.minute, second: r.dateTime.second)
     }
-
-    return results
 }
 
 // ============================================================================
@@ -1106,89 +923,27 @@ nonisolated func staticGenerateGen4Streaming(
     syncNature: UInt8 = 0,
     onResult: (StaticSearchResult) -> Void
 ) {
-    if method == .method1 {
-        staticGenerateGen3Streaming(
-            seed: seed, initialAdvance: initialAdvance, maxAdvance: maxAdvance,
-            natures: natures, tid: tid, sid: sid, shinyOnly: shinyOnly,
-            method: .method1, onResult: onResult
-        )
-        return
-    }
+    let pfMethod = finderMethodToPF(method)
+    let pfLead: PFLead = lead == .synchronize ? .synchronize : .none
+    var natArr = [Bool](repeating: false, count: 25)
+    for n in natures { natArr[Int(n)] = true }
+    let shinyFilter: UInt8 = shinyOnly ? 1 : 255
 
-    let tsv = tid ^ sid
-    var rng = makePokeRNG(seed)
-    rng.advance(Int(initialAdvance))
+    let results = PFBridge.staticGenerate4(
+        seed: seed, initialAdvances: initialAdvance, maxAdvances: maxAdvance,
+        method: pfMethod, lead: pfLead, tid: tid, sid: sid,
+        filterShiny: shinyFilter, natures: natArr)
 
-    for adv in initialAdvance...maxAdvance {
+    for r in results {
         if Task.isCancelled { return }
-        var go = rng
-
-        let determinedNature: UInt8
-        if lead == .synchronize {
-            let syncCheck = go.next() >> 16
-            if method == .methodJ {
-                determinedNature = (syncCheck >> 15) == 0 ? syncNature : UInt8((go.next() >> 16) % 25)
-            } else {
-                determinedNature = (syncCheck % 2) == 0 ? syncNature : UInt8((go.next() >> 16) % 25)
-            }
-        } else {
-            if method == .methodJ {
-                go.next()
-                determinedNature = UInt8((go.next() >> 16) / 0xA3E)
-            } else {
-                go.next()
-                determinedNature = UInt8((go.next() >> 16) % 25)
-            }
-        }
-
-        var pid: UInt32
-        var pidAttempts = 0
-        repeat {
-            let pidLow = UInt16(go.next() >> 16)
-            let pidHigh = UInt16(go.next() >> 16)
-            pid = (UInt32(pidHigh) << 16) | UInt32(pidLow)
-            pidAttempts += 1
-            if pidAttempts > 1000 { break }
-        } while UInt8(pid % 25) != determinedNature
-
-        if pidAttempts > 1000 {
-            rng.next()
-            continue
-        }
-
-        let iv1 = UInt16(go.next() >> 16)
-        let iv2 = UInt16(go.next() >> 16)
-
-        let ivHP = UInt8(iv1 & 0x1F)
-        let ivAtk = UInt8((iv1 >> 5) & 0x1F)
-        let ivDef = UInt8((iv1 >> 10) & 0x1F)
-        let ivSpe = UInt8(iv2 & 0x1F)
-        let ivSpA = UInt8((iv2 >> 5) & 0x1F)
-        let ivSpD = UInt8((iv2 >> 10) & 0x1F)
-
-        let nature = UInt8(pid % 25)
-        let psv = (pid >> 16) ^ (pid & 0xFFFF)
-        let isShiny = (psv ^ UInt32(tsv)) < 8
-
-        if !natures.isEmpty && !natures.contains(nature) {
-            rng.next()
-            continue
-        }
-        if shinyOnly && !isShiny {
-            rng.next()
-            continue
-        }
-
         onResult(StaticSearchResult(
-            seed: seed, pid: pid,
-            ivHP: ivHP, ivAtk: ivAtk, ivDef: ivDef,
-            ivSpA: ivSpA, ivSpD: ivSpD, ivSpe: ivSpe,
-            nature: nature, ability: UInt8(pid & 1),
-            gender: UInt8(pid & 0xFF), shiny: isShiny,
-            advances: adv, method: method
+            seed: seed, pid: r.pid,
+            ivHP: r.ivs[0], ivAtk: r.ivs[1], ivDef: r.ivs[2],
+            ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
+            nature: r.nature, ability: r.ability,
+            gender: r.gender, shiny: r.shiny > 0,
+            advances: r.advances, method: method
         ))
-
-        rng.next()
     }
 }
 
@@ -1230,71 +985,28 @@ nonisolated func staticSearchGen4Streaming(
     maxDelay: UInt16,
     onResult: (StaticSearchResult) -> Void
 ) {
-    let tsv = tid ^ sid
+    let pfMethod = finderMethodToPF(method)
+    var natArr = [Bool](repeating: false, count: 25)
+    for n in natures { natArr[Int(n)] = true }
+    let shinyFilter: UInt8 = shinyOnly ? 1 : 255
+    let ivMin = [minIVs.0, minIVs.1, minIVs.2, minIVs.3, minIVs.4, minIVs.5]
+    let ivMax = [maxIVs.0, maxIVs.1, maxIVs.2, maxIVs.3, maxIVs.4, maxIVs.5]
 
-    for hp in minIVs.0...maxIVs.0 {
+    let results = PFBridge.staticSearch4(
+        minDelay: UInt32(minDelay), maxDelay: UInt32(maxDelay),
+        method: pfMethod, tid: tid, sid: sid,
+        filterShiny: shinyFilter, ivMin: ivMin, ivMax: ivMax, natures: natArr)
+
+    for r in results {
         if Task.isCancelled { return }
-        for atk in minIVs.1...maxIVs.1 {
-            if Task.isCancelled { return }
-            for def in minIVs.2...maxIVs.2 {
-                for spa in minIVs.3...maxIVs.3 {
-                    for spd in minIVs.4...maxIVs.4 {
-                        for spe in minIVs.5...maxIVs.5 {
-                            let seeds: [UInt32]
-                            switch method {
-                            case .method1, .methodJ, .methodK:
-                                seeds = LCRNGReverse.recoverPokeRNGIVMethod12(
-                                    hp: hp, atk: atk, def: def,
-                                    spa: spa, spd: spd, spe: spe)
-                            default: continue
-                            }
-
-                            for ivSeed in seeds {
-                                var rev = makePokeRNGR(ivSeed)
-                                let pidHigh = UInt16(rev.next() >> 16)
-                                let pidLow = UInt16(rev.next() >> 16)
-                                let pidSeed = rev.next()
-
-                                let pid = (UInt32(pidHigh) << 16) | UInt32(pidLow)
-                                let nature = UInt8(pid % 25)
-
-                                if !natures.isEmpty && !natures.contains(nature) { continue }
-
-                                let psv = (pid >> 16) ^ (pid & 0xFFFF)
-                                let isShiny = (psv ^ UInt32(tsv)) < 8
-                                if shinyOnly && !isShiny { continue }
-
-                                var walker = makePokeRNGR(pidSeed)
-                                var initSeed = pidSeed
-                                var walkAdvances: UInt32 = 0
-                                var foundValid = false
-                                while walkAdvances < 100000 {
-                                    let hourByte = UInt8((initSeed >> 16) & 0xFF)
-                                    let delay = UInt16(initSeed & 0xFFFF)
-                                    if hourByte < 24 && delay >= minDelay && delay <= maxDelay {
-                                        foundValid = true
-                                        break
-                                    }
-                                    initSeed = walker.next()
-                                    walkAdvances += 1
-                                }
-
-                                if !foundValid { continue }
-
-                                onResult(StaticSearchResult(
-                                    seed: initSeed, pid: pid,
-                                    ivHP: hp, ivAtk: atk, ivDef: def,
-                                    ivSpA: spa, ivSpD: spd, ivSpe: spe,
-                                    nature: nature, ability: UInt8(pid & 1),
-                                    gender: UInt8(pid & 0xFF), shiny: isShiny,
-                                    advances: walkAdvances, method: method
-                                ))
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        onResult(StaticSearchResult(
+            seed: r.seed, pid: r.pid,
+            ivHP: r.ivs[0], ivAtk: r.ivs[1], ivDef: r.ivs[2],
+            ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
+            nature: r.nature, ability: r.ability,
+            gender: r.gender, shiny: r.shiny > 0,
+            advances: r.advances, method: method
+        ))
     }
 }
 

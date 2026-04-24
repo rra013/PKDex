@@ -47,7 +47,7 @@ public:
     /**
      * @brief Generates states for the \p raid
      *
-     * @param seed0 PRNG state
+     * @param seed PRNG state
      * @param raid Pokemon template
      *
      * @return Vector of computed states

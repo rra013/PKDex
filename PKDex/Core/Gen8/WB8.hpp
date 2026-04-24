@@ -102,7 +102,7 @@ public:
 
     /**
      * @brief Determines what EC the template should have
-     * @return
+     * @return EC value
      */
     u32 getEC() const
     {

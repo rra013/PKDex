@@ -172,7 +172,7 @@ std::vector<State5> HiddenGrottoGenerator::generate(u64 seed, const std::vector<
 
         const PersonalInfo *info = slot.getInfo();
 
-        u32 pid;
+        u32 pid = 0;
         for (u8 i = 0; i < shinyRolls; i++)
         {
             pid = Utilities5::createPID(tsv, 255, !info->getFixedGender() ? gender : 255, Shiny::Never, true, info->getGender(), go);

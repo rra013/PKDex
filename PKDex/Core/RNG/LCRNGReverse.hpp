@@ -73,7 +73,6 @@ namespace LCRNGReverse
      * @param spa SpA iv
      * @param spd SpD iv
      * @param spe Spe iv
-     * @param seeds Array to write results
      *
      * @return Array of origin seeds (Won't be higher than 6)
      */
@@ -83,7 +82,6 @@ namespace LCRNGReverse
      * @brief Recovers origin seeds for two 16 bit calls
      *
      * @param pid PID value
-     * @param seeds Array to write results
      *
      * @return Array of origin seeds (Won't be higher than 3)
      */
@@ -98,7 +96,6 @@ namespace LCRNGReverse
      * @param spa SpA iv
      * @param spd SpD iv
      * @param spe Spe iv
-     * @param seeds Array to write results
      *
      * @return Array of origin seeds (Won't be higher than 6)
      */
@@ -108,7 +105,6 @@ namespace LCRNGReverse
      * @brief Recovers origin seeds for two 16 bit calls
      *
      * @param pid PID value
-     * @param seeds Array to write results
      *
      * @return Array of origin seeds (Won't be higher than 2)
      */
