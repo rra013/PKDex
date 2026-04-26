@@ -13,6 +13,24 @@ import SwiftUI
 import SwiftData
 import AVFoundation
 
+extension UInt8: @retroactive RawRepresentable {
+    public init?(rawValue: Int) { self.init(exactly: rawValue) }
+    public var rawValue: Int { Int(self) }
+}
+
+extension UInt16: @retroactive RawRepresentable {
+    public init?(rawValue: Int) { self.init(exactly: rawValue) }
+    public var rawValue: Int { Int(self) }
+}
+
+extension Set<UInt8>: @retroactive RawRepresentable {
+    public init?(rawValue: String) {
+        if rawValue.isEmpty { self = [] }
+        else { self = Set(rawValue.split(separator: ",").compactMap { UInt8($0) }) }
+    }
+    public var rawValue: String { sorted().map(String.init).joined(separator: ",") }
+}
+
 // ============================================================================
 // MARK: - EonTimer Port: Constants (from utils/constants.ts)
 // ============================================================================
@@ -1159,6 +1177,7 @@ nonisolated func runWildSearch(
     minIVs: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8),
     maxIVs: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8),
     seed: UInt32, initAdv: UInt32, maxAdv: UInt32,
+    searcherMinAdv: UInt32 = 0, searcherMaxAdv: UInt32 = 100,
     minDelay: UInt32, maxDelay: UInt32,
     pfGame: PFGame, pfEnc: PFEncounter, locationID: UInt8,
     slotSpecies: [UInt16],
@@ -1273,7 +1292,7 @@ nonisolated func runWildSearch(
                 encounterSlots: encounterSlots)
         } else {
             handle = PFBridge.wildSearch4Async(
-                minAdvance: initAdv, maxAdvance: maxAdv,
+                minAdvance: searcherMinAdv, maxAdvance: searcherMaxAdv,
                 minDelay: minDelay, maxDelay: maxDelay,
                 method: pfMethod, lead: pfLead,
                 tid: tid, sid: sid, game: pfGame,
@@ -1396,6 +1415,25 @@ nonisolated func matchesCoinFlips(seed: UInt32, observed: [Bool]) -> Bool {
     for isHeads in observed {
         let isH = (nextMT() & 1) != 0
         if isH != isHeads { return false }
+    }
+    return true
+}
+
+nonisolated func matchesCalls(seed: UInt32, observed: [UInt8], skips: UInt8) -> Bool {
+    var rngState = seed
+    func nextRNG() -> UInt16 {
+        rngState = rngState &* 0x41C64E6D &+ 0x6073
+        return UInt16(rngState >> 16)
+    }
+
+    // Skip roamer advances
+    for _ in 0..<skips {
+        _ = nextRNG()
+    }
+
+    for expected in observed {
+        let call = nextRNG() % 3
+        if call != UInt16(expected) { return false }
     }
     return true
 }
@@ -2415,7 +2453,7 @@ struct IVToPIDView: View {
                                         .font(.system(.caption2, design: .monospaced))
                                         .foregroundStyle(.secondary)
                                     Spacer()
-                                    Text("SID: \(r.sid)")
+                                    Text(verbatim: "SID: \(r.sid)")
                                         .font(.system(.caption2, design: .monospaced))
                                         .foregroundStyle(.secondary)
                                 }
@@ -2505,28 +2543,28 @@ struct HiddenPowerCalcView: View {
 struct FinderRootView: View {
     var switchToTimer: () -> Void
 
-    @State private var generation: FinderGeneration = .gen3
-    @State private var mode: FinderMode = .searcher
-    @State private var method: FinderMethod = .method1
-    @State private var lead: FinderLead = .none
+    @AppStorage("finder_generation") private var generation: FinderGeneration = .gen3
+    @AppStorage("finder_mode") private var mode: FinderMode = .searcher
+    @AppStorage("finder_method") private var method: FinderMethod = .method1
+    @AppStorage("finder_lead") private var lead: FinderLead = .none
     @State private var syncNature: UInt8 = 0
 
     // Profile
-    @State private var tid: UInt16 = 0
-    @State private var sid: UInt16 = 0
+    @AppStorage("finder_tid") private var tid: UInt16 = 0
+    @AppStorage("finder_sid") private var sid: UInt16 = 0
     @State private var savedProfiles: [FinderProfile] = FinderProfileStore.load()
     @State private var selectedProfileID: UUID? = FinderProfileStore.lastProfileID
     @State private var showSaveAlert = false
     @State private var newProfileName = ""
 
     // Encounter
-    @State private var selectedGame: FinderGameVersion = .emerald
-    @State private var encounterMode: EncounterMode = .static_
-    @State private var encounterCategory: StaticEncounterCategory = .legends
+    @AppStorage("finder_game") private var selectedGame: FinderGameVersion = .emerald
+    @AppStorage("finder_encounterMode") private var encounterMode: EncounterMode = .static_
+    @AppStorage("finder_encounterCategory") private var encounterCategory: StaticEncounterCategory = .legends
     @State private var selectedEncounter: StaticEncounter?
-    @State private var selectedLocation: String = ""
-    @State private var selectedEncounterType: EncounterType = .grass
-    @State private var selectedSpeciesFilter: UInt16 = 0
+    @AppStorage("finder_selectedLocation") private var selectedLocation: String = ""
+    @AppStorage("finder_encounterType") private var selectedEncounterType: EncounterType = .grass
+    @AppStorage("finder_speciesFilter") private var selectedSpeciesFilter: UInt16 = 0
 
     enum EncounterMode: String, CaseIterable, Identifiable {
         case static_ = "Static"
@@ -2535,36 +2573,50 @@ struct FinderRootView: View {
     }
 
     // Searcher IV ranges
-    @State private var minHP: UInt8 = 0; @State private var maxHP: UInt8 = 31
-    @State private var minAtk: UInt8 = 0; @State private var maxAtk: UInt8 = 31
-    @State private var minDef: UInt8 = 0; @State private var maxDef: UInt8 = 31
-    @State private var minSpA: UInt8 = 0; @State private var maxSpA: UInt8 = 31
-    @State private var minSpD: UInt8 = 0; @State private var maxSpD: UInt8 = 31
-    @State private var minSpe: UInt8 = 0; @State private var maxSpe: UInt8 = 31
+    @AppStorage("finder_minHP") private var minHP: UInt8 = 0
+    @AppStorage("finder_maxHP") private var maxHP: UInt8 = 31
+    @AppStorage("finder_minAtk") private var minAtk: UInt8 = 0
+    @AppStorage("finder_maxAtk") private var maxAtk: UInt8 = 31
+    @AppStorage("finder_minDef") private var minDef: UInt8 = 0
+    @AppStorage("finder_maxDef") private var maxDef: UInt8 = 31
+    @AppStorage("finder_minSpA") private var minSpA: UInt8 = 0
+    @AppStorage("finder_maxSpA") private var maxSpA: UInt8 = 31
+    @AppStorage("finder_minSpD") private var minSpD: UInt8 = 0
+    @AppStorage("finder_maxSpD") private var maxSpD: UInt8 = 31
+    @AppStorage("finder_minSpe") private var minSpe: UInt8 = 0
+    @AppStorage("finder_maxSpe") private var maxSpe: UInt8 = 31
 
     // Gen 4 delay/advance range (searcher)
-    @State private var minDelay: UInt16 = 500
-    @State private var maxDelay: UInt16 = 10000
-    @State private var searcherMinAdvance: Int = 0
-    @State private var searcherMaxAdvance: Int = 0
+    @AppStorage("finder_minDelay") private var minDelay: UInt16 = 500
+    @AppStorage("finder_maxDelay") private var maxDelay: UInt16 = 10000
+    @AppStorage("finder_searcherMinAdvance") private var searcherMinAdvance: Int = 0
+    @AppStorage("finder_searcherMaxAdvance") private var searcherMaxAdvance: Int = 100
 
     // Generator inputs
-    @State private var genSeedText: String = ""
-    @State private var genInitAdvance: Int = 0
-    @State private var genMaxAdvance: Int = 10000
+    @AppStorage("finder_genSeed") private var genSeedText: String = ""
+    @AppStorage("finder_genInitAdvance") private var genInitAdvance: Int = 0
+    @AppStorage("finder_genMaxAdvance") private var genMaxAdvance: Int = 10000
 
     // Filters
-    @State private var selectedNatures: Set<UInt8> = []
-    @State private var shinyOnly: Bool = false
-    @State private var filterGender: UInt8 = 255
-    @State private var filterAbility: UInt8 = 255
-    @State private var selectedHiddenPowers: Set<UInt8> = []
-    @State private var deadBattery: Bool = true
+    @AppStorage("finder_natures") private var selectedNatures: Set<UInt8> = []
+    @AppStorage("finder_shinyOnly") private var shinyOnly: Bool = false
+    @AppStorage("finder_filterGender") private var filterGender: UInt8 = 255
+    @AppStorage("finder_filterAbility") private var filterAbility: UInt8 = 255
+    @AppStorage("finder_hiddenPowers") private var selectedHiddenPowers: Set<UInt8> = []
+    @AppStorage("finder_deadBattery") private var deadBattery: Bool = true
 
     // Coin flip search (Gen 4)
     @State private var flipInput: [Bool] = []
     @State private var flipSearchResults: [(seed: UInt32, flips: String)] = []
     @State private var flipSearching = false
+    @State private var flipSearchRange: Int = 200
+
+    // Call search (Elm/Irwin, Gen 4)
+    @State private var callInput: [UInt8] = []
+    @State private var callSearchResults: [(seed: UInt32, calls: String)] = []
+    @State private var callSearching = false
+    @State private var callSearchRange: Int = 200
+    @State private var roamerCount: UInt8 = 0
 
     // State — separate results for searcher and generator
     @State private var searcherResults: [StaticSearchResult] = []
@@ -2814,10 +2866,8 @@ struct FinderRootView: View {
 
                 if generation == .gen4 && mode == .generator {
                     seedVerificationSection
-                }
-
-                if generation == .gen4 {
                     coinFlipSearchSection
+                    callSearchSection
                 }
 
                 // Nature filter
@@ -2978,7 +3028,7 @@ struct FinderRootView: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Save profile for \(selectedGame.rawValue) TID \(tid) / SID \(sid)")
+            Text(verbatim: "Save profile for \(selectedGame.rawValue) TID \(tid) / SID \(sid)")
         }
     }
 
@@ -3151,12 +3201,12 @@ struct FinderRootView: View {
         }
     }
 
-    // MARK: Coin Flip Search
+    // MARK: - Coin Flip Finder
 
     private var coinFlipSearchSection: some View {
         RNGSection(title: "Coin Flip Finder", icon: "circle.lefthalf.filled") {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Tap to record your observed Poketch coin flips")
+                Text("Tap to record observed Poketch coin flips")
                     .font(.caption).foregroundStyle(.secondary)
 
                 HStack(spacing: 6) {
@@ -3177,14 +3227,21 @@ struct FinderRootView: View {
                     }
 
                     if flipInput.count < 15 {
-                        Button {
-                            flipInput.append(false)
-                        } label: {
-                            Image(systemName: "plus.circle")
-                                .foregroundStyle(Color.accentColor)
+                        Button { flipInput.append(false) } label: {
+                            Image(systemName: "plus.circle").foregroundStyle(Color.accentColor)
                         }
                         .buttonStyle(.plain)
                     }
+                }
+
+                HStack {
+                    Text("Range: \u{00B1}")
+                        .font(.caption)
+                    TextField("200", value: $flipSearchRange, format: .number)
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                        .font(.caption)
                 }
 
                 HStack {
@@ -3195,14 +3252,9 @@ struct FinderRootView: View {
                         }
                         .font(.caption)
                     }
-
                     Spacer()
-
-                    Button {
-                        searchCoinFlips()
-                    } label: {
-                        Label("Find Seed", systemImage: "magnifyingglass")
-                            .font(.caption)
+                    Button { searchCoinFlips() } label: {
+                        Label("Search", systemImage: "magnifyingglass").font(.caption)
                     }
                     .disabled(flipInput.count < 5 || flipSearching)
                 }
@@ -3223,18 +3275,8 @@ struct FinderRootView: View {
                             Text(match.flips)
                                 .font(.system(.caption2, design: .monospaced))
                                 .foregroundStyle(.secondary)
-                            Button {
-                                genSeedText = String(format: "%08X", match.seed)
-                                mode = .generator
-                            } label: {
-                                Image(systemName: "arrow.right.circle")
-                                    .font(.caption)
-                            }
-                            .buttonStyle(.plain)
                         }
                     }
-                } else if !flipSearching && flipInput.count >= 5 && flipSearchResults.isEmpty {
-                    // Only show "no results" after a search has been run
                 }
             }
         }
@@ -3246,32 +3288,176 @@ struct FinderRootView: View {
         flipSearchResults = []
 
         let observed = flipInput
-        let minDel = UInt32(minDelay)
-        let maxDel = UInt32(maxDelay)
+        let targetSeed = UInt32(genSeedText, radix: 16) ?? 0
+        let range = UInt32(flipSearchRange)
+        let lo = targetSeed &- range
+        let hi = targetSeed &+ range
 
         Task.detached {
             var found: [(seed: UInt32, flips: String)] = []
 
-            for hour: UInt32 in 0..<24 {
-                for ab: UInt32 in 0..<256 {
-                    for delay in minDel...maxDel {
-                        let seed = (ab << 24) | (hour << 16) | delay
-
-                        if matchesCoinFlips(seed: seed, observed: observed) {
-                            let flipsStr = PFBridge.coinFlips(seed)
-                            found.append((seed: seed, flips: flipsStr))
-                            if found.count >= 200 { break }
-                        }
+            if lo <= hi {
+                for seed in lo...hi {
+                    if matchesCoinFlips(seed: seed, observed: observed) {
+                        found.append((seed: seed, flips: PFBridge.coinFlips(seed)))
                     }
-                    if found.count >= 200 { break }
                 }
-                if found.count >= 200 { break }
+            } else {
+                for seed in lo...UInt32.max {
+                    if matchesCoinFlips(seed: seed, observed: observed) {
+                        found.append((seed: seed, flips: PFBridge.coinFlips(seed)))
+                    }
+                }
+                for seed: UInt32 in 0...hi {
+                    if matchesCoinFlips(seed: seed, observed: observed) {
+                        found.append((seed: seed, flips: PFBridge.coinFlips(seed)))
+                    }
+                }
             }
 
             let results = found
             await MainActor.run {
                 flipSearchResults = results
                 flipSearching = false
+            }
+        }
+    }
+
+    // MARK: - Elm/Irwin Call Finder
+
+    private var callSearchSection: some View {
+        RNGSection(title: "Elm/Irwin Call Finder", icon: "phone.fill") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Tap to record observed Elm/Irwin calls")
+                    .font(.caption).foregroundStyle(.secondary)
+
+                HStack(spacing: 6) {
+                    ForEach(Array(callInput.enumerated()), id: \.offset) { idx, call in
+                        Button {
+                            callInput[idx] = (call + 1) % 3
+                        } label: {
+                            Text(callLabel(call))
+                                .font(.system(.caption, design: .monospaced)).bold()
+                                .foregroundStyle(callColor(call))
+                                .frame(width: 24, height: 24)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(callColor(call).opacity(0.15))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if callInput.count < 15 {
+                        Button { callInput.append(0) } label: {
+                            Image(systemName: "plus.circle").foregroundStyle(Color.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Text("E = Elm, K = Irwin, P = Pokemon (tap to cycle)")
+                    .font(.caption2).foregroundStyle(.tertiary)
+
+                HStack {
+                    Text("Range: \u{00B1}")
+                        .font(.caption)
+                    TextField("200", value: $callSearchRange, format: .number)
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                        .font(.caption)
+                }
+
+                Stepper("Roamers: \(roamerCount)", value: $roamerCount, in: 0...3)
+                    .font(.caption)
+
+                HStack {
+                    if !callInput.isEmpty {
+                        Button("Clear") {
+                            callInput.removeAll()
+                            callSearchResults.removeAll()
+                        }
+                        .font(.caption)
+                    }
+                    Spacer()
+                    Button { searchCalls() } label: {
+                        Label("Search", systemImage: "magnifyingglass").font(.caption)
+                    }
+                    .disabled(callInput.count < 3 || callSearching)
+                }
+
+                if callSearching {
+                    ProgressView().padding(.vertical, 4)
+                }
+
+                if !callSearchResults.isEmpty {
+                    Divider()
+                    Text("Matching Seeds (\(callSearchResults.count))")
+                        .font(.caption).foregroundStyle(.secondary)
+                    ForEach(Array(callSearchResults.prefix(50).enumerated()), id: \.offset) { _, match in
+                        HStack {
+                            Text(String(format: "%08X", match.seed))
+                                .font(.system(.caption, design: .monospaced))
+                            Spacer()
+                            Text(match.calls)
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func callLabel(_ call: UInt8) -> String {
+        switch call {
+        case 0: return "E"
+        case 1: return "K"
+        default: return "P"
+        }
+    }
+
+    private func callColor(_ call: UInt8) -> Color {
+        switch call {
+        case 0: return .green
+        case 1: return .orange
+        default: return .purple
+        }
+    }
+
+    private func searchCalls() {
+        guard callInput.count >= 3 else { return }
+        callSearching = true
+        callSearchResults = []
+
+        let observed = callInput
+        let targetSeed = UInt32(genSeedText, radix: 16) ?? 0
+        let range = UInt32(callSearchRange)
+        let skips = roamerCount
+        let lo = targetSeed &- range
+        let hi = targetSeed &+ range
+
+        Task.detached {
+            var found: [(seed: UInt32, calls: String)] = []
+
+            func check(_ seed: UInt32) {
+                if matchesCalls(seed: seed, observed: observed, skips: skips) {
+                    found.append((seed: seed, calls: PFBridge.getCalls(seed, skips: skips)))
+                }
+            }
+
+            if lo <= hi {
+                for seed in lo...hi { check(seed) }
+            } else {
+                for seed in lo...UInt32.max { check(seed) }
+                for seed: UInt32 in 0...hi { check(seed) }
+            }
+
+            let results = found
+            await MainActor.run {
+                callSearchResults = results
+                callSearching = false
             }
         }
     }
@@ -3354,6 +3540,7 @@ struct FinderRootView: View {
                               minIVs: (hpMin, atkMin, defMin, spaMin, spdMin, speMin),
                               maxIVs: (hpMax, atkMax, defMax, spaMax, spdMax, speMax),
                               seed: seedVal, initAdv: initAdv, maxAdv: maxAdv,
+                              searcherMinAdv: srcMinAdv, searcherMaxAdv: srcMaxAdv,
                               minDelay: UInt32(delMin), maxDelay: UInt32(delMax),
                               pfGame: pfGameVal, pfEnc: pfEncVal,
                               locationID: locationIDVal,
