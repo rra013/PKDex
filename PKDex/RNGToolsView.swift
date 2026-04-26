@@ -592,7 +592,7 @@ enum FinderGeneration: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-enum FinderMethod: String, CaseIterable, Identifiable {
+enum FinderMethod: String, CaseIterable, Identifiable, Sendable {
     case method1 = "Method 1"
     case method2 = "Method 2"
     case method4 = "Method 4"
@@ -608,10 +608,49 @@ enum FinderMethod: String, CaseIterable, Identifiable {
     }
 }
 
-enum FinderLead: String, CaseIterable, Identifiable {
+enum FinderLead: String, CaseIterable, Identifiable, Sendable {
     case none = "None"
     case synchronize = "Synchronize"
+    case cuteCharmF = "Cute Charm ♀"
+    case cuteCharmM = "Cute Charm ♂"
+    case magnetPull = "Magnet Pull"
+    case staticLead = "Static"
+    case pressure = "Pressure"
+    case compoundEyes = "Compound Eyes"
+    case suctionCups = "Suction Cups"
+    case flashFire = "Flash Fire"
+    case harvest = "Harvest"
+    case stormDrain = "Storm Drain"
+    case arenaTrap = "Arena Trap"
     var id: String { rawValue }
+
+    nonisolated var pfLead: PFLead {
+        switch self {
+        case .none: return .none
+        case .synchronize: return .synchronize
+        case .cuteCharmF: return .cuteCharmF
+        case .cuteCharmM: return .cuteCharmM
+        case .magnetPull: return .magnetPull
+        case .staticLead: return .staticLead
+        case .pressure: return .pressure
+        case .compoundEyes: return .compoundEyes
+        case .suctionCups: return .suctionCups
+        case .flashFire: return .flashFire
+        case .harvest: return .harvest
+        case .stormDrain: return .stormDrain
+        case .arenaTrap: return .arenaTrap
+        }
+    }
+
+    static func leads(for gen: FinderGeneration, encounterMode: Bool) -> [FinderLead] {
+        if !encounterMode { return [.none, .synchronize] }
+        switch gen {
+        case .gen3:
+            return [.none, .synchronize, .magnetPull, .staticLead, .pressure, .compoundEyes, .suctionCups, .arenaTrap]
+        case .gen4:
+            return [.none, .synchronize, .cuteCharmF, .cuteCharmM, .magnetPull, .staticLead, .pressure, .compoundEyes, .suctionCups, .flashFire, .harvest, .stormDrain, .arenaTrap]
+        }
+    }
 }
 
 nonisolated func finderMethodToPF(_ method: FinderMethod) -> PFMethod {
@@ -624,7 +663,7 @@ nonisolated func finderMethodToPF(_ method: FinderMethod) -> PFMethod {
     }
 }
 
-struct StaticSearchResult: Identifiable {
+struct StaticSearchResult: Identifiable, Sendable {
     let id = UUID()
     let seed: UInt32
     let pid: UInt32
@@ -640,11 +679,75 @@ struct StaticSearchResult: Identifiable {
     let shiny: Bool
     let advances: UInt32
     let method: FinderMethod
+    let hiddenPower: UInt8
+    let hiddenPowerStrength: UInt8
+
+    // Wild encounter data
+    let encounterSlot: UInt8?
+    let level: UInt8?
+    let item: UInt16?
+    let specie: UInt16?
+    let form: UInt8?
+
+    // Gen 4 extras
+    let call: UInt8?
+    let chatot: UInt8?
+
+    nonisolated init(seed: UInt32, pid: UInt32,
+         ivHP: UInt8, ivAtk: UInt8, ivDef: UInt8, ivSpA: UInt8, ivSpD: UInt8, ivSpe: UInt8,
+         nature: UInt8, ability: UInt8, gender: UInt8, shiny: Bool, advances: UInt32, method: FinderMethod,
+         hiddenPower: UInt8 = 0, hiddenPowerStrength: UInt8 = 0,
+         encounterSlot: UInt8? = nil, level: UInt8? = nil, item: UInt16? = nil,
+         specie: UInt16? = nil, form: UInt8? = nil,
+         call: UInt8? = nil, chatot: UInt8? = nil) {
+        self.seed = seed; self.pid = pid
+        self.ivHP = ivHP; self.ivAtk = ivAtk; self.ivDef = ivDef
+        self.ivSpA = ivSpA; self.ivSpD = ivSpD; self.ivSpe = ivSpe
+        self.nature = nature; self.ability = ability; self.gender = gender
+        self.shiny = shiny; self.advances = advances; self.method = method
+        self.hiddenPower = hiddenPower; self.hiddenPowerStrength = hiddenPowerStrength
+        self.encounterSlot = encounterSlot; self.level = level
+        self.item = item; self.specie = specie; self.form = form
+        self.call = call; self.chatot = chatot
+    }
 
     var natureName: String { pfNatureNames[Int(nature)] }
     var pidHex: String { String(format: "%08X", pid) }
     var seedHex: String { String(format: "%08X", seed) }
     var ivSummary: String { "\(ivHP)/\(ivAtk)/\(ivDef)/\(ivSpA)/\(ivSpD)/\(ivSpe)" }
+    var specieName: String? { specie.flatMap { $0 > 0 ? PFBridge.specieName($0) : nil } }
+    var abilityDisplayName: String { PFBridge.abilityName(UInt16(ability)) }
+    var hiddenPowerName: String { hiddenPowerTypes[Int(hiddenPower) % hiddenPowerTypes.count] }
+    var itemName: String? { item.flatMap { $0 > 0 ? PFBridge.itemName($0) : nil } }
+    var genderSymbol: String {
+        switch gender {
+        case 0: return "♂"
+        case 1: return "♀"
+        case 2: return "-"
+        default: return "?"
+        }
+    }
+    var chatotPitch: String? {
+        guard let c = chatot else { return nil }
+        let label: String
+        switch c {
+        case 0..<20: label = "L"
+        case 20..<40: label = "ML"
+        case 40..<60: label = "M"
+        case 60..<80: label = "MH"
+        default: label = "H"
+        }
+        return "\(label) \(c)"
+    }
+    var callName: String? {
+        guard let c = call else { return nil }
+        switch c {
+        case 0: return "E"
+        case 1: return "K"
+        case 2: return "P"
+        default: return "?"
+        }
+    }
 }
 
 struct SeedToTimeResult3: Identifiable, Hashable {
@@ -688,6 +791,16 @@ struct FinderProfile: Identifiable, Codable, Hashable {
     var name: String
     var tid: UInt16
     var sid: UInt16
+    var gameVersion: String?
+    var deadBattery: Bool = false
+    var nationalDex: Bool = false
+
+    var displayName: String {
+        if let g = gameVersion, !g.isEmpty {
+            return "\(name) (\(g) \(tid)/\(sid))"
+        }
+        return "\(name) (\(tid)/\(sid))"
+    }
 }
 
 /// Manages saved TID/SID profiles via UserDefaults.
@@ -767,17 +880,21 @@ nonisolated func staticGenerateGen3Streaming(
     sid: UInt16,
     shinyOnly: Bool,
     method: FinderMethod,
+    filterGender: UInt8 = 255,
+    filterAbility: UInt8 = 255,
+    hiddenPowers: [Bool] = Array(repeating: false, count: 16),
     onResult: (StaticSearchResult) -> Void
 ) {
     let pfMethod = finderMethodToPF(method)
-    var natArr = [Bool](repeating: false, count: 25)
+    var natArr = [Bool](repeating: natures.isEmpty, count: 25)
     for n in natures { natArr[Int(n)] = true }
     let shinyFilter: UInt8 = shinyOnly ? 1 : 255
 
     let results = PFBridge.staticGenerate3(
         seed: seed, initialAdvances: initialAdvance, maxAdvances: maxAdvance,
         method: pfMethod, tid: tid, sid: sid,
-        filterShiny: shinyFilter, natures: natArr)
+        filterGender: filterGender, filterAbility: filterAbility,
+        filterShiny: shinyFilter, natures: natArr, powers: hiddenPowers)
 
     for r in results {
         if Task.isCancelled { return }
@@ -787,7 +904,8 @@ nonisolated func staticGenerateGen3Streaming(
             ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
             nature: r.nature, ability: r.ability,
             gender: r.gender, shiny: r.shiny > 0,
-            advances: r.advances, method: method
+            advances: r.advances, method: method,
+            hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength
         ))
     }
 }
@@ -823,10 +941,13 @@ nonisolated func staticSearchGen3Streaming(
     sid: UInt16,
     shinyOnly: Bool,
     method: FinderMethod,
+    filterGender: UInt8 = 255,
+    filterAbility: UInt8 = 255,
+    hiddenPowers: [Bool] = Array(repeating: false, count: 16),
     onResult: (StaticSearchResult) -> Void
 ) {
     let pfMethod = finderMethodToPF(method)
-    var natArr = [Bool](repeating: false, count: 25)
+    var natArr = [Bool](repeating: natures.isEmpty, count: 25)
     for n in natures { natArr[Int(n)] = true }
     let shinyFilter: UInt8 = shinyOnly ? 1 : 255
     let ivMin = [minIVs.0, minIVs.1, minIVs.2, minIVs.3, minIVs.4, minIVs.5]
@@ -834,7 +955,9 @@ nonisolated func staticSearchGen3Streaming(
 
     let results = PFBridge.staticSearch3(
         method: pfMethod, tid: tid, sid: sid,
-        filterShiny: shinyFilter, ivMin: ivMin, ivMax: ivMax, natures: natArr)
+        filterGender: filterGender, filterAbility: filterAbility,
+        filterShiny: shinyFilter, ivMin: ivMin, ivMax: ivMax,
+        natures: natArr, powers: hiddenPowers)
 
     for r in results {
         if Task.isCancelled { return }
@@ -844,7 +967,8 @@ nonisolated func staticSearchGen3Streaming(
             ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
             nature: r.nature, ability: r.ability,
             gender: r.gender, shiny: r.shiny > 0,
-            advances: 0, method: method
+            advances: 0, method: method,
+            hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength
         ))
     }
 }
@@ -921,18 +1045,22 @@ nonisolated func staticGenerateGen4Streaming(
     method: FinderMethod,
     lead: FinderLead,
     syncNature: UInt8 = 0,
+    filterGender: UInt8 = 255,
+    filterAbility: UInt8 = 255,
+    hiddenPowers: [Bool] = Array(repeating: false, count: 16),
     onResult: (StaticSearchResult) -> Void
 ) {
     let pfMethod = finderMethodToPF(method)
-    let pfLead: PFLead = lead == .synchronize ? .synchronize : .none
-    var natArr = [Bool](repeating: false, count: 25)
+    let pfLead = lead.pfLead
+    var natArr = [Bool](repeating: natures.isEmpty, count: 25)
     for n in natures { natArr[Int(n)] = true }
     let shinyFilter: UInt8 = shinyOnly ? 1 : 255
 
     let results = PFBridge.staticGenerate4(
         seed: seed, initialAdvances: initialAdvance, maxAdvances: maxAdvance,
         method: pfMethod, lead: pfLead, tid: tid, sid: sid,
-        filterShiny: shinyFilter, natures: natArr)
+        filterGender: filterGender, filterAbility: filterAbility,
+        filterShiny: shinyFilter, natures: natArr, powers: hiddenPowers)
 
     for r in results {
         if Task.isCancelled { return }
@@ -942,7 +1070,9 @@ nonisolated func staticGenerateGen4Streaming(
             ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
             nature: r.nature, ability: r.ability,
             gender: r.gender, shiny: r.shiny > 0,
-            advances: r.advances, method: method
+            advances: r.advances, method: method,
+            hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+            call: r.call, chatot: r.chatot
         ))
     }
 }
@@ -981,21 +1111,29 @@ nonisolated func staticSearchGen4Streaming(
     sid: UInt16,
     shinyOnly: Bool,
     method: FinderMethod,
+    minAdvance: UInt32 = 0,
+    maxAdvance: UInt32 = 0,
     minDelay: UInt16,
     maxDelay: UInt16,
+    filterGender: UInt8 = 255,
+    filterAbility: UInt8 = 255,
+    hiddenPowers: [Bool] = Array(repeating: false, count: 16),
     onResult: (StaticSearchResult) -> Void
 ) {
     let pfMethod = finderMethodToPF(method)
-    var natArr = [Bool](repeating: false, count: 25)
+    var natArr = [Bool](repeating: natures.isEmpty, count: 25)
     for n in natures { natArr[Int(n)] = true }
     let shinyFilter: UInt8 = shinyOnly ? 1 : 255
     let ivMin = [minIVs.0, minIVs.1, minIVs.2, minIVs.3, minIVs.4, minIVs.5]
     let ivMax = [maxIVs.0, maxIVs.1, maxIVs.2, maxIVs.3, maxIVs.4, maxIVs.5]
 
     let results = PFBridge.staticSearch4(
+        minAdvance: minAdvance, maxAdvance: maxAdvance,
         minDelay: UInt32(minDelay), maxDelay: UInt32(maxDelay),
         method: pfMethod, tid: tid, sid: sid,
-        filterShiny: shinyFilter, ivMin: ivMin, ivMax: ivMax, natures: natArr)
+        filterGender: filterGender, filterAbility: filterAbility,
+        filterShiny: shinyFilter, ivMin: ivMin, ivMax: ivMax,
+        natures: natArr, powers: hiddenPowers)
 
     for r in results {
         if Task.isCancelled { return }
@@ -1005,9 +1143,261 @@ nonisolated func staticSearchGen4Streaming(
             ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
             nature: r.nature, ability: r.ability,
             gender: r.gender, shiny: r.shiny > 0,
-            advances: r.advances, method: method
+            advances: r.advances, method: method,
+            hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength
         ))
     }
+}
+
+// ============================================================================
+// MARK: - Wild Encounter Search/Generate
+// ============================================================================
+
+nonisolated func runWildSearch(
+    gen: FinderGeneration, mode: FinderRootView.FinderMode, method: FinderMethod,
+    natures: Set<UInt8>, tid: UInt16, sid: UInt16, shinyOnly: Bool,
+    minIVs: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8),
+    maxIVs: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8),
+    seed: UInt32, initAdv: UInt32, maxAdv: UInt32,
+    minDelay: UInt32, maxDelay: UInt32,
+    pfGame: PFGame, pfEnc: PFEncounter, locationID: UInt8,
+    slotSpecies: [UInt16],
+    speciesFilter: UInt16, lead: FinderLead, isEmerald: Bool,
+    filterGender: UInt8 = 255, filterAbility: UInt8 = 255,
+    hiddenPowers: [Bool] = Array(repeating: false, count: 16),
+    onResult: @Sendable (StaticSearchResult) -> Void,
+    onProgress: @Sendable (Double) -> Void = { _ in }
+) {
+
+    var natArr: [Bool]
+    if natures.isEmpty {
+        natArr = [Bool](repeating: true, count: 25)
+    } else {
+        natArr = [Bool](repeating: false, count: 25)
+        for n in natures { natArr[Int(n)] = true }
+    }
+    let ivMin: [UInt8] = [minIVs.0, minIVs.1, minIVs.2, minIVs.3, minIVs.4, minIVs.5]
+    let ivMax: [UInt8] = [maxIVs.0, maxIVs.1, maxIVs.2, maxIVs.3, maxIVs.4, maxIVs.5]
+    let shinyFilter: UInt8 = shinyOnly ? 1 : 255
+
+    var encounterSlots = [Bool](repeating: true, count: 12)
+    if speciesFilter != 0 {
+        for i in 0..<12 {
+            encounterSlots[i] = i < slotSpecies.count && slotSpecies[i] == speciesFilter
+        }
+    }
+
+    let pfMethod: PFMethod
+    switch method {
+    case .method1: pfMethod = .method1
+    case .method2: pfMethod = .method2
+    case .method4: pfMethod = .method4
+    case .methodJ: pfMethod = .methodJ
+    case .methodK: pfMethod = .methodK
+    }
+
+    let pfLead = lead.pfLead
+    let deadBattery = isEmerald
+
+    if mode == .generator {
+        onProgress(0)
+        let results: [StaticSearchResult]
+        if gen == .gen3 {
+            results = PFBridge.wildGenerate3(
+                seed: seed, initialAdvances: initAdv, maxAdvances: maxAdv,
+                method: pfMethod, lead: pfLead,
+                tid: tid, sid: sid, game: pfGame,
+                deadBattery: deadBattery,
+                encounter: pfEnc, location: locationID,
+                filterGender: filterGender, filterAbility: filterAbility,
+                filterShiny: shinyFilter,
+                ivMin: ivMin, ivMax: ivMax, natures: natArr,
+                powers: hiddenPowers,
+                encounterSlots: encounterSlots
+            ).map { r in
+                StaticSearchResult(
+                    seed: r.seed, pid: r.pid,
+                    ivHP: r.ivs[0], ivAtk: r.ivs[1], ivDef: r.ivs[2],
+                    ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
+                    nature: r.nature, ability: r.ability,
+                    gender: r.gender, shiny: r.shiny > 0,
+                    advances: r.advances, method: method,
+                    hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+                    encounterSlot: r.encounterSlot, level: r.level,
+                    item: r.item, specie: r.specie, form: r.form)
+            }
+        } else {
+            results = PFBridge.wildGenerate4(
+                seed: seed, initialAdvances: initAdv, maxAdvances: maxAdv,
+                method: pfMethod, lead: pfLead,
+                tid: tid, sid: sid, game: pfGame,
+                encounter: pfEnc, location: locationID,
+                filterGender: filterGender, filterAbility: filterAbility,
+                filterShiny: shinyFilter,
+                ivMin: ivMin, ivMax: ivMax, natures: natArr,
+                powers: hiddenPowers,
+                encounterSlots: encounterSlots
+            ).map { r in
+                StaticSearchResult(
+                    seed: r.seed, pid: r.pid,
+                    ivHP: r.ivs[0], ivAtk: r.ivs[1], ivDef: r.ivs[2],
+                    ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
+                    nature: r.nature, ability: r.ability,
+                    gender: r.gender, shiny: r.shiny > 0,
+                    advances: r.advances, method: method,
+                    hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+                    encounterSlot: r.encounterSlot, level: r.level,
+                    item: r.item, specie: r.specie, form: r.form,
+                    call: r.call, chatot: r.chatot)
+            }
+        }
+        let total = max(results.count, 1)
+        for (i, r) in results.enumerated() {
+            if Task.isCancelled { return }
+            onResult(r)
+            if i % 500 == 0 { onProgress(Double(i) / Double(total) * 100) }
+        }
+        onProgress(100)
+    } else {
+        let handle: OpaquePointer
+        if gen == .gen3 {
+            handle = PFBridge.wildSearch3Async(
+                method: pfMethod, lead: pfLead,
+                tid: tid, sid: sid, game: pfGame,
+                deadBattery: deadBattery,
+                encounter: pfEnc, location: locationID,
+                filterGender: filterGender, filterAbility: filterAbility,
+                filterShiny: shinyFilter,
+                ivMin: ivMin, ivMax: ivMax, natures: natArr,
+                powers: hiddenPowers,
+                encounterSlots: encounterSlots)
+        } else {
+            handle = PFBridge.wildSearch4Async(
+                minAdvance: initAdv, maxAdvance: maxAdv,
+                minDelay: minDelay, maxDelay: maxDelay,
+                method: pfMethod, lead: pfLead,
+                tid: tid, sid: sid, game: pfGame,
+                encounter: pfEnc, location: locationID,
+                filterGender: filterGender, filterAbility: filterAbility,
+                filterShiny: shinyFilter,
+                ivMin: ivMin, ivMax: ivMax, natures: natArr,
+                powers: hiddenPowers,
+                encounterSlots: encounterSlots)
+        }
+        defer { PFBridge.searchFree(handle) }
+
+        while PFBridge.searchProgress(handle) < 100 {
+            if Task.isCancelled {
+                PFBridge.searchCancel(handle)
+                return
+            }
+            onProgress(Double(PFBridge.searchProgress(handle)))
+            let batch: [StaticSearchResult]
+            if gen == .gen3 {
+                batch = PFBridge.searchPollResults3(handle).map { r in
+                    StaticSearchResult(
+                        seed: r.seed, pid: r.pid,
+                        ivHP: r.ivs[0], ivAtk: r.ivs[1], ivDef: r.ivs[2],
+                        ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
+                        nature: r.nature, ability: r.ability,
+                        gender: r.gender, shiny: r.shiny > 0,
+                        advances: 0, method: method,
+                        hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+                        encounterSlot: r.encounterSlot, level: r.level,
+                        item: r.item, specie: r.specie, form: r.form)
+                }
+            } else {
+                batch = PFBridge.searchPollResults4(handle).map { r in
+                    StaticSearchResult(
+                        seed: r.seed, pid: r.pid,
+                        ivHP: r.ivs[0], ivAtk: r.ivs[1], ivDef: r.ivs[2],
+                        ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
+                        nature: r.nature, ability: r.ability,
+                        gender: r.gender, shiny: r.shiny > 0,
+                        advances: r.advances, method: method,
+                        hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+                        encounterSlot: r.encounterSlot, level: r.level,
+                        item: r.item, specie: r.specie, form: r.form)
+                }
+            }
+            for r in batch { onResult(r) }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        let final3 = gen == .gen3 ? PFBridge.searchPollResults3(handle) : []
+        let final4 = gen == .gen4 ? PFBridge.searchPollResults4(handle) : []
+        for r in final3 {
+            onResult(StaticSearchResult(
+                seed: r.seed, pid: r.pid,
+                ivHP: r.ivs[0], ivAtk: r.ivs[1], ivDef: r.ivs[2],
+                ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
+                nature: r.nature, ability: r.ability,
+                gender: r.gender, shiny: r.shiny > 0,
+                advances: 0, method: method,
+                hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+                encounterSlot: r.encounterSlot, level: r.level,
+                item: r.item, specie: r.specie, form: r.form))
+        }
+        for r in final4 {
+            onResult(StaticSearchResult(
+                seed: r.seed, pid: r.pid,
+                ivHP: r.ivs[0], ivAtk: r.ivs[1], ivDef: r.ivs[2],
+                ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
+                nature: r.nature, ability: r.ability,
+                gender: r.gender, shiny: r.shiny > 0,
+                advances: r.advances, method: method,
+                hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+                encounterSlot: r.encounterSlot, level: r.level,
+                item: r.item, specie: r.specie, form: r.form))
+        }
+        onProgress(100)
+    }
+}
+
+nonisolated func findLocationID(pfGame: PFGame, pfEnc: PFEncounter, isGen3: Bool, locationName: String) -> UInt8 {
+    let areas: [PFEncounterAreaSwift]
+    if isGen3 {
+        areas = PFBridge.getEncounters3(encounter: pfEnc, game: pfGame)
+    } else {
+        areas = PFBridge.getEncounters4(encounter: pfEnc, game: pfGame, tid: 0, sid: 0)
+    }
+    return areas.first { $0.locationName == locationName }?.location ?? 0
+}
+
+// ============================================================================
+// MARK: - Coin Flip Matching (Gen 4 Mersenne Twister)
+// ============================================================================
+
+nonisolated func matchesCoinFlips(seed: UInt32, observed: [Bool]) -> Bool {
+    var mt = [UInt32](repeating: 0, count: 624)
+    mt[0] = seed
+    for i in 1..<624 {
+        mt[i] = 1812433253 &* (mt[i - 1] ^ (mt[i - 1] >> 30)) &+ UInt32(i)
+    }
+
+    var idx = 624
+    func nextMT() -> UInt32 {
+        if idx >= 624 {
+            for i in 0..<624 {
+                let y = (mt[i] & 0x80000000) | (mt[(i + 1) % 624] & 0x7fffffff)
+                mt[i] = mt[(i + 397) % 624] ^ (y >> 1)
+                if y & 1 != 0 { mt[i] ^= 0x9908b0df }
+            }
+            idx = 0
+        }
+        var y = mt[idx]
+        y ^= (y >> 11)
+        y ^= (y << 7) & 0x9d2c5680
+        y ^= (y << 15) & 0xefc60000
+        y ^= (y >> 18)
+        idx += 1
+        return y
+    }
+
+    for isHeads in observed {
+        let isH = (nextMT() & 1) != 0
+        if isH != isHeads { return false }
+    }
+    return true
 }
 
 // ============================================================================
@@ -1371,23 +1761,62 @@ enum TimerGeneration: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum RNGToolTab: Int, CaseIterable, Identifiable {
+    case timer = 0
+    case finder = 5
+    case encounters = 6
+    case statics = 7
+    case eggs = 8
+    case ids = 9
+    case gamecube = 10
+    case ivCalc = 1
+    case ivToPID = 2
+    case hp = 3
+    case credits = 4
+    var id: Int { rawValue }
+    var label: String {
+        switch self {
+        case .timer: return "Timer"
+        case .finder: return "Finder"
+        case .encounters: return "Routes"
+        case .statics: return "Statics"
+        case .eggs: return "Eggs"
+        case .ids: return "TID/SID"
+        case .gamecube: return "GameCube"
+        case .ivCalc: return "IV Calc"
+        case .ivToPID: return "IV\u{2192}PID"
+        case .hp: return "HP"
+        case .credits: return "Credits"
+        }
+    }
+}
+
 struct RNGToolsView: View {
     @State private var selectedTool = 0
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("Tool", selection: $selectedTool) {
-                    Text("Timer").tag(0)
-                    Text("Finder").tag(5)
-                    Text("IV Calc").tag(1)
-                    Text("IV→PID").tag(2)
-                    Text("HP").tag(3)
-                    Text("Credits").tag(4)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(RNGToolTab.allCases) { tab in
+                            Button {
+                                selectedTool = tab.rawValue
+                            } label: {
+                                Text(tab.label)
+                                    .font(.subheadline.weight(selectedTool == tab.rawValue ? .semibold : .regular))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(selectedTool == tab.rawValue ? Color.accentColor : Color.clear,
+                                                in: Capsule())
+                                    .foregroundStyle(selectedTool == tab.rawValue ? .white : .primary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
                 }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.top, 8)
 
                 switch selectedTool {
                 case 0: RNGTimerView()
@@ -1395,6 +1824,11 @@ struct RNGToolsView: View {
                 case 2: IVToPIDView()
                 case 3: HiddenPowerCalcView()
                 case 5: FinderRootView(switchToTimer: { selectedTool = 0 })
+                case 6: EncounterBrowserView()
+                case 7: StaticEncounterBrowserView()
+                case 8: EggRNGView()
+                case 9: IDRNGView()
+                case 10: GameCubeRNGView()
                 default: RNGCreditsView()
                 }
             }
@@ -2092,6 +2526,7 @@ struct FinderRootView: View {
     @State private var selectedEncounter: StaticEncounter?
     @State private var selectedLocation: String = ""
     @State private var selectedEncounterType: EncounterType = .grass
+    @State private var selectedSpeciesFilter: UInt16 = 0
 
     enum EncounterMode: String, CaseIterable, Identifiable {
         case static_ = "Static"
@@ -2107,9 +2542,11 @@ struct FinderRootView: View {
     @State private var minSpD: UInt8 = 0; @State private var maxSpD: UInt8 = 31
     @State private var minSpe: UInt8 = 0; @State private var maxSpe: UInt8 = 31
 
-    // Gen 4 delay range
+    // Gen 4 delay/advance range (searcher)
     @State private var minDelay: UInt16 = 500
     @State private var maxDelay: UInt16 = 10000
+    @State private var searcherMinAdvance: Int = 0
+    @State private var searcherMaxAdvance: Int = 0
 
     // Generator inputs
     @State private var genSeedText: String = ""
@@ -2119,10 +2556,25 @@ struct FinderRootView: View {
     // Filters
     @State private var selectedNatures: Set<UInt8> = []
     @State private var shinyOnly: Bool = false
+    @State private var filterGender: UInt8 = 255
+    @State private var filterAbility: UInt8 = 255
+    @State private var selectedHiddenPowers: Set<UInt8> = []
+    @State private var deadBattery: Bool = true
 
-    // State
-    @State private var searchResults: [StaticSearchResult] = []
+    // Coin flip search (Gen 4)
+    @State private var flipInput: [Bool] = []
+    @State private var flipSearchResults: [(seed: UInt32, flips: String)] = []
+    @State private var flipSearching = false
+
+    // State — separate results for searcher and generator
+    @State private var searcherResults: [StaticSearchResult] = []
+    @State private var generatorResults: [StaticSearchResult] = []
+    private var activeResults: [StaticSearchResult] {
+        mode == .searcher ? searcherResults : generatorResults
+    }
     @State private var searchTask: Task<Void, Never>?
+    @State private var searchWorkTask: Task<Void, Never>?
+    @State private var searchProgressValue: Double = -1
     private var isSearching: Bool { searchTask != nil }
     @State private var selectedResult: StaticSearchResult?
 
@@ -2141,13 +2593,12 @@ struct FinderRootView: View {
                 }
                 .pickerStyle(.segmented)
                 .onChange(of: generation) {
-                    let available = FinderMethod.methods(for: generation)
-                    if !available.contains(method) { method = available[0] }
                     let games = FinderGameVersion.games(for: generation)
                     if !games.contains(selectedGame) { selectedGame = games[0] }
                     let cats = StaticEncounterData.categories(for: selectedGame)
                     if !cats.contains(encounterCategory) { encounterCategory = cats.first ?? .legends }
                     selectedEncounter = nil
+                    autoSelectMethod()
                 }
 
                 // Mode picker
@@ -2169,10 +2620,11 @@ struct FinderRootView: View {
                             encounterCategory = cats.first ?? .legends
                         }
                         selectedEncounter = nil
-                        let locs = WildEncounterData.locationNames(for: selectedGame)
+                        let locs = PFEncounterDataProvider.locationNames(for: selectedGame)
                         if !locs.contains(selectedLocation) {
                             selectedLocation = locs.first ?? ""
                         }
+                        autoSelectMethod()
                     }
 
                     Picker("Type", selection: $encounterMode) {
@@ -2181,6 +2633,7 @@ struct FinderRootView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .onChange(of: encounterMode) { autoSelectMethod() }
 
                     if encounterMode == .static_ {
                         let categories = StaticEncounterData.categories(for: selectedGame)
@@ -2210,8 +2663,8 @@ struct FinderRootView: View {
                                               game: selectedGame.rawValue, method: enc.method.rawValue)
                         }
                     } else {
-                        // Wild encounters
-                        let locations = WildEncounterData.locationNames(for: selectedGame)
+                        // Wild encounters (PokeFinder data)
+                        let locations = PFEncounterDataProvider.locationNames(for: selectedGame)
                         if !locations.isEmpty {
                             Picker("Location", selection: $selectedLocation) {
                                 ForEach(locations, id: \.self) { loc in
@@ -2224,16 +2677,37 @@ struct FinderRootView: View {
                                 }
                             }
 
-                            let types = WildEncounterData.encounterTypes(for: selectedGame, location: selectedLocation)
-                            if types.count > 1 {
-                                Picker("Method", selection: $selectedEncounterType) {
+                            let types = PFEncounterDataProvider.encounterTypes(for: selectedGame, location: selectedLocation)
+                            if !types.isEmpty {
+                                Picker("Encounter", selection: $selectedEncounterType) {
                                     ForEach(types) { t in
                                         Text(t.rawValue).tag(t)
                                     }
                                 }
+                                .onChange(of: selectedLocation) {
+                                    let available = PFEncounterDataProvider.encounterTypes(for: selectedGame, location: selectedLocation)
+                                    if !available.contains(selectedEncounterType) {
+                                        selectedEncounterType = available.first ?? .grass
+                                    }
+                                }
                             }
 
-                            if let route = WildEncounterData.wildEncounter(for: selectedGame, location: selectedLocation, type: selectedEncounterType) {
+                            if let route = PFEncounterDataProvider.wildEncounter(for: selectedGame, location: selectedLocation, type: selectedEncounterType) {
+                                let uniqueSpecies = route.slots.reduce(into: [(UInt16, String)]()) { result, slot in
+                                    if !result.contains(where: { $0.0 == slot.species }) {
+                                        result.append((slot.species, slot.speciesName))
+                                    }
+                                }
+
+                                Picker("Pokemon", selection: $selectedSpeciesFilter) {
+                                    Text("Any").tag(UInt16(0))
+                                    ForEach(uniqueSpecies, id: \.0) { species, name in
+                                        Text(name).tag(species)
+                                    }
+                                }
+                                .onChange(of: selectedLocation) { selectedSpeciesFilter = 0 }
+                                .onChange(of: selectedEncounterType) { selectedSpeciesFilter = 0 }
+
                                 wildSlotTable(route: route)
                             }
                         } else {
@@ -2249,7 +2723,7 @@ struct FinderRootView: View {
                         Picker("Profile", selection: $selectedProfileID) {
                             Text("None").tag(UUID?.none)
                             ForEach(savedProfiles) { p in
-                                Text("\(p.name) (\(p.tid)/\(p.sid))").tag(UUID?.some(p.id))
+                                Text(p.displayName).tag(UUID?.some(p.id))
                             }
                         }
                         .onChange(of: selectedProfileID) {
@@ -2257,6 +2731,11 @@ struct FinderRootView: View {
                                let profile = savedProfiles.first(where: { $0.id == pid }) {
                                 tid = profile.tid
                                 sid = profile.sid
+                                deadBattery = profile.deadBattery
+                                if let gv = profile.gameVersion,
+                                   let game = FinderGameVersion(rawValue: gv) {
+                                    selectedGame = game
+                                }
                             }
                             FinderProfileStore.lastProfileID = selectedProfileID
                         }
@@ -2298,17 +2777,32 @@ struct FinderRootView: View {
                             Text(m.rawValue).tag(m)
                         }
                     }
-                    if generation == .gen4 && (method == .methodJ || method == .methodK) {
-                        Picker("Lead Ability", selection: $lead) {
-                            ForEach(FinderLead.allCases) { l in Text(l.rawValue).tag(l) }
+
+                    Picker("Lead Ability", selection: $lead) {
+                        ForEach(FinderLead.leads(for: generation, encounterMode: encounterMode == .wild)) { l in
+                            Text(l.rawValue).tag(l)
                         }
-                        if lead == .synchronize {
-                            Picker("Sync Nature", selection: $syncNature) {
-                                ForEach(0..<25, id: \.self) { i in
-                                    Text(pfNatureNames[i]).tag(UInt8(i))
-                                }
+                    }
+                    .onChange(of: generation) {
+                        let available = FinderLead.leads(for: generation, encounterMode: encounterMode == .wild)
+                        if !available.contains(lead) { lead = .none }
+                    }
+                    .onChange(of: encounterMode) {
+                        let available = FinderLead.leads(for: generation, encounterMode: encounterMode == .wild)
+                        if !available.contains(lead) { lead = .none }
+                    }
+
+                    if lead == .synchronize {
+                        Picker("Sync Nature", selection: $syncNature) {
+                            ForEach(0..<25, id: \.self) { i in
+                                Text(pfNatureNames[i]).tag(UInt8(i))
                             }
                         }
+                    }
+
+                    if generation == .gen3 && (selectedGame == .emerald || selectedGame == .ruby || selectedGame == .sapphire) {
+                        Toggle("Dead Battery", isOn: $deadBattery)
+                            .font(.subheadline)
                     }
                 }
 
@@ -2318,25 +2812,60 @@ struct FinderRootView: View {
                     generatorInputs
                 }
 
+                if generation == .gen4 && mode == .generator {
+                    seedVerificationSection
+                }
+
+                if generation == .gen4 {
+                    coinFlipSearchSection
+                }
+
                 // Nature filter
                 FinderNatureGrid(selected: $selectedNatures)
 
-                // Shiny toggle
-                Toggle("Shiny Only", isOn: $shinyOnly)
-                    .padding(.horizontal)
+                // Additional filters
+                RNGSection(title: "Filters", icon: "line.3.horizontal.decrease.circle") {
+                    Toggle("Shiny Only", isOn: $shinyOnly)
+
+                    Picker("Gender", selection: $filterGender) {
+                        Text("Any").tag(UInt8(255))
+                        Text("Male").tag(UInt8(0))
+                        Text("Female").tag(UInt8(1))
+                        Text("Genderless").tag(UInt8(2))
+                    }
+
+                    Picker("Ability", selection: $filterAbility) {
+                        Text("Any").tag(UInt8(255))
+                        Text("Ability 0").tag(UInt8(0))
+                        Text("Ability 1").tag(UInt8(1))
+                    }
+
+                    FinderHiddenPowerGrid(selected: $selectedHiddenPowers)
+                }
 
                 // Search / Stop button
                 if isSearching {
-                    Button {
-                        searchTask?.cancel()
-                        searchTask = nil
-                    } label: {
-                        Label("Stop (\(searchResults.count) found)",
-                              systemImage: "stop.fill")
-                            .frame(maxWidth: .infinity).padding()
-                            .background(Color.red)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    VStack(spacing: 8) {
+                        if searchProgressValue < 0 {
+                            ProgressView()
+                                .padding(.vertical, 4)
+                        } else {
+                            ProgressView(value: searchProgressValue, total: 100)
+                                .progressViewStyle(.linear)
+                                .padding(.horizontal)
+                            Text("\(Int(searchProgressValue))% — \(activeResults.count) found")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Button {
+                            stopSearch()
+                        } label: {
+                            Label("Stop",
+                                  systemImage: "stop.fill")
+                                .frame(maxWidth: .infinity).padding()
+                                .background(Color.red)
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
                     }
                 } else {
                     Button {
@@ -2351,32 +2880,68 @@ struct FinderRootView: View {
                     }
                 }
 
-                if !searchResults.isEmpty {
-                    RNGSection(title: "Results (\(searchResults.count))", icon: "list.bullet") {
-                        ForEach(searchResults.prefix(500)) { r in
+                if !activeResults.isEmpty {
+                    RNGSection(title: "Results (\(activeResults.count))", icon: "list.bullet") {
+                        ForEach(activeResults.prefix(500)) { r in
                             Button { selectedResult = r } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
-                                        Text("Seed: \(r.seedHex)")
-                                            .font(.system(.caption, design: .monospaced))
+                                        if let name = r.specieName {
+                                            Text(name).font(.caption).bold()
+                                            if let lv = r.level {
+                                                Text("Lv\(lv)").font(.caption2).foregroundStyle(.secondary)
+                                            }
+                                        }
                                         Spacer()
                                         Text("Adv: \(r.advances)")
                                             .font(.system(.caption, design: .monospaced))
                                     }
                                     HStack {
-                                        Text("PID: \(r.pidHex)")
+                                        Text("Seed: \(r.seedHex)")
                                             .font(.system(.caption2, design: .monospaced))
                                             .foregroundStyle(.secondary)
                                         Spacer()
                                         Text(r.natureName).font(.caption2).bold()
+                                        Text(r.genderSymbol).font(.caption2)
                                         if r.shiny {
                                             Image(systemName: "star.fill")
                                                 .font(.caption2).foregroundStyle(.yellow)
                                         }
                                     }
-                                    Text("IVs: \(r.ivSummary)")
-                                        .font(.system(.caption2, design: .monospaced))
-                                        .foregroundStyle(.secondary)
+                                    HStack {
+                                        Text("IVs: \(r.ivSummary)")
+                                            .font(.system(.caption2, design: .monospaced))
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        Text("HP: \(r.hiddenPowerName) \(r.hiddenPowerStrength)")
+                                            .font(.caption2).foregroundStyle(.secondary)
+                                    }
+                                    HStack {
+                                        Text("PID: \(r.pidHex)")
+                                            .font(.system(.caption2, design: .monospaced))
+                                            .foregroundStyle(.tertiary)
+                                        Spacer()
+                                        Text("Ability: \(r.ability)")
+                                            .font(.caption2).foregroundStyle(.tertiary)
+                                        if let item = r.itemName {
+                                            Text(item).font(.caption2).foregroundStyle(.orange)
+                                        }
+                                    }
+                                    if r.chatot != nil || r.call != nil {
+                                        HStack {
+                                            if let pitch = r.chatotPitch {
+                                                Text("Chatot: \(pitch)")
+                                                    .font(.system(.caption2, design: .monospaced))
+                                                    .foregroundStyle(.cyan)
+                                            }
+                                            if let call = r.callName {
+                                                Text("Call: \(call)")
+                                                    .font(.system(.caption2, design: .monospaced))
+                                                    .foregroundStyle(.mint)
+                                            }
+                                            Spacer()
+                                        }
+                                    }
                                 }
                                 .contentShape(Rectangle())
                             }
@@ -2388,16 +2953,24 @@ struct FinderRootView: View {
             }
             .padding()
         }
+        .scrollDismissesKeyboard(.interactively)
+        .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
         .navigationDestination(item: $selectedResult) { result in
             SeedToTimeView(result: result, generation: generation,
-                           tid: tid, sid: sid, method: method)
+                           tid: tid, sid: sid, method: method) { seed in
+                genSeedText = String(format: "%08X", seed)
+                mode = .generator
+            }
         }
         .alert("Save Profile", isPresented: $showSaveAlert) {
             TextField("Profile name", text: $newProfileName)
             Button("Save") {
                 let name = newProfileName.trimmingCharacters(in: .whitespaces)
                 guard !name.isEmpty else { return }
-                let profile = FinderProfile(name: name, tid: tid, sid: sid)
+                let profile = FinderProfile(name: name, tid: tid, sid: sid,
+                                            gameVersion: selectedGame.rawValue,
+                                            deadBattery: deadBattery,
+                                            nationalDex: false)
                 savedProfiles.append(profile)
                 selectedProfileID = profile.id
                 FinderProfileStore.save(savedProfiles)
@@ -2405,11 +2978,31 @@ struct FinderRootView: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Enter a name for TID \(tid) / SID \(sid)")
+            Text("Save profile for \(selectedGame.rawValue) TID \(tid) / SID \(sid)")
         }
     }
 
     // MARK: Encounter Helpers
+
+    private func autoSelectMethod() {
+        switch generation {
+        case .gen3:
+            method = .method1
+        case .gen4:
+            if encounterMode == .wild {
+                switch selectedGame {
+                case .diamond, .pearl, .platinum:
+                    method = .methodJ
+                case .heartGold, .soulSilver:
+                    method = .methodK
+                default:
+                    method = .methodJ
+                }
+            } else {
+                method = .method1
+            }
+        }
+    }
 
     private func encounterInfoCard(name: String, level: UInt8, game: String, method: String) -> some View {
         HStack(spacing: 8) {
@@ -2464,9 +3057,11 @@ struct FinderRootView: View {
             }
 
             if generation == .gen4 {
-                RNGSection(title: "Delay Range", icon: "clock") {
+                RNGSection(title: "Delay & Advance Range", icon: "clock") {
                     FinderUInt16Field(label: "Min Delay", value: $minDelay)
                     FinderUInt16Field(label: "Max Delay", value: $maxDelay)
+                    RNGIntField(label: "Min Advance", value: $searcherMinAdvance)
+                    RNGIntField(label: "Max Advance", value: $searcherMaxAdvance)
                 }
             }
         }
@@ -2493,10 +3088,207 @@ struct FinderRootView: View {
         }
     }
 
+    private var seedVerificationSection: some View {
+        let seed = UInt32(genSeedText, radix: 16) ?? 0
+        return RNGSection(title: "Seed Verification", icon: "checkmark.seal") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Coin Flips (Poketch)")
+                    .font(.caption).foregroundStyle(.secondary)
+                let flips = PFBridge.coinFlips(seed).split(separator: ", ").map(String.init)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 10), spacing: 4) {
+                    ForEach(Array(flips.enumerated()), id: \.offset) { _, flip in
+                        Text(flip)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(flip == "H" ? .orange : .cyan)
+                    }
+                }
+
+                Divider()
+
+                Text("Elm/Irwin Calls")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text(PFBridge.getCalls(seed))
+                    .font(.system(.caption2, design: .monospaced))
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Divider()
+
+                Text("Chatot Pitches")
+                    .font(.caption).foregroundStyle(.secondary)
+                chatotPitchGrid(seed: seed)
+            }
+        }
+    }
+
+    private func chatotPitchGrid(seed: UInt32) -> some View {
+        let pitches: [(Int, String)] = {
+            var rngState = seed
+            var result: [(Int, String)] = []
+            for i in 0..<20 {
+                rngState = rngState &* 0x41C64E6D &+ 0x6073
+                let high = UInt16(rngState >> 16)
+                let value = UInt8((UInt32(high % 8192) * 100) >> 13)
+                let label: String
+                switch value {
+                case 0..<20: label = "L"
+                case 20..<40: label = "ML"
+                case 40..<60: label = "M"
+                case 60..<80: label = "MH"
+                default: label = "H"
+                }
+                result.append((i, label))
+            }
+            return result
+        }()
+
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 10), spacing: 4) {
+            ForEach(pitches, id: \.0) { _, label in
+                Text(label)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(label == "H" ? .red : label == "L" ? .blue : .primary)
+            }
+        }
+    }
+
+    // MARK: Coin Flip Search
+
+    private var coinFlipSearchSection: some View {
+        RNGSection(title: "Coin Flip Finder", icon: "circle.lefthalf.filled") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Tap to record your observed Poketch coin flips")
+                    .font(.caption).foregroundStyle(.secondary)
+
+                HStack(spacing: 6) {
+                    ForEach(Array(flipInput.enumerated()), id: \.offset) { idx, isHeads in
+                        Button {
+                            flipInput[idx].toggle()
+                        } label: {
+                            Text(isHeads ? "H" : "T")
+                                .font(.system(.caption, design: .monospaced)).bold()
+                                .foregroundStyle(isHeads ? .orange : .cyan)
+                                .frame(width: 24, height: 24)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(isHeads ? Color.orange.opacity(0.15) : Color.cyan.opacity(0.15))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if flipInput.count < 15 {
+                        Button {
+                            flipInput.append(false)
+                        } label: {
+                            Image(systemName: "plus.circle")
+                                .foregroundStyle(Color.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                HStack {
+                    if !flipInput.isEmpty {
+                        Button("Clear") {
+                            flipInput.removeAll()
+                            flipSearchResults.removeAll()
+                        }
+                        .font(.caption)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        searchCoinFlips()
+                    } label: {
+                        Label("Find Seed", systemImage: "magnifyingglass")
+                            .font(.caption)
+                    }
+                    .disabled(flipInput.count < 5 || flipSearching)
+                }
+
+                if flipSearching {
+                    ProgressView().padding(.vertical, 4)
+                }
+
+                if !flipSearchResults.isEmpty {
+                    Divider()
+                    Text("Matching Seeds (\(flipSearchResults.count))")
+                        .font(.caption).foregroundStyle(.secondary)
+                    ForEach(Array(flipSearchResults.prefix(50).enumerated()), id: \.offset) { _, match in
+                        HStack {
+                            Text(String(format: "%08X", match.seed))
+                                .font(.system(.caption, design: .monospaced))
+                            Spacer()
+                            Text(match.flips)
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                            Button {
+                                genSeedText = String(format: "%08X", match.seed)
+                                mode = .generator
+                            } label: {
+                                Image(systemName: "arrow.right.circle")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                } else if !flipSearching && flipInput.count >= 5 && flipSearchResults.isEmpty {
+                    // Only show "no results" after a search has been run
+                }
+            }
+        }
+    }
+
+    private func searchCoinFlips() {
+        guard flipInput.count >= 5 else { return }
+        flipSearching = true
+        flipSearchResults = []
+
+        let observed = flipInput
+        let minDel = UInt32(minDelay)
+        let maxDel = UInt32(maxDelay)
+
+        Task.detached {
+            var found: [(seed: UInt32, flips: String)] = []
+
+            for hour: UInt32 in 0..<24 {
+                for ab: UInt32 in 0..<256 {
+                    for delay in minDel...maxDel {
+                        let seed = (ab << 24) | (hour << 16) | delay
+
+                        if matchesCoinFlips(seed: seed, observed: observed) {
+                            let flipsStr = PFBridge.coinFlips(seed)
+                            found.append((seed: seed, flips: flipsStr))
+                            if found.count >= 200 { break }
+                        }
+                    }
+                    if found.count >= 200 { break }
+                }
+                if found.count >= 200 { break }
+            }
+
+            let results = found
+            await MainActor.run {
+                flipSearchResults = results
+                flipSearching = false
+            }
+        }
+    }
+
     // MARK: Search Logic
 
+    private func stopSearch() {
+        searchWorkTask?.cancel()
+        searchWorkTask = nil
+        searchTask?.cancel()
+        searchTask = nil
+    }
+
     private func startSearch() {
-        searchResults = []
+        stopSearch()
+        if mode == .searcher { searcherResults = [] } else { generatorResults = [] }
+        searchProgressValue = -1
 
         // Capture all @State values before entering task
         let gen = generation
@@ -2512,57 +3304,142 @@ struct FinderRootView: View {
         let spdMin = minSpD, spdMax = maxSpD
         let speMin = minSpe, speMax = maxSpe
         let delMin = minDelay, delMax = maxDelay
+        let srcMinAdv = UInt32(searcherMinAdvance), srcMaxAdv = UInt32(searcherMaxAdvance)
         let ld = lead, sNat = syncNature
         let seedVal = UInt32(genSeedText, radix: 16) ?? 0
         let initAdv = UInt32(genInitAdvance)
         let maxAdv = UInt32(genMaxAdvance)
+        let genderFilter = filterGender
+        let abilityFilter = filterAbility
+        let hpFilter: [Bool] = {
+            if selectedHiddenPowers.isEmpty { return [Bool](repeating: true, count: 16) }
+            var arr = [Bool](repeating: false, count: 16)
+            for p in selectedHiddenPowers { arr[Int(p)] = true }
+            return arr
+        }()
+        let isDeadBattery = deadBattery && (selectedGame == .emerald)
 
-        let stream = AsyncStream<StaticSearchResult> { continuation in
-            let work = Task.detached {
-                if m == .searcher {
-                    if gen == .gen3 {
-                        staticSearchGen3Streaming(
-                            minIVs: (hpMin, atkMin, defMin, spaMin, spdMin, speMin),
-                            maxIVs: (hpMax, atkMax, defMax, spaMax, spdMax, speMax),
-                            natures: natFilter, tid: tID, sid: sID,
-                            shinyOnly: shiny, method: meth
-                        ) { continuation.yield($0) }
-                    } else {
-                        staticSearchGen4Streaming(
-                            minIVs: (hpMin, atkMin, defMin, spaMin, spdMin, speMin),
-                            maxIVs: (hpMax, atkMax, defMax, spaMax, spdMax, speMax),
-                            natures: natFilter, tid: tID, sid: sID,
-                            shinyOnly: shiny, method: meth,
-                            minDelay: delMin, maxDelay: delMax
-                        ) { continuation.yield($0) }
-                    }
-                } else {
-                    if gen == .gen3 {
-                        staticGenerateGen3Streaming(
-                            seed: seedVal, initialAdvance: initAdv,
-                            maxAdvance: maxAdv,
-                            natures: natFilter, tid: tID, sid: sID,
-                            shinyOnly: shiny, method: meth
-                        ) { continuation.yield($0) }
-                    } else {
-                        staticGenerateGen4Streaming(
-                            seed: seedVal, initialAdvance: initAdv,
-                            maxAdvance: maxAdv,
-                            natures: natFilter, tid: tID, sid: sID,
-                            shinyOnly: shiny, method: meth,
-                            lead: ld, syncNature: sNat
-                        ) { continuation.yield($0) }
-                    }
-                }
-                continuation.finish()
-            }
-            continuation.onTermination = { _ in work.cancel() }
+        // Wild encounter context (pre-compute on main actor)
+        let encMode = encounterMode
+        let encLocation = selectedLocation
+        let speciesFilter = selectedSpeciesFilter
+        let pfGameVal = selectedGame.pfGame
+        let pfEncVal = selectedEncounterType.pfEncounter
+        let isGen3 = generation == .gen3
+        let locationIDVal = findLocationID(pfGame: pfGameVal, pfEnc: pfEncVal,
+                                            isGen3: isGen3, locationName: encLocation)
+        let slotSpecies: [UInt16]
+        if let route = PFEncounterDataProvider.wildEncounter(for: selectedGame,
+                                                              location: encLocation,
+                                                              type: selectedEncounterType) {
+            slotSpecies = route.slots.map { $0.species }
+        } else {
+            slotSpecies = []
         }
 
-        searchTask = Task {
-            for await result in stream {
-                searchResults.append(result)
+        enum SearchEvent: Sendable {
+            case result(StaticSearchResult)
+            case progress(Double)
+        }
+
+        var _continuation: AsyncStream<SearchEvent>.Continuation!
+        let stream = AsyncStream<SearchEvent> { _continuation = $0 }
+        let continuation = _continuation!
+
+        searchWorkTask = Task.detached {
+            if encMode == .wild {
+                runWildSearch(gen: gen, mode: m, method: meth,
+                              natures: natFilter, tid: tID, sid: sID,
+                              shinyOnly: shiny,
+                              minIVs: (hpMin, atkMin, defMin, spaMin, spdMin, speMin),
+                              maxIVs: (hpMax, atkMax, defMax, spaMax, spdMax, speMax),
+                              seed: seedVal, initAdv: initAdv, maxAdv: maxAdv,
+                              minDelay: UInt32(delMin), maxDelay: UInt32(delMax),
+                              pfGame: pfGameVal, pfEnc: pfEncVal,
+                              locationID: locationIDVal,
+                              slotSpecies: slotSpecies,
+                              speciesFilter: speciesFilter,
+                              lead: ld, isEmerald: isDeadBattery,
+                              filterGender: genderFilter, filterAbility: abilityFilter,
+                              hiddenPowers: hpFilter,
+                              onResult: { continuation.yield(.result($0)) },
+                              onProgress: { continuation.yield(.progress($0)) })
+            } else if m == .searcher {
+                if gen == .gen3 {
+                    staticSearchGen3Streaming(
+                        minIVs: (hpMin, atkMin, defMin, spaMin, spdMin, speMin),
+                        maxIVs: (hpMax, atkMax, defMax, spaMax, spdMax, speMax),
+                        natures: natFilter, tid: tID, sid: sID,
+                        shinyOnly: shiny, method: meth,
+                        filterGender: genderFilter, filterAbility: abilityFilter,
+                        hiddenPowers: hpFilter
+                    ) { continuation.yield(.result($0)) }
+                } else {
+                    staticSearchGen4Streaming(
+                        minIVs: (hpMin, atkMin, defMin, spaMin, spdMin, speMin),
+                        maxIVs: (hpMax, atkMax, defMax, spaMax, spdMax, speMax),
+                        natures: natFilter, tid: tID, sid: sID,
+                        shinyOnly: shiny, method: meth,
+                        minAdvance: srcMinAdv, maxAdvance: srcMaxAdv,
+                        minDelay: delMin, maxDelay: delMax,
+                        filterGender: genderFilter, filterAbility: abilityFilter,
+                        hiddenPowers: hpFilter
+                    ) { continuation.yield(.result($0)) }
+                }
+                continuation.yield(.progress(100))
+            } else {
+                if gen == .gen3 {
+                    staticGenerateGen3Streaming(
+                        seed: seedVal, initialAdvance: initAdv,
+                        maxAdvance: maxAdv,
+                        natures: natFilter, tid: tID, sid: sID,
+                        shinyOnly: shiny, method: meth,
+                        filterGender: genderFilter, filterAbility: abilityFilter,
+                        hiddenPowers: hpFilter
+                    ) { continuation.yield(.result($0)) }
+                } else {
+                    staticGenerateGen4Streaming(
+                        seed: seedVal, initialAdvance: initAdv,
+                        maxAdvance: maxAdv,
+                        natures: natFilter, tid: tID, sid: sID,
+                        shinyOnly: shiny, method: meth,
+                        lead: ld, syncNature: sNat,
+                        filterGender: genderFilter, filterAbility: abilityFilter,
+                        hiddenPowers: hpFilter
+                    ) { continuation.yield(.result($0)) }
+                }
+                continuation.yield(.progress(100))
             }
+            continuation.finish()
+        }
+
+        let isSearcherMode = m == .searcher
+        searchTask = Task {
+            var buffer: [StaticSearchResult] = []
+            for await event in stream {
+                if Task.isCancelled { break }
+                switch event {
+                case .result(let result):
+                    buffer.append(result)
+                    if buffer.count >= 100 {
+                        if isSearcherMode { searcherResults.append(contentsOf: buffer) }
+                        else { generatorResults.append(contentsOf: buffer) }
+                        buffer.removeAll(keepingCapacity: true)
+                    }
+                case .progress(let pct):
+                    if !buffer.isEmpty {
+                        if isSearcherMode { searcherResults.append(contentsOf: buffer) }
+                        else { generatorResults.append(contentsOf: buffer) }
+                        buffer.removeAll(keepingCapacity: true)
+                    }
+                    searchProgressValue = pct
+                }
+            }
+            if !buffer.isEmpty {
+                if isSearcherMode { searcherResults.append(contentsOf: buffer) }
+                else { generatorResults.append(contentsOf: buffer) }
+            }
+            searchWorkTask = nil
             searchTask = nil
         }
     }
@@ -2578,6 +3455,7 @@ struct SeedToTimeView: View {
     let tid: UInt16
     let sid: UInt16
     let method: FinderMethod
+    var onUseInGenerator: ((UInt32) -> Void)?
 
     @State private var timeResults3: [SeedToTimeResult3] = []
     @State private var timeResults4: [SeedToTimeResult4] = []
@@ -2627,6 +3505,18 @@ struct SeedToTimeView: View {
                         Text("Shiny")
                         Spacer()
                         Image(systemName: "star.fill").foregroundStyle(.yellow)
+                    }
+                }
+
+                if onUseInGenerator != nil {
+                    Button {
+                        onUseInGenerator?(result.seed)
+                        dismiss()
+                    } label: {
+                        Label("Use in Generator", systemImage: "arrow.right.circle")
+                            .frame(maxWidth: .infinity).padding(8)
+                            .background(Color.accentColor.opacity(0.15))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                 }
             }
@@ -2957,6 +3847,67 @@ struct FinderNatureGrid: View {
                 Button("Clear All") { selected.removeAll() }
                     .font(.caption)
             }
+        }
+    }
+}
+
+// ============================================================================
+// MARK: - Hidden Power Grid
+// ============================================================================
+
+struct FinderHiddenPowerGrid: View {
+    @Binding var selected: Set<UInt8>
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Hidden Power (none = any)")
+                .font(.caption).foregroundStyle(.secondary)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 6) {
+                ForEach(0..<16, id: \.self) { i in
+                    let idx = UInt8(i)
+                    Button {
+                        if selected.contains(idx) { selected.remove(idx) }
+                        else { selected.insert(idx) }
+                    } label: {
+                        Text(hiddenPowerTypes[i])
+                            .font(.caption2)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .padding(.horizontal, 4).padding(.vertical, 3)
+                            .frame(maxWidth: .infinity)
+                            .background(selected.contains(idx) ? hpColor(i) : Color.gray.opacity(0.2))
+                            .foregroundStyle(selected.contains(idx) ? .white : .primary)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            if !selected.isEmpty {
+                Button("Clear") { selected.removeAll() }
+                    .font(.caption)
+            }
+        }
+    }
+
+    private func hpColor(_ index: Int) -> Color {
+        switch index {
+        case 0: return .orange       // Fighting
+        case 1: return .cyan         // Flying
+        case 2: return .purple       // Poison
+        case 3: return .brown        // Ground
+        case 4: return .gray         // Rock
+        case 5: return .green        // Bug
+        case 6: return .indigo       // Ghost
+        case 7: return Color(.systemGray) // Steel
+        case 8: return .red          // Fire
+        case 9: return .blue         // Water
+        case 10: return Color(.systemGreen) // Grass
+        case 11: return .yellow      // Electric
+        case 12: return .pink        // Psychic
+        case 13: return .teal        // Ice
+        case 14: return Color(.systemIndigo) // Dragon
+        case 15: return Color(.darkGray) // Dark
+        default: return .accentColor
         }
     }
 }

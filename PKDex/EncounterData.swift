@@ -28,6 +28,21 @@ enum FinderGameVersion: String, CaseIterable, Identifiable, Hashable {
     static func games(for gen: FinderGeneration) -> [FinderGameVersion] {
         allCases.filter { $0.generation == gen }
     }
+
+    var pfGame: PFGame {
+        switch self {
+        case .ruby: return .ruby
+        case .sapphire: return .sapphire
+        case .emerald: return .emerald
+        case .fireRed: return .fireRed
+        case .leafGreen: return .leafGreen
+        case .diamond: return .diamond
+        case .pearl: return .pearl
+        case .platinum: return .platinum
+        case .heartGold: return .heartGold
+        case .soulSilver: return .soulSilver
+        }
+    }
 }
 
 enum StaticEncounterCategory: String, CaseIterable, Identifiable, Hashable {
@@ -74,6 +89,29 @@ enum EncounterType: String, CaseIterable, Identifiable, Hashable {
     case rockSmash = "Rock Smash"
 
     var id: String { rawValue }
+
+    var pfEncounter: PFEncounter {
+        switch self {
+        case .grass: return .grass
+        case .surf: return .surfing
+        case .oldRod: return .oldRod
+        case .goodRod: return .goodRod
+        case .superRod: return .superRod
+        case .rockSmash: return .rockSmash
+        }
+    }
+
+    init?(from pf: PFEncounter) {
+        switch pf {
+        case .grass: self = .grass
+        case .surfing: self = .surf
+        case .oldRod: self = .oldRod
+        case .goodRod: self = .goodRod
+        case .superRod: self = .superRod
+        case .rockSmash: self = .rockSmash
+        default: return nil
+        }
+    }
 }
 
 struct WildSlot: Identifiable, Hashable {
@@ -575,5 +613,82 @@ enum StaticEncounterData {
         StaticEncounterCategory.allCases.filter { cat in
             !encounters(for: game, category: cat).isEmpty
         }
+    }
+}
+
+// ============================================================================
+// MARK: - PokeFinder-backed Encounter Data Provider
+// ============================================================================
+
+private let grassRates = ["20%", "20%", "10%", "10%", "10%", "10%", "5%", "5%", "4%", "4%", "1%", "1%"]
+private let surfRates = ["60%", "30%", "5%", "4%", "1%"]
+private let oldRodRates = ["70%", "30%"]
+private let goodRodRates = ["60%", "20%", "20%"]
+private let superRodRates = ["40%", "40%", "15%", "4%", "1%"]
+private let rockSmashRates = ["60%", "30%", "5%", "4%", "1%"]
+
+private func slotRates(for type: EncounterType) -> [String] {
+    switch type {
+    case .grass: return grassRates
+    case .surf: return surfRates
+    case .oldRod: return oldRodRates
+    case .goodRod: return goodRodRates
+    case .superRod: return superRodRates
+    case .rockSmash: return rockSmashRates
+    }
+}
+
+enum PFEncounterDataProvider {
+
+    static func wildRoutes(for game: FinderGameVersion, encounterType: EncounterType) -> [WildEncounterRoute] {
+        let pfEnc = encounterType.pfEncounter
+        let pfGame = game.pfGame
+
+        let areas: [PFEncounterAreaSwift]
+        switch game.generation {
+        case .gen3:
+            areas = PFBridge.getEncounters3(encounter: pfEnc, game: pfGame)
+        case .gen4:
+            areas = PFBridge.getEncounters4(encounter: pfEnc, game: pfGame, tid: 0, sid: 0)
+        }
+
+        let rates = slotRates(for: encounterType)
+        return areas.map { area in
+            let slots = area.slots.enumerated().map { i, slot in
+                WildSlot(species: slot.specie, speciesName: slot.specieName,
+                         minLevel: slot.minLevel, maxLevel: slot.maxLevel,
+                         slotRate: i < rates.count ? rates[i] : "?")
+            }
+            let name = area.locationName.isEmpty ? "Location \(area.location)" : area.locationName
+            return WildEncounterRoute(gameVersions: [game], locationName: name,
+                                       encounterType: encounterType, slots: slots)
+        }
+    }
+
+    static func locationNames(for game: FinderGameVersion) -> [String] {
+        var seen = Set<String>()
+        var names: [String] = []
+        let encounterTypes: [EncounterType] = [.grass, .surf, .oldRod, .goodRod, .superRod, .rockSmash]
+        for enc in encounterTypes {
+            let routes = wildRoutes(for: game, encounterType: enc)
+            for route in routes {
+                if !seen.contains(route.locationName) {
+                    seen.insert(route.locationName)
+                    names.append(route.locationName)
+                }
+            }
+        }
+        return names
+    }
+
+    static func encounterTypes(for game: FinderGameVersion, location: String) -> [EncounterType] {
+        let allTypes: [EncounterType] = [.grass, .surf, .oldRod, .goodRod, .superRod, .rockSmash]
+        return allTypes.filter { type in
+            wildRoutes(for: game, encounterType: type).contains { $0.locationName == location }
+        }
+    }
+
+    static func wildEncounter(for game: FinderGameVersion, location: String, type: EncounterType) -> WildEncounterRoute? {
+        wildRoutes(for: game, encounterType: type).first { $0.locationName == location }
     }
 }

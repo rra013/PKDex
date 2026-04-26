@@ -37,7 +37,7 @@ public:
     /**
      * @brief Construct a new SearcherBase object
      */
-    SearcherBase() : progress(0), searching(false)
+    SearcherBase() : progress(0), maxProgress(1), searching(false)
     {
     }
 
@@ -61,7 +61,7 @@ public:
      */
     int getProgress() const
     {
-        return (progress * 100) / maxProgress;
+        return static_cast<int>((progress * 100) / maxProgress);
     }
 
     /**

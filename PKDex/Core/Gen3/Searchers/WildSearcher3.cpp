@@ -73,6 +73,9 @@ void WildSearcher3::startSearch(const std::array<u8, 6> &min, const std::array<u
 {
     searching = true;
 
+    setMaxProgress(static_cast<u64>(max[0] - min[0] + 1) * (max[1] - min[1] + 1) * (max[2] - min[2] + 1)
+                   * (max[3] - min[3] + 1) * (max[4] - min[4] + 1) * (max[5] - min[5] + 1));
+
     bool feebas = area.feebasLocation(profile.getVersion())
         && (area.getEncounter() == Encounter::OldRod || area.getEncounter() == Encounter::GoodRod
             || area.getEncounter() == Encounter::SuperRod);

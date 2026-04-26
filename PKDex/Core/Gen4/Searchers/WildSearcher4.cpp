@@ -94,6 +94,9 @@ void WildSearcher4::startSearch(const std::array<u8, 6> &min, const std::array<u
 {
     searching = true;
 
+    setMaxProgress(static_cast<u64>(max[0] - min[0] + 1) * (max[1] - min[1] + 1) * (max[2] - min[2] + 1)
+                   * (max[3] - min[3] + 1) * (max[4] - min[4] + 1) * (max[5] - min[5] + 1));
+
     for (u8 hp = min[0]; hp <= max[0]; hp++)
     {
         for (u8 atk = min[1]; atk <= max[1]; atk++)
