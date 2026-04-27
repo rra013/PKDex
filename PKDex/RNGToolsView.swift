@@ -782,7 +782,7 @@ struct SeedToTimeResult3: Identifiable, Hashable {
 struct SeedToTimeResult4: Identifiable, Hashable {
     let id = UUID()
     let seed: UInt32
-    let delay: UInt16
+    let delay: UInt32
     let hour: UInt8
     let month: Int
     let day: Int
@@ -999,7 +999,7 @@ nonisolated func staticSearchGen3Streaming(
 /// Ported from PokeFinder's SeedToTimeCalculator3.
 nonisolated func seedToTimeGen3(seed: UInt32) -> (originSeed: UInt16, advances: UInt32, times: [SeedToTimeResult3]) {
     let origin = PFBridge.seedToTimeOriginSeed3(seed: seed)
-    let dateTimes = PFBridge.seedToTime3(seed: seed, year: 2000)
+    let dateTimes = PFBridge.seedToTime3(seed: UInt32(origin.originSeed), year: 2000)
     let times = dateTimes.prefix(200).map { dt in
         SeedToTimeResult3(originSeed: origin.originSeed, advances: origin.advances,
                           day: (dt.month - 1) * 31 + dt.day - 1, hour: dt.hour, minute: dt.minute)
@@ -1017,7 +1017,7 @@ nonisolated func seedToTimeGen3(seed: UInt32) -> (originSeed: UInt16, advances: 
 nonisolated func seedToTimeGen4(seed: UInt32) -> [SeedToTimeResult4] {
     let bridgeResults = PFBridge.seedToTime4(seed: seed, year: 2000)
     return bridgeResults.prefix(300).map { r in
-        SeedToTimeResult4(seed: seed, delay: UInt16(r.delay),
+        SeedToTimeResult4(seed: seed, delay: UInt32(r.delay),
                           hour: UInt8(r.dateTime.hour),
                           month: r.dateTime.month, day: r.dateTime.day,
                           minute: r.dateTime.minute, second: r.dateTime.second)

@@ -89,7 +89,26 @@ static StateFilter makeFilter(uint8_t gender, uint8_t ability, uint8_t shiny,
     std::array<bool, 16> powArr;
     std::copy(powers, powers + 16, powArr.begin());
 
-    bool skip = (gender == 255 && ability == 255 && shiny == 255);
+    // All-false means "no filter" in Swift convention; normalize to all-true
+    // so PokeFinder's per-element checks (!natures[i]) don't reject everything
+    bool anyNature = false;
+    for (int i = 0; i < 25; i++) { if (natArr[i]) { anyNature = true; break; } }
+    if (!anyNature) natArr.fill(true);
+
+    bool anyPower = false;
+    for (int i = 0; i < 16; i++) { if (powArr[i]) { anyPower = true; break; } }
+    if (!anyPower) powArr.fill(true);
+
+    // skip only when genuinely nothing is filtered
+    bool allNatures = true;
+    for (int i = 0; i < 25; i++) { if (!natArr[i]) { allNatures = false; break; } }
+    bool allPowers = true;
+    for (int i = 0; i < 16; i++) { if (!powArr[i]) { allPowers = false; break; } }
+    bool noIVFilter = true;
+    for (int i = 0; i < 6; i++) { if (min[i] > 0 || max[i] < 31) { noIVFilter = false; break; } }
+
+    bool skip = (gender == 255 && ability == 255 && shiny == 255
+                 && allNatures && allPowers && noIVFilter);
     return StateFilter(gender, ability, shiny, 0, 255, 0, 255, skip, min, max, natArr, powArr);
 }
 
