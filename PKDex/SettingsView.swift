@@ -10,13 +10,107 @@ import SwiftData
 
 struct SettingsView: View {
     @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
+    @AppStorage("enabledTabs") private var enabledTabsRaw: String = AppTab.defaultEnabledRaw
+    @AppStorage("defaultTab") private var defaultTabRaw: String = AppTab.monIndex.rawValue
+    @AppStorage("appAccentColor") private var accentColorRaw: String = AppAccentColor.blue.rawValue
+    @AppStorage("appAppearance") private var appearanceRaw: String = AppAppearance.system.rawValue
     @Environment(\.modelContext) private var modelContext
 
     @State private var showResetConfirmation = false
 
+    private var enabledTabSet: Set<String> {
+        Set(enabledTabsRaw.split(separator: ",").map(String.init))
+    }
+
+    private func isTabEnabled(_ tab: AppTab) -> Bool {
+        enabledTabSet.contains(tab.rawValue)
+    }
+
+    private func toggleTab(_ tab: AppTab) {
+        var current = enabledTabsRaw.split(separator: ",").map(String.init)
+        if let idx = current.firstIndex(of: tab.rawValue) {
+            if current.count > 1 {
+                current.remove(at: idx)
+            }
+        } else {
+            current.append(tab.rawValue)
+        }
+        enabledTabsRaw = current.joined(separator: ",")
+
+        if !current.contains(defaultTabRaw) {
+            defaultTabRaw = current.first ?? AppTab.monIndex.rawValue
+        }
+    }
+
+    private var enabledUserTabs: [AppTab] {
+        let raw = enabledTabsRaw.split(separator: ",").map(String.init)
+        return raw.compactMap { AppTab(rawValue: $0) }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
+                // MARK: - Appearance
+                Section {
+                    Picker("Appearance", selection: $appearanceRaw) {
+                        ForEach(AppAppearance.allCases) { mode in
+                            Text(mode.label).tag(mode.rawValue)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Accent Color")
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 6), spacing: 12) {
+                            ForEach(AppAccentColor.allCases) { accent in
+                                Circle()
+                                    .fill(accent.color)
+                                    .frame(width: 32, height: 32)
+                                    .overlay {
+                                        if accentColorRaw == accent.rawValue {
+                                            Image(systemName: "checkmark")
+                                                .font(.caption.bold())
+                                                .foregroundStyle(.white)
+                                        }
+                                    }
+                                    .onTapGesture { accentColorRaw = accent.rawValue }
+                                    .accessibilityLabel(accent.label)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Appearance")
+                }
+
+                // MARK: - Tab Bar
+                Section {
+                    ForEach(AppTab.allUserTabs) { tab in
+                        Toggle(isOn: Binding(
+                            get: { isTabEnabled(tab) },
+                            set: { _ in toggleTab(tab) }
+                        )) {
+                            Label(tab.label, systemImage: tab.icon)
+                        }
+                    }
+                } header: {
+                    Text("Visible Tabs")
+                } footer: {
+                    Text("At least one tab must remain enabled. Settings is always visible.")
+                }
+
+                // MARK: - Default Tab
+                Section {
+                    Picker("Open To", selection: $defaultTabRaw) {
+                        ForEach(enabledUserTabs) { tab in
+                            Label(tab.label, systemImage: tab.icon).tag(tab.rawValue)
+                        }
+                    }
+                } header: {
+                    Text("Default Tab")
+                } footer: {
+                    Text("The tab shown when the app launches.")
+                }
+
                 // MARK: - Default Generation
                 Section {
                     Picker("Default Generation", selection: $defaultGeneration) {

@@ -9,29 +9,135 @@ import SwiftUI
 import SwiftData
 import WebKit
 
+// MARK: - App Tab Definition
+
+enum AppTab: String, CaseIterable, Identifiable {
+    case monIndex, damageCalc, sets, teams, speedTiers, rngTools, settings
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .monIndex:   return "Mon Index"
+        case .damageCalc: return "Damage Calc"
+        case .sets:       return "Sets"
+        case .teams:      return "Teams"
+        case .speedTiers: return "Speed Tiers"
+        case .rngTools:   return "RNG Tools"
+        case .settings:   return "Settings"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .monIndex:   return "list.bullet"
+        case .damageCalc: return "bolt.fill"
+        case .sets:       return "square.and.pencil"
+        case .teams:      return "person.3"
+        case .speedTiers: return "hare"
+        case .rngTools:   return "dice"
+        case .settings:   return "gear"
+        }
+    }
+
+    static let allUserTabs: [AppTab] = [.monIndex, .damageCalc, .sets, .teams, .speedTiers, .rngTools]
+    static let defaultEnabledRaw = allUserTabs.map(\.rawValue).joined(separator: ",")
+}
+
+// MARK: - Accent Color
+
+enum AppAccentColor: String, CaseIterable, Identifiable {
+    case red, orange, yellow, green, mint, teal, cyan, blue, indigo, purple, pink
+
+    var id: String { rawValue }
+
+    var label: String { rawValue.capitalized }
+
+    var color: Color {
+        switch self {
+        case .red:    return .red
+        case .orange: return .orange
+        case .yellow: return .yellow
+        case .green:  return .green
+        case .mint:   return .mint
+        case .teal:   return .teal
+        case .cyan:   return .cyan
+        case .blue:   return .blue
+        case .indigo: return .indigo
+        case .purple: return .purple
+        case .pink:   return .pink
+        }
+    }
+}
+
+// MARK: - Appearance Mode
+
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system, light, dark
+
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light:  return .light
+        case .dark:   return .dark
+        }
+    }
+}
+
 struct ContentView: View {
+    @AppStorage("enabledTabs") private var enabledTabsRaw: String = AppTab.defaultEnabledRaw
+    @AppStorage("defaultTab") private var defaultTabRaw: String = AppTab.monIndex.rawValue
+    @AppStorage("appAccentColor") private var accentColorRaw: String = AppAccentColor.blue.rawValue
+    @AppStorage("appAppearance") private var appearanceRaw: String = AppAppearance.system.rawValue
+
+    @State private var selectedTab: AppTab?
+
+    private var enabledTabs: [AppTab] {
+        let raw = enabledTabsRaw.split(separator: ",").map(String.init)
+        let tabs = raw.compactMap { AppTab(rawValue: $0) }
+        return tabs.isEmpty ? AppTab.allUserTabs : tabs
+    }
+
+    private var visibleTabs: [AppTab] {
+        enabledTabs + [.settings]
+    }
+
+    private var accentColor: Color {
+        (AppAccentColor(rawValue: accentColorRaw) ?? .blue).color
+    }
+
+    private var appearance: ColorScheme? {
+        (AppAppearance(rawValue: appearanceRaw) ?? .system).colorScheme
+    }
+
     var body: some View {
-        TabView {
-            PokedexTab()
-                .tabItem { Label("Mon Index", systemImage: "list.bullet") }
+        TabView(selection: Binding(
+            get: { selectedTab ?? AppTab(rawValue: defaultTabRaw) ?? .monIndex },
+            set: { selectedTab = $0 }
+        )) {
+            ForEach(visibleTabs) { tab in
+                tabContent(for: tab)
+                    .tabItem { Label(tab.label, systemImage: tab.icon) }
+                    .tag(tab)
+            }
+        }
+        .tint(accentColor)
+        .preferredColorScheme(appearance)
+    }
 
-            DamageCalculatorView()
-                .tabItem { Label("Damage Calc", systemImage: "bolt.fill") }
-
-            SetListView()
-                .tabItem { Label("Sets", systemImage: "square.and.pencil") }
-
-            TeamListView()
-                .tabItem { Label("Teams", systemImage: "person.3") }
-
-            SpeedTierView()
-                .tabItem { Label("Speed Tiers", systemImage: "hare") }
-
-            RNGToolsView()
-                .tabItem { Label("RNG Tools", systemImage: "dice") }
-
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "gear") }
+    @ViewBuilder
+    private func tabContent(for tab: AppTab) -> some View {
+        switch tab {
+        case .monIndex:   PokedexTab()
+        case .damageCalc: DamageCalculatorView()
+        case .sets:       SetListView()
+        case .teams:      TeamListView()
+        case .speedTiers: SpeedTierView()
+        case .rngTools:   RNGToolsView()
+        case .settings:   SettingsView()
         }
     }
 }
