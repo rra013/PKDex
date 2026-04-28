@@ -29,7 +29,7 @@ struct PokedexApp: App {
             }
             // Clear sync flags so data re-downloads
             UserDefaults.standard.removeObject(forKey: "hasCompletedInitialSync")
-            UserDefaults.standard.removeObject(forKey: "hasCompletedCalcSyncV2")
+            UserDefaults.standard.removeObject(forKey: "hasCompletedCalcSyncV3")
 
             do {
                 return try ModelContainer(for: schema, configurations: [config])
@@ -64,13 +64,13 @@ struct PokedexApp: App {
             }
         }
 
-        let hasCalcData = UserDefaults.standard.bool(forKey: "hasCompletedCalcSyncV2")
+        let hasCalcData = UserDefaults.standard.bool(forKey: "hasCompletedCalcSyncV3")
         if !hasCalcData {
             let calcSync = CalcDataSyncManager(modelContainer: container)
             do {
                 print("Starting calc data sync...")
                 try await calcSync.syncCalcData()
-                UserDefaults.standard.set(true, forKey: "hasCompletedCalcSyncV2")
+                UserDefaults.standard.set(true, forKey: "hasCompletedCalcSyncV3")
                 print("Calc data sync completed")
             } catch {
                 print("Calc data sync failed: \(error)")

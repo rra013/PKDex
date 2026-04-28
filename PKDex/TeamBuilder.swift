@@ -276,6 +276,8 @@ private struct TeamEditorContent: View {
             }
             .padding()
         }
+        .scrollDismissesKeyboard(.interactively)
+        .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
         .background(Color(.systemGroupedBackground))
         .sheet(isPresented: $showAddSlot) {
             AddSlotSheet(slots: $slots, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
@@ -402,6 +404,7 @@ private struct AddSlotSheet: View {
                         .disabled(slots.count >= 6)
                     }
                     .searchable(text: $searchText, prompt: "Search sets...")
+                    .scrollDismissesKeyboard(.interactively)
                 }
             }
             .navigationTitle("Add Set to Team")

@@ -97,6 +97,7 @@ actor PokeGraphQLFetcher {
           pokemon_v2_move {
             id
             name
+            generation_id
             power
             accuracy
             pp
@@ -177,6 +178,7 @@ nonisolated struct GQLMoveResponse: Decodable, Sendable {
 nonisolated struct GQLMove: Decodable, Sendable {
     let id: Int
     let name: String
+    let generation_id: Int
     let power: Int?
     let accuracy: Int?
     let pp: Int?
@@ -390,7 +392,8 @@ actor CalcDataSyncManager {
                 maxHits: meta?.max_hits,
                 drain: meta?.drain ?? 0,
                 healing: meta?.healing ?? 0,
-                critRate: meta?.crit_rate ?? 0
+                critRate: meta?.crit_rate ?? 0,
+                generationId: m.generation_id
             )
             modelContext.insert(entry)
         }

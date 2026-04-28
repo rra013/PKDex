@@ -12,13 +12,14 @@ import WebKit
 // MARK: - App Tab Definition
 
 enum AppTab: String, CaseIterable, Identifiable {
-    case monIndex, damageCalc, sets, teams, speedTiers, rngTools, settings
+    case monIndex, moveIndex, damageCalc, sets, teams, speedTiers, rngTools, settings
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
         case .monIndex:   return "Mon Index"
+        case .moveIndex:  return "Move Index"
         case .damageCalc: return "Damage Calc"
         case .sets:       return "Sets"
         case .teams:      return "Teams"
@@ -31,6 +32,7 @@ enum AppTab: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .monIndex:   return "list.bullet"
+        case .moveIndex:  return "text.book.closed"
         case .damageCalc: return "bolt.fill"
         case .sets:       return "square.and.pencil"
         case .teams:      return "person.3"
@@ -40,7 +42,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         }
     }
 
-    static let allUserTabs: [AppTab] = [.monIndex, .damageCalc, .sets, .teams, .speedTiers, .rngTools]
+    static let allUserTabs: [AppTab] = [.monIndex, .moveIndex, .damageCalc, .sets, .teams, .speedTiers, .rngTools]
     static let defaultEnabledRaw = allUserTabs.map(\.rawValue).joined(separator: ",")
 }
 
@@ -126,12 +128,20 @@ struct ContentView: View {
         }
         .tint(accentColor)
         .preferredColorScheme(appearance)
+        .onAppear {
+            let stored = Set(enabledTabsRaw.split(separator: ",").map(String.init))
+            let missing = AppTab.allUserTabs.filter { !stored.contains($0.rawValue) }
+            if !missing.isEmpty {
+                enabledTabsRaw += "," + missing.map(\.rawValue).joined(separator: ",")
+            }
+        }
     }
 
     @ViewBuilder
     private func tabContent(for tab: AppTab) -> some View {
         switch tab {
         case .monIndex:   PokedexTab()
+        case .moveIndex:  MoveIndexTab()
         case .damageCalc: DamageCalculatorView()
         case .sets:       SetListView()
         case .teams:      TeamListView()
@@ -267,6 +277,7 @@ struct FilteredList: View {
                     PokemonRow(pokemon: pokemon)
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
         }
     }
 }

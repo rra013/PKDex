@@ -484,6 +484,8 @@ struct DamageCalculatorView: View {
                 }
                 .padding()
             }
+            .scrollDismissesKeyboard(.interactively)
+            .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
             .navigationTitle("Damage Calc")
             .background(Color(.systemGroupedBackground))
             .onAppear {

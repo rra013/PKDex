@@ -174,7 +174,7 @@ struct SettingsView: View {
 
     private func performReset() {
         UserDefaults.standard.removeObject(forKey: "hasCompletedInitialSync")
-        UserDefaults.standard.removeObject(forKey: "hasCompletedCalcSyncV2")
+        UserDefaults.standard.removeObject(forKey: "hasCompletedCalcSyncV3")
         try? modelContext.delete(model: PKMN.self)
         try? modelContext.delete(model: Gen8Pokemon.self)
         try? modelContext.delete(model: Gen9Pokemon.self)

@@ -180,6 +180,7 @@ struct SpeedTierView: View {
             }
             .navigationTitle("Speed Tiers")
             .searchable(text: $searchText, prompt: "Filter results...")
+            .scrollDismissesKeyboard(.interactively)
             .sheet(isPresented: $showLoadSpread) {
                 SpreadPickerSheet(savedSpreads: savedSpreads) { spread in
                     side.loadSpread(spread, allPokemon: Array(allPokemon), allMoves: Array(allMoves))

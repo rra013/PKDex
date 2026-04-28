@@ -438,6 +438,7 @@ private struct SetFormContent: View {
                 }
             }
         }
+        .scrollDismissesKeyboard(.interactively)
     }
 }
 

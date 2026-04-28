@@ -78,11 +78,13 @@ final class MoveData {
     var healing: Int
     var critRate: Int
     var makesContact: Bool
+    var generationId: Int
 
     init(id: Int, name: String, type: String, damageClass: String,
          power: Int? = nil, accuracy: Int? = nil, pp: Int = 0, priority: Int = 0,
          minHits: Int? = nil, maxHits: Int? = nil,
-         drain: Int = 0, healing: Int = 0, critRate: Int = 0, makesContact: Bool = false) {
+         drain: Int = 0, healing: Int = 0, critRate: Int = 0, makesContact: Bool = false,
+         generationId: Int = 0) {
         self.id = id
         self.name = name
         self.type = type
@@ -97,6 +99,7 @@ final class MoveData {
         self.healing = healing
         self.critRate = critRate
         self.makesContact = makesContact
+        self.generationId = generationId
     }
 }
 
