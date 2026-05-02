@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - API Models
 
-struct LimitlessGame: Decodable, Identifiable {
+struct LimitlessGame: Decodable, Identifiable, Sendable {
     let id: String
     let name: String
     let formats: [String: String]
@@ -17,7 +17,7 @@ struct LimitlessGame: Decodable, Identifiable {
     let metagame: Bool
 }
 
-struct LimitlessTournament: Decodable, Identifiable {
+struct LimitlessTournament: Decodable, Identifiable, Sendable {
     let id: String
     let name: String
     let game: String
@@ -42,7 +42,7 @@ struct LimitlessTournament: Decodable, Identifiable {
     }
 }
 
-struct LimitlessTournamentDetail: Decodable {
+struct LimitlessTournamentDetail: Decodable, Sendable {
     let id: String
     let name: String
     let game: String
@@ -53,13 +53,13 @@ struct LimitlessTournamentDetail: Decodable {
     let isOnline: Bool?
     let phases: [Phase]?
 
-    struct Organizer: Decodable {
+    struct Organizer: Decodable, Sendable {
         let id: Int?
         let name: String?
         let logo: String?
     }
 
-    struct Phase: Decodable {
+    struct Phase: Decodable, Sendable {
         let phase: Int?
         let type: String?
         let rounds: Int?
@@ -67,7 +67,7 @@ struct LimitlessTournamentDetail: Decodable {
     }
 }
 
-struct LimitlessStanding: Decodable, Identifiable {
+struct LimitlessStanding: Decodable, Identifiable, Sendable {
     var id: String { player }
     let player: String
     let name: String
@@ -75,9 +75,10 @@ struct LimitlessStanding: Decodable, Identifiable {
     let placing: Int
     let record: Record?
     let deck: Deck?
+    let decklist: [TeamMember]?
     let drop: Int?
 
-    struct Record: Decodable {
+    struct Record: Decodable, Sendable {
         let wins: Int
         let losses: Int
         let ties: Int
@@ -87,27 +88,35 @@ struct LimitlessStanding: Decodable, Identifiable {
         }
     }
 
-    struct Deck: Decodable {
+    struct Deck: Decodable, Sendable {
         let id: String?
         let name: String?
         let icons: [String]?
+    }
+
+    struct TeamMember: Decodable, Identifiable, Sendable {
+        var id: String { name }
+        let name: String
+        let item: String?
+        let ability: String?
+        let attacks: [String]?
+        let tera: String?
     }
 }
 
 // MARK: - API Service
 
-actor LimitlessAPIService {
-    static let shared = LimitlessAPIService()
-    private let baseURL = "https://play.limitlesstcg.com/api"
-    private let decoder = JSONDecoder()
+enum LimitlessAPIService {
+    static let shared = LimitlessAPIService.self
+    private static let baseURL = "https://play.limitlesstcg.com/api"
 
-    func fetchGames() async throws -> [LimitlessGame] {
+    static func fetchGames() async throws -> [LimitlessGame] {
         let url = URL(string: "\(baseURL)/games")!
         let (data, _) = try await URLSession.shared.data(from: url)
-        return try decoder.decode([LimitlessGame].self, from: data)
+        return try JSONDecoder().decode([LimitlessGame].self, from: data)
     }
 
-    func fetchTournaments(
+    static func fetchTournaments(
         game: String? = nil,
         format: String? = nil,
         limit: Int = 50,
@@ -123,18 +132,18 @@ actor LimitlessAPIService {
         components.queryItems = items
 
         let (data, _) = try await URLSession.shared.data(from: components.url!)
-        return try decoder.decode([LimitlessTournament].self, from: data)
+        return try JSONDecoder().decode([LimitlessTournament].self, from: data)
     }
 
-    func fetchTournamentDetail(id: String) async throws -> LimitlessTournamentDetail {
+    static func fetchTournamentDetail(id: String) async throws -> LimitlessTournamentDetail {
         let url = URL(string: "\(baseURL)/tournaments/\(id)/details")!
         let (data, _) = try await URLSession.shared.data(from: url)
-        return try decoder.decode(LimitlessTournamentDetail.self, from: data)
+        return try JSONDecoder().decode(LimitlessTournamentDetail.self, from: data)
     }
 
-    func fetchStandings(tournamentID: String) async throws -> [LimitlessStanding] {
+    static func fetchStandings(tournamentID: String) async throws -> [LimitlessStanding] {
         let url = URL(string: "\(baseURL)/tournaments/\(tournamentID)/standings")!
         let (data, _) = try await URLSession.shared.data(from: url)
-        return try decoder.decode([LimitlessStanding].self, from: data)
+        return try JSONDecoder().decode([LimitlessStanding].self, from: data)
     }
 }

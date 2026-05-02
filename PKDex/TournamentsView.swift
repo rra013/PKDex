@@ -313,7 +313,8 @@ struct TournamentDetailView: View {
         if !searchText.isEmpty {
             result = result.filter {
                 $0.name.localizedStandardContains(searchText) ||
-                ($0.deck?.name?.localizedStandardContains(searchText) ?? false)
+                ($0.deck?.name?.localizedStandardContains(searchText) ?? false) ||
+                ($0.decklist ?? []).contains { $0.name.localizedStandardContains(searchText) }
             }
         }
         return result
@@ -386,7 +387,15 @@ struct TournamentDetailView: View {
             .listRowSeparator(.hidden)
 
             ForEach(filteredStandings) { standing in
-                StandingRow(standing: standing)
+                if standing.decklist != nil {
+                    NavigationLink {
+                        StandingDetailView(standing: standing)
+                    } label: {
+                        StandingRow(standing: standing)
+                    }
+                } else {
+                    StandingRow(standing: standing)
+                }
             }
         } header: {
             Text("Standings (\(filteredStandings.count))")
@@ -413,43 +422,58 @@ private struct StandingRow: View {
     let standing: LimitlessStanding
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text("#\(standing.placing)")
-                .font(.headline)
-                .foregroundStyle(placingColor)
-                .frame(width: 44, alignment: .leading)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 12) {
+                Text("#\(standing.placing)")
+                    .font(.headline)
+                    .foregroundStyle(placingColor)
+                    .frame(width: 44, alignment: .leading)
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    if let country = standing.country {
-                        Text(flagEmoji(for: country))
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        if let country = standing.country {
+                            Text(flagEmoji(for: country))
+                        }
+                        Text(standing.name)
+                            .font(.body.weight(.medium))
                     }
-                    Text(standing.name)
-                        .font(.body.weight(.medium))
+
+                    HStack(spacing: 8) {
+                        if let record = standing.record {
+                            Text(record.display)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let deckName = standing.deck?.name {
+                            Text(deckName)
+                                .font(.caption)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(.fill.tertiary, in: Capsule())
+                        }
+                        if standing.drop != nil {
+                            Text("Dropped")
+                                .font(.caption2)
+                                .foregroundStyle(.red)
+                        }
+                    }
                 }
 
-                HStack(spacing: 8) {
-                    if let record = standing.record {
-                        Text(record.display)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let deckName = standing.deck?.name {
-                        Text(deckName)
-                            .font(.caption)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 1)
-                            .background(.fill.tertiary, in: Capsule())
-                    }
-                    if standing.drop != nil {
-                        Text("Dropped")
-                            .font(.caption2)
-                            .foregroundStyle(.red)
-                    }
-                }
+                Spacer()
             }
 
-            Spacer()
+            if let team = standing.decklist, !team.isEmpty {
+                HStack(spacing: 4) {
+                    ForEach(team) { member in
+                        Text(member.name)
+                            .font(.caption2)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(.fill.quaternary, in: Capsule())
+                    }
+                }
+                .padding(.leading, 44)
+            }
         }
         .padding(.vertical, 2)
     }
@@ -471,5 +495,91 @@ private struct StandingRow: View {
             .compactMap { Unicode.Scalar(base + $0.value) }
             .map { String($0) }
             .joined()
+    }
+}
+
+// MARK: - Standing Detail (Team View)
+
+private struct StandingDetailView: View {
+    let standing: LimitlessStanding
+
+    var body: some View {
+        List {
+            Section("Player") {
+                LabeledContent("Name", value: standing.name)
+                if let country = standing.country {
+                    LabeledContent("Country", value: flagEmoji(for: country) + " " + country)
+                }
+                LabeledContent("Placing", value: "#\(standing.placing)")
+                if let record = standing.record {
+                    LabeledContent("Record", value: record.display)
+                }
+            }
+
+            if let team = standing.decklist, !team.isEmpty {
+                Section("Team (\(team.count))") {
+                    ForEach(team) { member in
+                        TeamMemberRow(member: member)
+                    }
+                }
+            }
+        }
+        .navigationTitle(standing.name)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func flagEmoji(for countryCode: String) -> String {
+        let base: UInt32 = 127397
+        return countryCode
+            .uppercased()
+            .unicodeScalars
+            .compactMap { Unicode.Scalar(base + $0.value) }
+            .map { String($0) }
+            .joined()
+    }
+}
+
+private struct TeamMemberRow: View {
+    let member: LimitlessStanding.TeamMember
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(member.name)
+                    .font(.headline)
+                if let tera = member.tera {
+                    Text("Tera: \(tera)")
+                        .font(.caption)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.fill.tertiary, in: Capsule())
+                }
+                Spacer()
+            }
+
+            HStack(spacing: 12) {
+                if let ability = member.ability {
+                    Label(ability, systemImage: "sparkles")
+                }
+                if let item = member.item {
+                    Label(item, systemImage: "bag")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            if let attacks = member.attacks, !attacks.isEmpty {
+                HStack(spacing: 4) {
+                    ForEach(attacks, id: \.self) { move in
+                        Text(move)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
