@@ -42,7 +42,7 @@ struct LimitlessTournament: Decodable, Identifiable, Sendable {
     }
 }
 
-struct LimitlessTournamentDetail: Decodable, Sendable {
+nonisolated struct LimitlessTournamentDetail: Decodable, Sendable {
     let id: String
     let name: String
     let game: String
@@ -106,22 +106,47 @@ struct LimitlessStanding: Decodable, Identifiable, Sendable {
 
 // MARK: - API Service
 
-enum LimitlessAPIService {
-    static let shared = LimitlessAPIService.self
-    private static let baseURL = "https://play.limitlesstcg.com/api"
+actor LimitlessAPIService {
+    static let shared = LimitlessAPIService()
+    private let baseURL = "https://play.limitlesstcg.com/api"
+    private let cacheTTL: TimeInterval = 300
 
-    static func fetchGames() async throws -> [LimitlessGame] {
-        let url = URL(string: "\(baseURL)/games")!
-        let (data, _) = try await URLSession.shared.data(from: url)
-        return try JSONDecoder().decode([LimitlessGame].self, from: data)
+    private struct CacheEntry<T> {
+        let value: T
+        let timestamp: Date
+
+        func isValid(ttl: TimeInterval) -> Bool {
+            Date().timeIntervalSince(timestamp) < ttl
+        }
     }
 
-    static func fetchTournaments(
+    private var gamesCache: CacheEntry<[LimitlessGame]>?
+    private var tournamentsCache: [String: CacheEntry<[LimitlessTournament]>] = [:]
+    private var detailCache: [String: CacheEntry<LimitlessTournamentDetail>] = [:]
+    private var standingsCache: [String: CacheEntry<[LimitlessStanding]>] = [:]
+
+    func fetchGames() async throws -> [LimitlessGame] {
+        if let cached = gamesCache, cached.isValid(ttl: cacheTTL) {
+            return cached.value
+        }
+        let url = URL(string: "\(baseURL)/games")!
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let result = try JSONDecoder().decode([LimitlessGame].self, from: data)
+        gamesCache = CacheEntry(value: result, timestamp: Date())
+        return result
+    }
+
+    func fetchTournaments(
         game: String? = nil,
         format: String? = nil,
         limit: Int = 50,
         page: Int = 1
     ) async throws -> [LimitlessTournament] {
+        let cacheKey = "\(game ?? "")|\(format ?? "")|\(limit)|\(page)"
+        if let cached = tournamentsCache[cacheKey], cached.isValid(ttl: cacheTTL) {
+            return cached.value
+        }
+
         var components = URLComponents(string: "\(baseURL)/tournaments")!
         var items: [URLQueryItem] = [
             URLQueryItem(name: "limit", value: String(limit)),
@@ -132,18 +157,30 @@ enum LimitlessAPIService {
         components.queryItems = items
 
         let (data, _) = try await URLSession.shared.data(from: components.url!)
-        return try JSONDecoder().decode([LimitlessTournament].self, from: data)
+        let result = try JSONDecoder().decode([LimitlessTournament].self, from: data)
+        tournamentsCache[cacheKey] = CacheEntry(value: result, timestamp: Date())
+        return result
     }
 
-    static func fetchTournamentDetail(id: String) async throws -> LimitlessTournamentDetail {
+    func fetchTournamentDetail(id: String) async throws -> LimitlessTournamentDetail {
+        if let cached = detailCache[id], cached.isValid(ttl: cacheTTL) {
+            return cached.value
+        }
         let url = URL(string: "\(baseURL)/tournaments/\(id)/details")!
         let (data, _) = try await URLSession.shared.data(from: url)
-        return try JSONDecoder().decode(LimitlessTournamentDetail.self, from: data)
+        let result = try JSONDecoder().decode(LimitlessTournamentDetail.self, from: data)
+        detailCache[id] = CacheEntry(value: result, timestamp: Date())
+        return result
     }
 
-    static func fetchStandings(tournamentID: String) async throws -> [LimitlessStanding] {
+    func fetchStandings(tournamentID: String) async throws -> [LimitlessStanding] {
+        if let cached = standingsCache[tournamentID], cached.isValid(ttl: cacheTTL) {
+            return cached.value
+        }
         let url = URL(string: "\(baseURL)/tournaments/\(tournamentID)/standings")!
         let (data, _) = try await URLSession.shared.data(from: url)
-        return try JSONDecoder().decode([LimitlessStanding].self, from: data)
+        let result = try JSONDecoder().decode([LimitlessStanding].self, from: data)
+        standingsCache[tournamentID] = CacheEntry(value: result, timestamp: Date())
+        return result
     }
 }

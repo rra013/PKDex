@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import SwiftData
+import WebKit
 
 // MARK: - View Model
 
@@ -463,7 +465,7 @@ private struct StandingRow: View {
             }
 
             if let team = standing.decklist, !team.isEmpty {
-                HStack(spacing: 4) {
+                FlowLayout(spacing: 4) {
                     ForEach(team) { member in
                         Text(member.name)
                             .font(.caption2)
@@ -502,6 +504,11 @@ private struct StandingRow: View {
 
 private struct StandingDetailView: View {
     let standing: LimitlessStanding
+    @Query(sort: \PKMN.nationalPokedexNumber) private var allPokemon: [PKMN]
+    @Query(sort: \PKMNStats.name) private var allStats: [PKMNStats]
+    @Query(sort: \MoveData.name) private var allMoves: [MoveData]
+    @Environment(\.modelContext) private var modelContext
+    @State private var savedMemberName: String?
 
     var body: some View {
         List {
@@ -519,13 +526,70 @@ private struct StandingDetailView: View {
             if let team = standing.decklist, !team.isEmpty {
                 Section("Team (\(team.count))") {
                     ForEach(team) { member in
-                        TeamMemberRow(member: member)
+                        TeamMemberRow(
+                            member: member,
+                            pokemon: findPokemon(named: member.name),
+                            onSave: { saveSet(member: member) }
+                        )
+                        .overlay(alignment: .topTrailing) {
+                            if savedMemberName == member.name {
+                                Text("Saved!")
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(.green)
+                                    .transition(.opacity)
+                            }
+                        }
                     }
                 }
             }
         }
         .navigationTitle(standing.name)
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func findPokemon(named name: String) -> PKMN? {
+        let lower = name.lowercased()
+        return allPokemon.first { $0.name.lowercased() == lower }
+    }
+
+    private func matchAbility(displayName: String?, on stats: PKMNStats?) -> String? {
+        guard let displayName, let stats else { return nil }
+        let normalized = displayName.lowercased().replacingOccurrences(of: " ", with: "-")
+        return stats.allAbilities.first { $0.lowercased() == normalized } ?? normalized
+    }
+
+    private func saveSet(member: LimitlessStanding.TeamMember) {
+        let stats = allStats.first { $0.name.lowercased() == member.name.lowercased() }
+        let abilityRaw = matchAbility(displayName: member.ability, on: stats)
+
+        let moveIDs: [Int?] = (member.attacks ?? []).map { attackName in
+            let lower = attackName.lowercased()
+            return allMoves.first { $0.name.lowercased() == lower }?.id
+        }
+
+        let spread = SavedSpread(
+            name: member.name,
+            pokemonID: stats?.id,
+            pokemonName: stats?.name ?? member.name,
+            abilityName: abilityRaw,
+            itemRawValue: member.item,
+            moveID1: moveIDs.count > 0 ? moveIDs[0] : nil,
+            moveID2: moveIDs.count > 1 ? moveIDs[1] : nil,
+            moveID3: moveIDs.count > 2 ? moveIDs[2] : nil,
+            moveID4: moveIDs.count > 3 ? moveIDs[3] : nil
+        )
+        modelContext.insert(spread)
+
+        withAnimation {
+            savedMemberName = member.name
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation {
+                if savedMemberName == member.name {
+                    savedMemberName = nil
+                }
+            }
+        }
     }
 
     private func flagEmoji(for countryCode: String) -> String {
@@ -541,12 +605,23 @@ private struct StandingDetailView: View {
 
 private struct TeamMemberRow: View {
     let member: LimitlessStanding.TeamMember
+    let pokemon: PKMN?
+    let onSave: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(member.name)
-                    .font(.headline)
+                if let pokemon, let url = pokemon.detailURL {
+                    NavigationLink {
+                        MonIndexDetailView(pokemon: pokemon, detailURL: url)
+                    } label: {
+                        Text(member.name)
+                            .font(.headline)
+                    }
+                } else {
+                    Text(member.name)
+                        .font(.headline)
+                }
                 if let tera = member.tera {
                     Text("Tera: \(tera)")
                         .font(.caption)
@@ -555,6 +630,13 @@ private struct TeamMemberRow: View {
                         .background(.fill.tertiary, in: Capsule())
                 }
                 Spacer()
+                Button {
+                    onSave()
+                } label: {
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.callout)
+                }
+                .buttonStyle(.borderless)
             }
 
             HStack(spacing: 12) {
@@ -569,7 +651,7 @@ private struct TeamMemberRow: View {
             .foregroundStyle(.secondary)
 
             if let attacks = member.attacks, !attacks.isEmpty {
-                HStack(spacing: 4) {
+                FlowLayout(spacing: 4) {
                     ForEach(attacks, id: \.self) { move in
                         Text(move)
                             .font(.caption2)
@@ -581,5 +663,49 @@ private struct TeamMemberRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Mon Index Detail (from tournament)
+
+private struct MonIndexDetailView: View {
+    let pokemon: PKMN
+    let detailURL: URL
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Link(detailURL.absoluteString, destination: detailURL)
+                .font(.footnote)
+            TournamentWebView(url: detailURL)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .navigationTitle(pokemon.name)
+        .padding()
+    }
+}
+
+private struct TournamentWebView: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> WKWebView {
+        let webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+        webView.allowsBackForwardNavigationGestures = true
+        return webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        guard webView.url != url else { return }
+        webView.load(URLRequest(url: url))
+    }
+}
+
+// MARK: - PKMN Detail URL Helper
+
+private extension PKMN {
+    var detailURL: URL? {
+        let link = champsLink ?? genNineLink ?? genEightLink ?? genSevenLink ?? genSixLink ?? genFiveLink ?? genFourLink ?? genThreeLink ?? genTwoLink ?? genOneLink
+        guard let link else { return nil }
+        return URL(string: link)
     }
 }
