@@ -14,6 +14,7 @@ struct EncounterBrowserView: View {
     enum EncBrowserGen: String, CaseIterable, Identifiable {
         case gen3 = "Gen 3"
         case gen4 = "Gen 4"
+        case gen5 = "Gen 5"
         var id: String { rawValue }
     }
 
@@ -21,6 +22,7 @@ struct EncounterBrowserView: View {
         switch generation {
         case .gen3: return [.ruby, .sapphire, .emerald, .fireRed, .leafGreen]
         case .gen4: return [.diamond, .pearl, .platinum, .heartGold, .soulSilver]
+        case .gen5: return [.black, .white, .black2, .white2]
         }
     }
 
@@ -28,6 +30,7 @@ struct EncounterBrowserView: View {
         switch generation {
         case .gen3: return [.grass, .surfing, .oldRod, .goodRod, .superRod, .rockSmash]
         case .gen4: return [.grass, .surfing, .oldRod, .goodRod, .superRod, .rockSmash, .headbutt]
+        case .gen5: return [.grass, .grassDark, .grassRustling, .surfing, .surfingRippling, .superRod, .superRodRippling]
         }
     }
 
@@ -94,6 +97,8 @@ struct EncounterBrowserView: View {
         case .gen4:
             areas = PFBridge.getEncounters4(encounter: selectedEncounter, game: selectedGame,
                                              tid: tid, sid: sid)
+        case .gen5:
+            areas = PFBridge.getEncounters5(encounter: selectedEncounter, game: selectedGame)
         }
     }
 
@@ -109,6 +114,10 @@ struct EncounterBrowserView: View {
         case .platinum: return "Platinum"
         case .heartGold: return "HeartGold"
         case .soulSilver: return "SoulSilver"
+        case .black: return "Black"
+        case .white: return "White"
+        case .black2: return "Black 2"
+        case .white2: return "White 2"
         default: return "Unknown"
         }
     }
@@ -183,6 +192,7 @@ struct StaticEncounterBrowserView: View {
     enum StaticBrowserGen: String, CaseIterable, Identifiable {
         case gen3 = "Gen 3"
         case gen4 = "Gen 4"
+        case gen5 = "Gen 5"
         var id: String { rawValue }
     }
 
@@ -195,6 +205,9 @@ struct StaticEncounterBrowserView: View {
         case .gen4:
             return [(0, "Starters"), (1, "Fossils"), (2, "Gifts"), (3, "Game Corner"),
                     (4, "Stationary"), (5, "Legends"), (6, "Events"), (7, "Roamers")]
+        case .gen5:
+            return [(0, "Starters"), (1, "Fossils"), (2, "Gifts"),
+                    (3, "Stationary"), (4, "Legends"), (5, "Events"), (6, "Roamers")]
         }
     }
 
@@ -202,6 +215,7 @@ struct StaticEncounterBrowserView: View {
         switch generation {
         case .gen3: return PFBridge.getStaticEncounters3(type: category)
         case .gen4: return PFBridge.getStaticEncounters4(type: category)
+        case .gen5: return PFBridge.getStaticEncounters5(type: category)
         }
     }
 
@@ -264,6 +278,8 @@ struct StaticEncounterBrowserView: View {
             (32, "XD"), (64, "Colo"),
             (128, "D"), (256, "P"), (384, "DP"), (512, "Pt"), (896, "DPPt"),
             (1024, "HG"), (2048, "SS"), (3072, "HGSS"),
+            (4096, "B"), (8192, "W"), (12288, "BW"),
+            (16384, "B2"), (32768, "W2"), (49152, "B2W2"),
         ]
         for (val, name) in mapping {
             if game == val { return name }
@@ -272,6 +288,8 @@ struct StaticEncounterBrowserView: View {
         if game & 24 != 0 { return "FRLG" }
         if game & 896 != 0 { return "DPPt" }
         if game & 3072 != 0 { return "HGSS" }
+        if game & 12288 != 0 { return "BW" }
+        if game & 49152 != 0 { return "B2W2" }
         return String(format: "0x%X", game)
     }
 }

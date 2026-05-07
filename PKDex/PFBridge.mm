@@ -42,6 +42,7 @@
 #include <Core/Gen4/Generators/EggGenerator4.hpp>
 #include <Core/Gen3/Generators/IDGenerator3.hpp>
 #include <Core/Gen4/Generators/IDGenerator4.hpp>
+#include <Core/Gen4/Searchers/IDSearcher4.hpp>
 #include <Core/Parents/Daycare.hpp>
 #include <Core/Parents/States/EggState.hpp>
 #include <Core/Gen3/States/EggState3.hpp>
@@ -51,8 +52,33 @@
 #include <Core/Parents/Filters/IDFilter.hpp>
 
 #include <Core/Gen3/Generators/GameCubeGenerator.hpp>
+#include <Core/Gen3/Generators/PokeSpotGenerator.hpp>
+#include <Core/Gen3/Searchers/GameCubeSearcher.hpp>
+#include <Core/Gen3/Searchers/ColoSeedSearcher.hpp>
+#include <Core/Gen3/Searchers/GalesSeedSearcher.hpp>
+#include <Core/Gen3/Searchers/ChannelSeedSearcher.hpp>
+#include <Core/Gen3/States/PokeSpotState.hpp>
+#include <Core/Gen3/Tools/JirachiPattern.hpp>
 #include <Core/Gen3/ShadowTemplate.hpp>
 #include <Core/Enum/ShadowType.hpp>
+#include <Core/Parents/EncounterArea.hpp>
+
+#include <Core/Gen5/Profile5.hpp>
+#include <Core/Gen5/StaticTemplate5.hpp>
+#include <Core/Gen5/EncounterArea5.hpp>
+#include <Core/Gen5/Encounters5.hpp>
+#include <Core/Gen5/Generators/StaticGenerator5.hpp>
+#include <Core/Gen5/Generators/WildGenerator5.hpp>
+#include <Core/Gen5/States/State5.hpp>
+#include <Core/Gen5/States/WildState5.hpp>
+#include <Core/Gen5/States/EggState5.hpp>
+#include <Core/Gen5/Generators/EggGenerator5.hpp>
+#include <Core/Gen5/Generators/IDGenerator5.hpp>
+#include <Core/Gen5/Searchers/IVSearcher5.hpp>
+#include <Core/Gen5/States/SearcherState5.hpp>
+#include <Core/Enum/Buttons.hpp>
+#include <Core/Enum/DSType.hpp>
+#include <Core/Enum/Language.hpp>
 
 #include <vector>
 #include <cstring>
@@ -1316,6 +1342,79 @@ extern "C" PFIDState4 *pf_idGenerate4(uint32_t minDelay, uint32_t maxDelay,
     return out;
 }
 
+// MARK: - ID Searcher Gen 4 (Async)
+
+struct PFIDSearch4 {
+    IDSearcher4 *searcher;
+    std::thread thread;
+
+    ~PFIDSearch4() {
+        if (thread.joinable()) thread.join();
+        delete searcher;
+    }
+};
+
+extern "C" PFIDSearch4Handle pf_idSearch4_start(bool infinite, uint16_t year,
+                                                  uint32_t minDelay, uint32_t maxDelay,
+                                                  uint16_t targetTID, bool filterTID,
+                                                  uint16_t targetSID, bool filterSID,
+                                                  uint16_t targetTSV, bool filterTSV)
+{
+    std::vector<u16> tidFilter, sidFilter, tsvFilter;
+    if (filterTID) tidFilter.push_back(targetTID);
+    if (filterSID) sidFilter.push_back(targetSID);
+    if (filterTSV) tsvFilter.push_back(targetTSV);
+
+    IDFilter filter(tidFilter, sidFilter, {}, tsvFilter, {}, {});
+    auto *searcher = new IDSearcher4(filter);
+
+    auto *handle = new PFIDSearch4();
+    handle->searcher = searcher;
+    handle->thread = std::thread([searcher, infinite, year, minDelay, maxDelay]() {
+        searcher->startSearch(infinite, year, minDelay, maxDelay);
+    });
+    return handle;
+}
+
+extern "C" int pf_idSearch4_progress(PFIDSearch4Handle h)
+{
+    auto *handle = static_cast<PFIDSearch4 *>(h);
+    return handle->searcher->getProgress();
+}
+
+extern "C" PFIDState4 *pf_idSearch4_getResults(PFIDSearch4Handle h, int *outCount)
+{
+    auto *handle = static_cast<PFIDSearch4 *>(h);
+    auto results = handle->searcher->getResults();
+
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFIDState4 *>(malloc(sizeof(PFIDState4) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i].seed = results[i].getSeed();
+        out[i].delay = results[i].getDelay();
+        out[i].advances = 0;
+        out[i].tid = results[i].getTID();
+        out[i].sid = results[i].getSID();
+        out[i].tsv = (results[i].getTID() ^ results[i].getSID()) >> 3;
+        out[i].seconds = 0;
+    }
+    return out;
+}
+
+extern "C" void pf_idSearch4_cancel(PFIDSearch4Handle h)
+{
+    auto *handle = static_cast<PFIDSearch4 *>(h);
+    handle->searcher->cancelSearch();
+}
+
+extern "C" void pf_idSearch4_free(PFIDSearch4Handle h)
+{
+    auto *handle = static_cast<PFIDSearch4 *>(h);
+    delete handle;
+}
+
 // MARK: - GameCube Shadow Templates
 
 extern "C" PFShadowTemplateInfo *pf_getShadowTemplates(int *outCount)
@@ -1404,6 +1503,307 @@ extern "C" PFGeneratorState *pf_gamecubeGenerateStatic(uint32_t seed,
     return out;
 }
 
+// MARK: - GameCube Searcher (Shadow)
+
+extern "C" PFSearcherState *pf_gamecubeSearchShadow(uint8_t method, bool unset,
+                                                      uint16_t tid, uint16_t sid, uint32_t game,
+                                                      uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                                      const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                                      const bool natures[25], const bool powers[16],
+                                                      int shadowIndex,
+                                                      int *outCount)
+{
+    Profile3 profile("-", static_cast<Game>(game), tid, sid, false);
+    StateFilter filter = makeFilter(filterGender, filterAbility, filterShiny, ivMin, ivMax, natures, powers);
+
+    const ShadowTemplate *tmpl = Encounters3::getShadowTeam(shadowIndex);
+    if (!tmpl) { *outCount = 0; return nullptr; }
+
+    GameCubeSearcher searcher(static_cast<Method>(method), unset, profile, filter);
+    std::array<u8, 6> min, max;
+    std::copy(ivMin, ivMin + 6, min.begin());
+    std::copy(ivMax, ivMax + 6, max.begin());
+    searcher.startSearch(min, max, tmpl);
+
+    auto results = searcher.getResults();
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFSearcherState *>(malloc(sizeof(PFSearcherState) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i] = convertSearchState(results[i]);
+    }
+    return out;
+}
+
+// MARK: - GameCube Searcher (Static)
+
+extern "C" PFSearcherState *pf_gamecubeSearchStatic(uint8_t method, bool unset,
+                                                      uint16_t tid, uint16_t sid, uint32_t game,
+                                                      uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                                      const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                                      const bool natures[25], const bool powers[16],
+                                                      int staticType, int staticIndex,
+                                                      int *outCount)
+{
+    Profile3 profile("-", static_cast<Game>(game), tid, sid, false);
+    StateFilter filter = makeFilter(filterGender, filterAbility, filterShiny, ivMin, ivMax, natures, powers);
+
+    const StaticTemplate3 *tmpl = Encounters3::getStaticEncounter(staticType, staticIndex);
+    if (!tmpl) { *outCount = 0; return nullptr; }
+
+    GameCubeSearcher searcher(static_cast<Method>(method), unset, profile, filter);
+    std::array<u8, 6> min, max;
+    std::copy(ivMin, ivMin + 6, min.begin());
+    std::copy(ivMax, ivMax + 6, max.begin());
+    searcher.startSearch(min, max, tmpl);
+
+    auto results = searcher.getResults();
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFSearcherState *>(malloc(sizeof(PFSearcherState) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i] = convertSearchState(results[i]);
+    }
+    return out;
+}
+
+// MARK: - PokeSpot Generator
+
+extern "C" PFPokeSpotState *pf_pokeSpotGenerate(uint32_t seedFood, uint32_t seedEncounter,
+                                                  uint32_t initialAdvances, uint32_t maxAdvances, uint32_t offset,
+                                                  uint32_t initialAdvancesEncounter, uint32_t maxAdvancesEncounter, uint32_t offsetEncounter,
+                                                  uint16_t tid, uint16_t sid, uint32_t game,
+                                                  int pokeSpotIndex,
+                                                  uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                                  const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                                  const bool natures[25], const bool powers[16],
+                                                  const bool encounterSlots[12],
+                                                  int *outCount)
+{
+    Profile3 profile("-", static_cast<Game>(game), tid, sid, false);
+    WildStateFilter filter = makeWildFilter(filterGender, filterAbility, filterShiny,
+                                             ivMin, ivMax, natures, powers, encounterSlots);
+
+    auto areas = Encounters3::getPokeSpotEncounters();
+    if (pokeSpotIndex < 0 || pokeSpotIndex >= static_cast<int>(areas.size())) {
+        *outCount = 0;
+        return nullptr;
+    }
+
+    PokeSpotGenerator generator(initialAdvances, maxAdvances, offset,
+                                 initialAdvancesEncounter, maxAdvancesEncounter, offsetEncounter,
+                                 profile, filter);
+    auto results = generator.generate(seedFood, seedEncounter, areas[pokeSpotIndex]);
+
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFPokeSpotState *>(malloc(sizeof(PFPokeSpotState) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        auto &s = results[i];
+        out[i].advances = s.getAdvances();
+        out[i].encounterAdvances = s.getEncounterAdvances();
+        out[i].pid = s.getPID();
+        auto ivs = s.getIVs();
+        for (int j = 0; j < 6; j++) out[i].ivs[j] = ivs[j];
+        out[i].nature = s.getNature();
+        out[i].ability = s.getAbility();
+        out[i].gender = s.getGender();
+        out[i].shiny = s.getShiny();
+        out[i].hiddenPower = s.getHiddenPower();
+        out[i].hiddenPowerStrength = s.getHiddenPowerStrength();
+        out[i].encounterSlot = s.getEncounterSlot();
+        out[i].level = s.getLevel();
+        out[i].specie = s.getSpecie();
+    }
+    return out;
+}
+
+extern "C" PFEncounterArea *pf_getPokeSpotEncounters(int *outCount)
+{
+    auto areas = Encounters3::getPokeSpotEncounters();
+    *outCount = static_cast<int>(areas.size());
+    if (areas.empty()) return nullptr;
+
+    auto *out = static_cast<PFEncounterArea *>(malloc(sizeof(PFEncounterArea) * areas.size()));
+    for (size_t i = 0; i < areas.size(); i++) {
+        out[i].location = areas[i].getLocation();
+        out[i].rate = areas[i].getRate();
+        out[i].encounter = static_cast<uint8_t>(areas[i].getEncounter());
+        auto pokemon = areas[i].getPokemon();
+        out[i].slotCount = static_cast<int>(pokemon.size());
+        for (size_t j = 0; j < pokemon.size() && j < 12; j++) {
+            out[i].slots[j].specie = pokemon[j].getSpecie();
+            out[i].slots[j].form = pokemon[j].getForm();
+            out[i].slots[j].minLevel = pokemon[j].getMinLevel();
+            out[i].slots[j].maxLevel = pokemon[j].getMaxLevel();
+        }
+    }
+    return out;
+}
+
+// MARK: - Seed Searchers (GameCube) - Async
+
+struct PFSeedSearch {
+    std::variant<ColoSeedSearcher *, GalesSeedSearcher *, ChannelSeedSearcher *> searcher;
+    std::thread thread;
+    int type; // 0=colo, 1=gales, 2=channel
+
+    ~PFSeedSearch() {
+        if (thread.joinable()) thread.join();
+        switch (type) {
+            case 0: delete std::get<ColoSeedSearcher *>(searcher); break;
+            case 1: delete std::get<GalesSeedSearcher *>(searcher); break;
+            case 2: delete std::get<ChannelSeedSearcher *>(searcher); break;
+        }
+    }
+};
+
+extern "C" PFSeedSearchHandle pf_coloSeedSearch_start(uint8_t lead, uint8_t trainer, int threads)
+{
+    ColoCriteria criteria;
+    criteria.lead = lead;
+    criteria.trainer = trainer;
+
+    auto *s = new ColoSeedSearcher(criteria);
+    auto *handle = new PFSeedSearch();
+    handle->searcher = s;
+    handle->type = 0;
+    handle->thread = std::thread([s, threads]() {
+        s->startSearch(threads);
+    });
+    return handle;
+}
+
+extern "C" PFSeedSearchHandle pf_galesSeedSearch_start(uint16_t enemyHP0, uint16_t enemyHP1,
+                                                         uint16_t playerHP0, uint16_t playerHP1,
+                                                         uint8_t enemyIndex, uint8_t playerIndex,
+                                                         int threads)
+{
+    GalesCriteria criteria;
+    criteria.enemyHP[0] = enemyHP0;
+    criteria.enemyHP[1] = enemyHP1;
+    criteria.playerHP[0] = playerHP0;
+    criteria.playerHP[1] = playerHP1;
+    criteria.enemyIndex = enemyIndex;
+    criteria.playerIndex = playerIndex;
+
+    auto *s = new GalesSeedSearcher(criteria);
+    auto *handle = new PFSeedSearch();
+    handle->searcher = s;
+    handle->type = 1;
+    handle->thread = std::thread([s, threads]() {
+        s->startSearch(threads);
+    });
+    return handle;
+}
+
+extern "C" PFSeedSearchHandle pf_channelSeedSearch_start(const uint8_t *pattern, int patternLength, int threads)
+{
+    std::vector<u8> criteria(pattern, pattern + patternLength);
+
+    auto *s = new ChannelSeedSearcher(criteria);
+    auto *handle = new PFSeedSearch();
+    handle->searcher = s;
+    handle->type = 2;
+    handle->thread = std::thread([s, threads]() {
+        s->startSearch(threads);
+    });
+    return handle;
+}
+
+extern "C" int pf_seedSearch_progress(PFSeedSearchHandle h)
+{
+    auto *handle = static_cast<PFSeedSearch *>(h);
+    switch (handle->type) {
+        case 0: return std::get<ColoSeedSearcher *>(handle->searcher)->getProgress();
+        case 1: return std::get<GalesSeedSearcher *>(handle->searcher)->getProgress();
+        case 2: return std::get<ChannelSeedSearcher *>(handle->searcher)->getProgress();
+    }
+    return 0;
+}
+
+extern "C" uint32_t *pf_seedSearch_getResults(PFSeedSearchHandle h, int *outCount)
+{
+    auto *handle = static_cast<PFSeedSearch *>(h);
+    std::vector<u32> results;
+    switch (handle->type) {
+        case 0: results = std::get<ColoSeedSearcher *>(handle->searcher)->getResults(); break;
+        case 1: results = std::get<GalesSeedSearcher *>(handle->searcher)->getResults(); break;
+        case 2: results = std::get<ChannelSeedSearcher *>(handle->searcher)->getResults(); break;
+    }
+
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<uint32_t *>(malloc(sizeof(uint32_t) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i] = results[i];
+    }
+    return out;
+}
+
+extern "C" void pf_seedSearch_cancel(PFSeedSearchHandle h)
+{
+    auto *handle = static_cast<PFSeedSearch *>(h);
+    switch (handle->type) {
+        case 0: std::get<ColoSeedSearcher *>(handle->searcher)->cancelSearch(); break;
+        case 1: std::get<GalesSeedSearcher *>(handle->searcher)->cancelSearch(); break;
+        case 2: std::get<ChannelSeedSearcher *>(handle->searcher)->cancelSearch(); break;
+    }
+}
+
+extern "C" void pf_seedSearch_free(PFSeedSearchHandle h)
+{
+    auto *handle = static_cast<PFSeedSearch *>(h);
+    delete handle;
+}
+
+// MARK: - XD/Colo ID Generator
+
+extern "C" PFIDState *pf_idGenerate3_XDColo(uint32_t seed,
+                                              uint32_t initialAdvances, uint32_t maxAdvances,
+                                              int *outCount)
+{
+    IDFilter filter({}, {}, {}, {}, {}, {});
+    IDGenerator3 generator(initialAdvances, maxAdvances, filter);
+
+    auto results = generator.generateXDColo(seed);
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFIDState *>(malloc(sizeof(PFIDState) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i].advances = results[i].getAdvances();
+        out[i].tid = results[i].getTID();
+        out[i].sid = results[i].getSID();
+        out[i].tsv = results[i].getTSV();
+    }
+    return out;
+}
+
+// MARK: - Jirachi Pattern
+
+extern "C" uint8_t *pf_jirachiPattern(uint32_t seed, uint32_t targetAdvance, uint32_t bruteForce, int *outCount)
+{
+    auto actions = JirachiPattern::calculateActions(seed, targetAdvance, bruteForce);
+    *outCount = static_cast<int>(actions.size());
+    if (actions.empty()) return nullptr;
+
+    auto *out = static_cast<uint8_t *>(malloc(sizeof(uint8_t) * actions.size()));
+    for (size_t i = 0; i < actions.size(); i++) {
+        out[i] = actions[i];
+    }
+    return out;
+}
+
+extern "C" uint32_t pf_computeJirachiSeed(uint32_t seed)
+{
+    return JirachiPattern::computeJirachiSeed(seed);
+}
+
 // MARK: - Seed Verification Tools (Gen 4)
 
 extern "C" char *pf_coinFlips(uint32_t seed)
@@ -1416,4 +1816,543 @@ extern "C" char *pf_getCalls(uint32_t seed, uint8_t skips)
 {
     std::string result = Utilities4::getCalls(seed, skips);
     return copyString(result);
+}
+
+// MARK: - Gen 5 Helpers
+
+static Profile5 makeProfile5(Game game, u16 tid, u16 sid,
+                               u64 mac, const bool keypresses[9],
+                               u8 vcount, u8 gxstat, u8 vframe,
+                               bool skipLR, u16 timer0Min, u16 timer0Max,
+                               bool memoryLink, bool shinyCharm,
+                               u8 dsType, u8 language)
+{
+    std::array<bool, 9> kp;
+    std::copy(keypresses, keypresses + 9, kp.begin());
+    return Profile5("-", game, tid, sid, "", "", mac, kp, vcount, gxstat, vframe,
+                    skipLR, timer0Min, timer0Max, memoryLink, shinyCharm,
+                    static_cast<DSType>(dsType), static_cast<Language>(language));
+}
+
+static PFGeneratorState5 convertGenState5(const State5 &s)
+{
+    PFGeneratorState5 r;
+    r.advances = s.getAdvances();
+    r.ivAdvances = s.getIVAdvances();
+    r.pid = s.getPID();
+    auto ivs = s.getIVs();
+    for (int i = 0; i < 6; i++) r.ivs[i] = ivs[i];
+    r.nature = s.getNature();
+    r.ability = s.getAbility();
+    r.gender = s.getGender();
+    r.shiny = s.getShiny();
+    r.hiddenPower = s.getHiddenPower();
+    r.hiddenPowerStrength = s.getHiddenPowerStrength();
+    r.chatot = s.getChatot();
+    return r;
+}
+
+static PFWildGeneratorState5 convertWildGenState5(const WildState5 &s)
+{
+    PFWildGeneratorState5 r;
+    r.advances = s.getAdvances();
+    r.ivAdvances = s.getIVAdvances();
+    r.pid = s.getPID();
+    auto ivs = s.getIVs();
+    for (int i = 0; i < 6; i++) r.ivs[i] = ivs[i];
+    r.nature = s.getNature();
+    r.ability = s.getAbility();
+    r.gender = s.getGender();
+    r.shiny = s.getShiny();
+    r.hiddenPower = s.getHiddenPower();
+    r.hiddenPowerStrength = s.getHiddenPowerStrength();
+    r.encounterSlot = s.getEncounterSlot();
+    r.level = s.getLevel();
+    r.item = s.getItem();
+    r.specie = s.getSpecie();
+    r.form = s.getForm();
+    r.chatot = s.getChatot();
+    return r;
+}
+
+static EncounterArea5 findEncounterArea5(Encounter encounter, u8 season,
+                                          const Profile5 &profile, uint8_t location)
+{
+    auto areas = Encounters5::getEncounters(encounter, season, &profile);
+    for (const auto &area : areas) {
+        if (area.getLocation() == location) {
+            return area;
+        }
+    }
+    if (!areas.empty()) return areas[0];
+    return EncounterArea5(0, 0, false, Encounter::Grass, {});
+}
+
+// MARK: - Gen 5 Static Generator
+
+extern "C" PFGeneratorState5 *pf_staticGenerate5(uint64_t seed,
+                                                    uint32_t initialAdvances,
+                                                    uint32_t maxAdvances,
+                                                    uint32_t offset,
+                                                    uint8_t method,
+                                                    uint8_t lead,
+                                                    uint16_t tid, uint16_t sid,
+                                                    uint32_t game,
+                                                    int staticType, int staticIndex,
+                                                    uint64_t mac, const bool keypresses[9],
+                                                    uint8_t vcount, uint8_t gxstat, uint8_t vframe,
+                                                    bool skipLR, uint16_t timer0Min, uint16_t timer0Max,
+                                                    bool memoryLink, bool shinyCharm,
+                                                    uint8_t dsType, uint8_t language,
+                                                    uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                                    const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                                    const bool natures[25], const bool powers[16],
+                                                    int *outCount)
+{
+    Profile5 profile = makeProfile5(static_cast<Game>(game), tid, sid,
+                                     mac, keypresses, vcount, gxstat, vframe,
+                                     skipLR, timer0Min, timer0Max,
+                                     memoryLink, shinyCharm, dsType, language);
+    StateFilter filter = makeFilter(filterGender, filterAbility, filterShiny, ivMin, ivMax, natures, powers);
+
+    const StaticTemplate5 *tmpl = Encounters5::getStaticEncounter(staticType, staticIndex);
+    if (!tmpl) { *outCount = 0; return nullptr; }
+
+    StaticGenerator5 generator(initialAdvances, maxAdvances, offset,
+                                static_cast<Method>(method), static_cast<Lead>(lead),
+                                0, *tmpl, profile, filter);
+
+    auto results = generator.generate(seed, initialAdvances, maxAdvances);
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFGeneratorState5 *>(malloc(sizeof(PFGeneratorState5) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i] = convertGenState5(results[i]);
+    }
+    return out;
+}
+
+// MARK: - Gen 5 Wild Generator
+
+extern "C" PFWildGeneratorState5 *pf_wildGenerate5(uint64_t seed,
+                                                      uint32_t initialAdvances,
+                                                      uint32_t maxAdvances,
+                                                      uint32_t offset,
+                                                      uint8_t method,
+                                                      uint8_t lead,
+                                                      uint16_t tid, uint16_t sid,
+                                                      uint32_t game,
+                                                      uint8_t encounter, uint8_t location,
+                                                      uint8_t season,
+                                                      uint64_t mac, const bool keypresses[9],
+                                                      uint8_t vcount, uint8_t gxstat, uint8_t vframe,
+                                                      bool skipLR, uint16_t timer0Min, uint16_t timer0Max,
+                                                      bool memoryLink, bool shinyCharm,
+                                                      uint8_t dsType, uint8_t language,
+                                                      uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                                      const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                                      const bool natures[25], const bool powers[16],
+                                                      const bool encounterSlots[12],
+                                                      int *outCount)
+{
+    Profile5 profile = makeProfile5(static_cast<Game>(game), tid, sid,
+                                     mac, keypresses, vcount, gxstat, vframe,
+                                     skipLR, timer0Min, timer0Max,
+                                     memoryLink, shinyCharm, dsType, language);
+    WildStateFilter filter = makeWildFilter(filterGender, filterAbility, filterShiny,
+                                             ivMin, ivMax, natures, powers, encounterSlots);
+
+    EncounterArea5 area = findEncounterArea5(static_cast<Encounter>(encounter), season,
+                                              profile, location);
+
+    WildGenerator5 generator(initialAdvances, maxAdvances, offset,
+                              static_cast<Method>(method), static_cast<Lead>(lead),
+                              0, area, profile, filter);
+
+    auto results = generator.generate(seed, initialAdvances, maxAdvances);
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFWildGeneratorState5 *>(malloc(sizeof(PFWildGeneratorState5) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i] = convertWildGenState5(results[i]);
+    }
+    return out;
+}
+
+// MARK: - Gen 5 Encounter Data
+
+extern "C" PFEncounterArea *pf_getEncounters5(uint8_t encounter, uint32_t game,
+                                                uint8_t season,
+                                                uint16_t tid, uint16_t sid,
+                                                uint64_t mac, const bool keypresses[9],
+                                                uint8_t vcount, uint8_t gxstat, uint8_t vframe,
+                                                bool skipLR, uint16_t timer0Min, uint16_t timer0Max,
+                                                bool memoryLink, bool shinyCharm,
+                                                uint8_t dsType, uint8_t language,
+                                                int *outCount)
+{
+    Profile5 profile = makeProfile5(static_cast<Game>(game), tid, sid,
+                                     mac, keypresses, vcount, gxstat, vframe,
+                                     skipLR, timer0Min, timer0Max,
+                                     memoryLink, shinyCharm, dsType, language);
+
+    auto areas = Encounters5::getEncounters(static_cast<Encounter>(encounter), season, &profile);
+    *outCount = static_cast<int>(areas.size());
+    if (areas.empty()) return nullptr;
+
+    auto *out = static_cast<PFEncounterArea *>(malloc(sizeof(PFEncounterArea) * areas.size()));
+    for (size_t i = 0; i < areas.size(); i++) {
+        out[i] = convertEncounterArea(areas[i]);
+    }
+    return out;
+}
+
+extern "C" PFStaticTemplate *pf_getStaticEncounters5(int type, int *outCount)
+{
+    int size = 0;
+    const StaticTemplate5 *templates = Encounters5::getStaticEncounters(type, &size);
+    *outCount = size;
+    if (size == 0 || templates == nullptr) return nullptr;
+
+    auto *out = static_cast<PFStaticTemplate *>(malloc(sizeof(PFStaticTemplate) * size));
+    for (int i = 0; i < size; i++) {
+        out[i].game = static_cast<uint32_t>(templates[i].getVersion());
+        out[i].specie = templates[i].getSpecie();
+        out[i].form = templates[i].getForm();
+        out[i].shiny = static_cast<uint8_t>(templates[i].getShiny());
+        out[i].ability = templates[i].getAbility();
+        out[i].gender = templates[i].getGender();
+        out[i].level = templates[i].getLevel();
+    }
+    return out;
+}
+
+// MARK: - Gen 5 Egg Generator
+
+extern "C" PFEggGeneratorState5 *pf_eggGenerate5(uint64_t seed,
+                                                    uint32_t initialAdvances,
+                                                    uint32_t maxAdvances,
+                                                    uint32_t offset,
+                                                    const uint8_t parentAIVs[6], const uint8_t parentBIVs[6],
+                                                    uint8_t parentAAbility, uint8_t parentBAbility,
+                                                    uint8_t parentAGender, uint8_t parentBGender,
+                                                    uint8_t parentAItem, uint8_t parentBItem,
+                                                    uint8_t parentANature, uint8_t parentBNature,
+                                                    uint16_t eggSpecie, bool masuda,
+                                                    uint16_t tid, uint16_t sid,
+                                                    uint32_t game,
+                                                    uint64_t mac, const bool keypresses[9],
+                                                    uint8_t vcount, uint8_t gxstat, uint8_t vframe,
+                                                    bool skipLR, uint16_t timer0Min, uint16_t timer0Max,
+                                                    bool memoryLink, bool shinyCharm,
+                                                    uint8_t dsType, uint8_t language,
+                                                    uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                                    const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                                    const bool natures[25], const bool powers[16],
+                                                    int *outCount)
+{
+    Profile5 profile = makeProfile5(static_cast<Game>(game), tid, sid,
+                                     mac, keypresses, vcount, gxstat, vframe,
+                                     skipLR, timer0Min, timer0Max,
+                                     memoryLink, shinyCharm, dsType, language);
+    StateFilter filter = makeFilter(filterGender, filterAbility, filterShiny, ivMin, ivMax, natures, powers);
+
+    std::array<std::array<u8, 6>, 2> parentIVs;
+    std::copy(parentAIVs, parentAIVs + 6, parentIVs[0].begin());
+    std::copy(parentBIVs, parentBIVs + 6, parentIVs[1].begin());
+
+    std::array<u8, 2> abilities = { parentAAbility, parentBAbility };
+    std::array<u8, 2> genders = { parentAGender, parentBGender };
+    std::array<u8, 2> items = { parentAItem, parentBItem };
+    std::array<u8, 2> dcNatures = { parentANature, parentBNature };
+
+    Daycare daycare(parentIVs, abilities, genders, items, dcNatures, eggSpecie, masuda);
+
+    EggGenerator5 generator(initialAdvances, maxAdvances, offset, daycare, profile, filter);
+
+    auto results = generator.generate(seed);
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFEggGeneratorState5 *>(malloc(sizeof(PFEggGeneratorState5) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        auto &s = results[i];
+        out[i].pid = s.getPID();
+        out[i].advances = s.getAdvances();
+        auto ivs = s.getIVs();
+        auto inh = s.getInheritance();
+        for (int j = 0; j < 6; j++) {
+            out[i].ivs[j] = ivs[j];
+            out[i].inheritance[j] = inh[j];
+        }
+        out[i].nature = s.getNature();
+        out[i].ability = s.getAbility();
+        out[i].gender = s.getGender();
+        out[i].shiny = s.getShiny();
+        out[i].chatot = s.getChatot();
+    }
+    return out;
+}
+
+// MARK: - Gen 5 ID Generator
+
+extern "C" PFIDState5 *pf_idGenerate5(uint64_t seed,
+                                         uint32_t initialAdvances,
+                                         uint32_t maxAdvances,
+                                         uint32_t pid, bool checkPID, bool checkXOR,
+                                         uint16_t tid, uint16_t sid,
+                                         uint32_t game,
+                                         uint64_t mac, const bool keypresses[9],
+                                         uint8_t vcount, uint8_t gxstat, uint8_t vframe,
+                                         bool skipLR, uint16_t timer0Min, uint16_t timer0Max,
+                                         bool memoryLink, bool shinyCharm,
+                                         uint8_t dsType, uint8_t language,
+                                         uint16_t filterTID, bool hasTIDFilter,
+                                         uint16_t filterSID, bool hasSIDFilter,
+                                         int *outCount)
+{
+    Profile5 profile = makeProfile5(static_cast<Game>(game), tid, sid,
+                                     mac, keypresses, vcount, gxstat, vframe,
+                                     skipLR, timer0Min, timer0Max,
+                                     memoryLink, shinyCharm, dsType, language);
+
+    std::vector<u16> tidVec;
+    std::vector<u16> sidVec;
+    if (hasTIDFilter) tidVec.push_back(filterTID);
+    if (hasSIDFilter) sidVec.push_back(filterSID);
+
+    IDFilter filter(tidVec, sidVec, {}, {}, {}, {});
+    IDGenerator5 generator(initialAdvances, maxAdvances, pid, checkPID, checkXOR, profile, filter);
+
+    auto results = generator.generate(seed);
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFIDState5 *>(malloc(sizeof(PFIDState5) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i].advances = results[i].getAdvances();
+        out[i].tid = results[i].getTID();
+        out[i].sid = results[i].getSID();
+        out[i].tsv = results[i].getTSV();
+    }
+    return out;
+}
+
+// MARK: - Gen 5 Async Searcher
+
+struct PFAsyncSearch5 {
+    enum class Type { Static, Wild } type;
+    void *searcher;
+    std::thread thread;
+
+    ~PFAsyncSearch5() {
+        if (thread.joinable()) thread.join();
+        if (type == Type::Static)
+            delete static_cast<IVSearcher5<StaticGenerator5, State5> *>(searcher);
+        else
+            delete static_cast<IVSearcher5<WildGenerator5, WildState5> *>(searcher);
+    }
+};
+
+static PFSearchResult5 convertSearchResult5(const SearcherState5<State5> &s)
+{
+    PFSearchResult5 r;
+    r.dateTime = convertDateTime(s.getDateTime());
+    r.initialSeed = s.getInitialSeed();
+    r.timer0 = s.getTimer0();
+    r.buttons = static_cast<uint16_t>(s.getButtons());
+    auto &st = s.getState();
+    r.advances = st.getAdvances();
+    r.ivAdvances = st.getIVAdvances();
+    r.pid = st.getPID();
+    auto ivs = st.getIVs();
+    for (int i = 0; i < 6; i++) r.ivs[i] = ivs[i];
+    r.nature = st.getNature();
+    r.ability = st.getAbility();
+    r.gender = st.getGender();
+    r.shiny = st.getShiny();
+    r.hiddenPower = st.getHiddenPower();
+    r.hiddenPowerStrength = st.getHiddenPowerStrength();
+    r.chatot = st.getChatot();
+    return r;
+}
+
+static PFWildSearchResult5 convertWildSearchResult5(const SearcherState5<WildState5> &s)
+{
+    PFWildSearchResult5 r;
+    r.dateTime = convertDateTime(s.getDateTime());
+    r.initialSeed = s.getInitialSeed();
+    r.timer0 = s.getTimer0();
+    r.buttons = static_cast<uint16_t>(s.getButtons());
+    auto &st = s.getState();
+    r.advances = st.getAdvances();
+    r.ivAdvances = st.getIVAdvances();
+    r.pid = st.getPID();
+    auto ivs = st.getIVs();
+    for (int i = 0; i < 6; i++) r.ivs[i] = ivs[i];
+    r.nature = st.getNature();
+    r.ability = st.getAbility();
+    r.gender = st.getGender();
+    r.shiny = st.getShiny();
+    r.hiddenPower = st.getHiddenPower();
+    r.hiddenPowerStrength = st.getHiddenPowerStrength();
+    r.encounterSlot = st.getEncounterSlot();
+    r.level = st.getLevel();
+    r.item = st.getItem();
+    r.specie = st.getSpecie();
+    r.form = st.getForm();
+    r.chatot = st.getChatot();
+    return r;
+}
+
+extern "C" PFSearch5Handle pf_staticSearch5_start(uint32_t initialAdvances, uint32_t maxAdvances,
+                                                    uint32_t offset,
+                                                    uint8_t method, uint8_t lead,
+                                                    uint16_t tid, uint16_t sid, uint32_t game,
+                                                    int staticType, int staticIndex,
+                                                    uint32_t ivInitialAdvances, uint32_t ivMaxAdvances,
+                                                    uint64_t mac, const bool keypresses[9],
+                                                    uint8_t vcount, uint8_t gxstat, uint8_t vframe,
+                                                    bool skipLR, uint16_t timer0Min, uint16_t timer0Max,
+                                                    bool memoryLink, bool shinyCharm,
+                                                    uint8_t dsType, uint8_t language,
+                                                    uint16_t startYear, uint8_t startMonth, uint8_t startDay,
+                                                    uint16_t endYear, uint8_t endMonth, uint8_t endDay,
+                                                    uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                                    const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                                    const bool natures[25], const bool powers[16])
+{
+    Profile5 profile = makeProfile5(static_cast<Game>(game), tid, sid,
+                                     mac, keypresses, vcount, gxstat, vframe,
+                                     skipLR, timer0Min, timer0Max,
+                                     memoryLink, shinyCharm, dsType, language);
+    StateFilter filter = makeFilter(filterGender, filterAbility, filterShiny, ivMin, ivMax, natures, powers);
+
+    const StaticTemplate5 *tmpl = Encounters5::getStaticEncounter(staticType, staticIndex);
+    if (!tmpl) return nullptr;
+
+    StaticGenerator5 gen(initialAdvances, maxAdvances, offset,
+                          static_cast<Method>(method), static_cast<Lead>(lead),
+                          0, *tmpl, profile, filter);
+
+    auto *searcher = new IVSearcher5<StaticGenerator5, State5>(
+        ivInitialAdvances, ivMaxAdvances, gen, profile);
+
+    Date start(startYear, startMonth, startDay);
+    Date end(endYear, endMonth, endDay);
+    searcher->setMaxProgress(searcher->getMaxProgress(start, end));
+
+    auto *handle = new PFAsyncSearch5();
+    handle->type = PFAsyncSearch5::Type::Static;
+    handle->searcher = searcher;
+    handle->thread = std::thread([searcher, start, end]() {
+        int threads = std::max(1u, std::thread::hardware_concurrency());
+        searcher->startSearch(threads, start, end);
+    });
+
+    return static_cast<PFSearch5Handle>(handle);
+}
+
+extern "C" PFSearch5Handle pf_wildSearch5_start(uint32_t initialAdvances, uint32_t maxAdvances,
+                                                  uint32_t offset,
+                                                  uint8_t method, uint8_t lead,
+                                                  uint16_t tid, uint16_t sid, uint32_t game,
+                                                  uint8_t encounter, uint8_t location, uint8_t season,
+                                                  uint32_t ivInitialAdvances, uint32_t ivMaxAdvances,
+                                                  uint64_t mac, const bool keypresses[9],
+                                                  uint8_t vcount, uint8_t gxstat, uint8_t vframe,
+                                                  bool skipLR, uint16_t timer0Min, uint16_t timer0Max,
+                                                  bool memoryLink, bool shinyCharm,
+                                                  uint8_t dsType, uint8_t language,
+                                                  uint16_t startYear, uint8_t startMonth, uint8_t startDay,
+                                                  uint16_t endYear, uint8_t endMonth, uint8_t endDay,
+                                                  uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                                  const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                                  const bool natures[25], const bool powers[16],
+                                                  const bool encounterSlots[12])
+{
+    Profile5 profile = makeProfile5(static_cast<Game>(game), tid, sid,
+                                     mac, keypresses, vcount, gxstat, vframe,
+                                     skipLR, timer0Min, timer0Max,
+                                     memoryLink, shinyCharm, dsType, language);
+    WildStateFilter filter = makeWildFilter(filterGender, filterAbility, filterShiny,
+                                             ivMin, ivMax, natures, powers, encounterSlots);
+
+    EncounterArea5 area = findEncounterArea5(static_cast<Encounter>(encounter), season,
+                                              profile, location);
+
+    WildGenerator5 gen(initialAdvances, maxAdvances, offset,
+                        static_cast<Method>(method), static_cast<Lead>(lead),
+                        0, area, profile, filter);
+
+    auto *searcher = new IVSearcher5<WildGenerator5, WildState5>(
+        ivInitialAdvances, ivMaxAdvances, gen, profile);
+
+    Date start(startYear, startMonth, startDay);
+    Date end(endYear, endMonth, endDay);
+    searcher->setMaxProgress(searcher->getMaxProgress(start, end));
+
+    auto *handle = new PFAsyncSearch5();
+    handle->type = PFAsyncSearch5::Type::Wild;
+    handle->searcher = searcher;
+    handle->thread = std::thread([searcher, start, end]() {
+        int threads = std::max(1u, std::thread::hardware_concurrency());
+        searcher->startSearch(threads, start, end);
+    });
+
+    return static_cast<PFSearch5Handle>(handle);
+}
+
+extern "C" int pf_search5_progress(PFSearch5Handle handle)
+{
+    auto *h = static_cast<PFAsyncSearch5 *>(handle);
+    if (h->type == PFAsyncSearch5::Type::Static)
+        return static_cast<IVSearcher5<StaticGenerator5, State5> *>(h->searcher)->getProgress();
+    return static_cast<IVSearcher5<WildGenerator5, WildState5> *>(h->searcher)->getProgress();
+}
+
+extern "C" PFSearchResult5 *pf_search5_static_getResults(PFSearch5Handle handle, int *outCount)
+{
+    auto *searcher = static_cast<IVSearcher5<StaticGenerator5, State5> *>(
+        static_cast<PFAsyncSearch5 *>(handle)->searcher);
+    auto results = searcher->getResults();
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFSearchResult5 *>(malloc(sizeof(PFSearchResult5) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i] = convertSearchResult5(results[i]);
+    }
+    return out;
+}
+
+extern "C" PFWildSearchResult5 *pf_search5_wild_getResults(PFSearch5Handle handle, int *outCount)
+{
+    auto *searcher = static_cast<IVSearcher5<WildGenerator5, WildState5> *>(
+        static_cast<PFAsyncSearch5 *>(handle)->searcher);
+    auto results = searcher->getResults();
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFWildSearchResult5 *>(malloc(sizeof(PFWildSearchResult5) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i] = convertWildSearchResult5(results[i]);
+    }
+    return out;
+}
+
+extern "C" void pf_search5_cancel(PFSearch5Handle handle)
+{
+    auto *h = static_cast<PFAsyncSearch5 *>(handle);
+    if (h->type == PFAsyncSearch5::Type::Static)
+        static_cast<IVSearcher5<StaticGenerator5, State5> *>(h->searcher)->cancelSearch();
+    else
+        static_cast<IVSearcher5<WildGenerator5, WildState5> *>(h->searcher)->cancelSearch();
+}
+
+extern "C" void pf_search5_free(PFSearch5Handle handle)
+{
+    delete static_cast<PFAsyncSearch5 *>(handle);
 }

@@ -1218,3 +1218,249 @@ struct DelayCalibrationTests {
         #expect(cal == 0)
     }
 }
+
+// MARK: - Gen 4 ID Generator Tests
+
+struct Gen4IDGeneratorTests {
+    @Test func knownSeed_producesCorrectTIDSID() {
+        // seed 0x01000258: month=1, day=1, hour=0, minute=0, second=0, delay=600
+        let results = PFBridge.idGenerate4(
+            minDelay: 600, maxDelay: 600,
+            year: 2000, month: 1, day: 1,
+            hour: 0, minute: 0)
+        let match = results.first { $0.seed == 0x01000258 }
+        #expect(match != nil)
+        #expect(match!.tid == 34378)
+        #expect(match!.sid == 38338)
+        #expect(match!.tsv == 625)
+        #expect(match!.delay == 600)
+        #expect(match!.seconds == 0)
+    }
+
+    @Test func differentSeconds_produceDifferentIDs() {
+        let results = PFBridge.idGenerate4(
+            minDelay: 600, maxDelay: 600,
+            year: 2000, month: 1, day: 1,
+            hour: 0, minute: 0)
+        // Each second (0-59) produces a different seed for the same delay
+        let seeds = Set(results.map { $0.seed })
+        #expect(seeds.count == 60)
+        let tids = Set(results.map { $0.tid })
+        #expect(tids.count > 1)
+    }
+
+    @Test func delayRange_producesExpectedCount() {
+        let results = PFBridge.idGenerate4(
+            minDelay: 600, maxDelay: 605,
+            year: 2000, month: 1, day: 1,
+            hour: 0, minute: 0)
+        // 6 delays * 60 seconds = 360 results
+        #expect(results.count == 360)
+    }
+
+    @Test func tsvCalculation_isCorrect() {
+        let results = PFBridge.idGenerate4(
+            minDelay: 600, maxDelay: 600,
+            year: 2000, month: 1, day: 1,
+            hour: 0, minute: 0)
+        for r in results {
+            #expect(r.tsv == (r.tid ^ r.sid) >> 3)
+        }
+    }
+
+    @Test func tidFilter_narrowsResults() {
+        let all = PFBridge.idGenerate4(
+            minDelay: 500, maxDelay: 1000,
+            year: 2000, month: 1, day: 1,
+            hour: 0, minute: 0)
+        let filtered = PFBridge.idGenerate4(
+            minDelay: 500, maxDelay: 1000,
+            year: 2000, month: 1, day: 1,
+            hour: 0, minute: 0,
+            targetTID: 34378, filterTID: true)
+        #expect(filtered.count < all.count)
+        #expect(filtered.allSatisfy { $0.tid == 34378 })
+    }
+
+    @Test func sidFilter_narrowsResults() {
+        let filtered = PFBridge.idGenerate4(
+            minDelay: 500, maxDelay: 1000,
+            year: 2000, month: 1, day: 1,
+            hour: 0, minute: 0,
+            targetSID: 38338, filterSID: true)
+        #expect(filtered.allSatisfy { $0.sid == 38338 })
+    }
+
+    @Test func knownSeeds_multipleVerified() {
+        let results = PFBridge.idGenerate4(
+            minDelay: 600, maxDelay: 600,
+            year: 2000, month: 1, day: 1,
+            hour: 0, minute: 0)
+        // Verify several seeds from different seconds
+        let sec3 = results.first { $0.seed == 0x04000258 }
+        #expect(sec3 != nil)
+        #expect(sec3!.tid == 58035)
+        #expect(sec3!.sid == 35865)
+        #expect(sec3!.seconds == 3)
+
+        let sec59 = results.first { $0.seed == 0x3C000258 }
+        #expect(sec59 != nil)
+        #expect(sec59!.tid == 32115)
+        #expect(sec59!.sid == 51580)
+        #expect(sec59!.seconds == 59)
+    }
+
+    @Test func emptyRange_returnsNoResults() {
+        // min > max should return empty
+        let results = PFBridge.idGenerate4(
+            minDelay: 1000, maxDelay: 500,
+            year: 2000, month: 1, day: 1,
+            hour: 0, minute: 0)
+        #expect(results.isEmpty)
+    }
+}
+
+// MARK: - Gen 4 ID Searcher Tests
+
+struct Gen4IDSearcherTests {
+    private func waitForSearch(_ handle: OpaquePointer, timeout: TimeInterval = 5.0) {
+        let start = Date()
+        while Date().timeIntervalSince(start) < timeout {
+            let p = PFBridge.idSearch4Progress(handle)
+            if p > 0 {
+                Thread.sleep(forTimeInterval: 0.2)
+                let p2 = PFBridge.idSearch4Progress(handle)
+                if p2 == p { return }
+            }
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+    }
+
+    @Test func searcher_findsKnownTID() {
+        let handle = PFBridge.idSearch4Start(
+            infinite: false, year: 2000,
+            minDelay: 598, maxDelay: 602,
+            targetTID: 34378, filterTID: true)
+
+        waitForSearch(handle)
+        let results = PFBridge.idSearch4GetResults(handle)
+        PFBridge.idSearch4Free(handle)
+
+        #expect(!results.isEmpty)
+        #expect(results.allSatisfy { $0.tid == 34378 })
+        let match = results.first { $0.seed == 0x01000258 }
+        #expect(match != nil)
+        #expect(match!.sid == 38338)
+    }
+
+    @Test func searcher_findsSIDFilter() {
+        let handle = PFBridge.idSearch4Start(
+            infinite: false, year: 2000,
+            minDelay: 598, maxDelay: 602,
+            targetSID: 38338, filterSID: true)
+
+        waitForSearch(handle)
+        let results = PFBridge.idSearch4GetResults(handle)
+        PFBridge.idSearch4Free(handle)
+
+        #expect(!results.isEmpty)
+        #expect(results.allSatisfy { $0.sid == 38338 })
+    }
+
+    @Test func searcher_tsvFilter() {
+        let handle = PFBridge.idSearch4Start(
+            infinite: false, year: 2000,
+            minDelay: 598, maxDelay: 602,
+            targetTSV: 625, filterTSV: true)
+
+        waitForSearch(handle)
+        let results = PFBridge.idSearch4GetResults(handle)
+        PFBridge.idSearch4Free(handle)
+
+        #expect(!results.isEmpty)
+        #expect(results.allSatisfy { ($0.tid ^ $0.sid) >> 3 == 625 })
+    }
+
+    @Test func searcher_cancelStopsEarly() {
+        let handle = PFBridge.idSearch4Start(
+            infinite: false, year: 2000,
+            minDelay: 0, maxDelay: 1000)
+
+        Thread.sleep(forTimeInterval: 0.01)
+        PFBridge.idSearch4Cancel(handle)
+        Thread.sleep(forTimeInterval: 0.2)
+
+        let results = PFBridge.idSearch4GetResults(handle)
+        PFBridge.idSearch4Free(handle)
+
+        let fullCount = 1001 * 256 * 24
+        #expect(results.count < fullCount)
+    }
+
+    @Test func searcher_noFilter_findsMany() {
+        let handle = PFBridge.idSearch4Start(
+            infinite: false, year: 2000,
+            minDelay: 600, maxDelay: 600)
+
+        waitForSearch(handle)
+        let results = PFBridge.idSearch4GetResults(handle)
+        PFBridge.idSearch4Free(handle)
+
+        // delay=600: 256 ab values * 24 cd values = 6144 seeds
+        #expect(results.count == 6144)
+    }
+
+    @Test func searcher_delayCalculation_matchesGenerator() {
+        let handle = PFBridge.idSearch4Start(
+            infinite: false, year: 2000,
+            minDelay: 600, maxDelay: 600,
+            targetTID: 34378, filterTID: true,
+            targetSID: 38338, filterSID: true)
+
+        waitForSearch(handle)
+        let results = PFBridge.idSearch4GetResults(handle)
+        PFBridge.idSearch4Free(handle)
+
+        let match = results.first { $0.seed == 0x01000258 }
+        #expect(match != nil)
+        #expect(match!.delay == 600)
+    }
+}
+
+// MARK: - Gen 4 ID Seed Verification Tests
+
+struct Gen4IDSeedVerificationTests {
+    @Test func coinFlips_knownSeed() {
+        let flips = PFBridge.coinFlips(0x01000258)
+        #expect(flips == "H, T, H, H, T, T, H, H, T, H, T, T, H, T, H, H, H, H, H, H")
+    }
+
+    @Test func elmCalls_knownSeed() {
+        let calls = PFBridge.getCalls(0x01000258)
+        #expect(calls == "K, E, E, E, P, E, K, K, K, E, E, K, K, E, P, E, P, E, E, E")
+    }
+
+    @Test func seedToTime_knownSeed_findsOriginalDateTime() {
+        let times = PFBridge.seedToTime4(seed: 0x01000258, year: 2000)
+        #expect(!times.isEmpty)
+        let original = times.first {
+            $0.dateTime.month == 1 && $0.dateTime.day == 1 &&
+            $0.dateTime.hour == 0 && $0.dateTime.minute == 0 &&
+            $0.dateTime.second == 0
+        }
+        #expect(original != nil)
+        #expect(original!.delay == 600)
+    }
+
+    @Test func seedToTime_differentYear() {
+        let times2009 = PFBridge.seedToTime4(seed: 0x01000258, year: 2009)
+        #expect(!times2009.isEmpty)
+        // delay = efgh + 2000 - year = 0x258 + 2000 - 2009 = 600 + 2000 - 2009 = 591
+        let first = times2009.first {
+            $0.dateTime.month == 1 && $0.dateTime.day == 1 &&
+            $0.dateTime.hour == 0 && $0.dateTime.second == 0
+        }
+        #expect(first != nil)
+        #expect(first!.delay == 591)
+    }
+}

@@ -1156,6 +1156,42 @@ nonisolated enum PFBridge {
         }
     }
 
+    // MARK: - ID Searcher Gen 4 (Async)
+
+    static func idSearch4Start(infinite: Bool, year: UInt16,
+                                minDelay: UInt32, maxDelay: UInt32,
+                                targetTID: UInt16 = 0, filterTID: Bool = false,
+                                targetSID: UInt16 = 0, filterSID: Bool = false,
+                                targetTSV: UInt16 = 0, filterTSV: Bool = false) -> OpaquePointer {
+        let h = pf_idSearch4_start(infinite, year, minDelay, maxDelay,
+                                    targetTID, filterTID, targetSID, filterSID,
+                                    targetTSV, filterTSV)!
+        return OpaquePointer(h)
+    }
+
+    static func idSearch4Progress(_ handle: OpaquePointer) -> Int {
+        Int(pf_idSearch4_progress(UnsafeMutableRawPointer(handle)))
+    }
+
+    static func idSearch4GetResults(_ handle: OpaquePointer) -> [IDResult4] {
+        var count: Int32 = 0
+        guard let ptr = pf_idSearch4_getResults(UnsafeMutableRawPointer(handle), &count) else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            return IDResult4(seed: r.seed, delay: r.delay, advances: r.advances,
+                             tid: r.tid, sid: r.sid, tsv: r.tsv, seconds: r.seconds)
+        }
+    }
+
+    static func idSearch4Cancel(_ handle: OpaquePointer) {
+        pf_idSearch4_cancel(UnsafeMutableRawPointer(handle))
+    }
+
+    static func idSearch4Free(_ handle: OpaquePointer) {
+        pf_idSearch4_free(UnsafeMutableRawPointer(handle))
+    }
+
     // MARK: - GameCube
 
     struct ShadowTemplateInfo: Identifiable {
@@ -1241,6 +1277,558 @@ nonisolated enum PFBridge {
                                    shiny: r.shiny, hiddenPower: r.hiddenPower,
                                    hiddenPowerStrength: r.hiddenPowerStrength)
         }
+    }
+
+    // MARK: - GameCube Searcher
+
+    static func gamecubeSearchShadow(method: PFMethod = .xdColo, unset: Bool,
+                                       tid: UInt16, sid: UInt16, game: UInt32,
+                                       filterShiny: UInt8 = 255,
+                                       ivMin: [UInt8] = [0,0,0,0,0,0], ivMax: [UInt8] = [31,31,31,31,31,31],
+                                       natures: [Bool] = [Bool](repeating: false, count: 25),
+                                       powers: [Bool] = [Bool](repeating: false, count: 16),
+                                       shadowIndex: Int) -> [PFSearcherStateSwift] {
+        var count: Int32 = 0
+        let ptr = pf_gamecubeSearchShadow(method.rawValue, unset, tid, sid, game,
+                                            255, 255, filterShiny,
+                                            ivMin, ivMax, natures, powers,
+                                            Int32(shadowIndex), &count)
+        guard let ptr else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            let ivs = [r.ivs.0, r.ivs.1, r.ivs.2, r.ivs.3, r.ivs.4, r.ivs.5]
+            return PFSearcherStateSwift(seed: r.seed, pid: r.pid, ivs: ivs,
+                                         nature: r.nature, ability: r.ability,
+                                         gender: r.gender, shiny: r.shiny,
+                                         hiddenPower: r.hiddenPower,
+                                         hiddenPowerStrength: r.hiddenPowerStrength)
+        }
+    }
+
+    static func gamecubeSearchStatic(method: PFMethod, unset: Bool = false,
+                                       tid: UInt16, sid: UInt16, game: UInt32,
+                                       filterShiny: UInt8 = 255,
+                                       ivMin: [UInt8] = [0,0,0,0,0,0], ivMax: [UInt8] = [31,31,31,31,31,31],
+                                       natures: [Bool] = [Bool](repeating: false, count: 25),
+                                       powers: [Bool] = [Bool](repeating: false, count: 16),
+                                       staticType: Int, staticIndex: Int) -> [PFSearcherStateSwift] {
+        var count: Int32 = 0
+        let ptr = pf_gamecubeSearchStatic(method.rawValue, unset, tid, sid, game,
+                                            255, 255, filterShiny,
+                                            ivMin, ivMax, natures, powers,
+                                            Int32(staticType), Int32(staticIndex), &count)
+        guard let ptr else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            let ivs = [r.ivs.0, r.ivs.1, r.ivs.2, r.ivs.3, r.ivs.4, r.ivs.5]
+            return PFSearcherStateSwift(seed: r.seed, pid: r.pid, ivs: ivs,
+                                         nature: r.nature, ability: r.ability,
+                                         gender: r.gender, shiny: r.shiny,
+                                         hiddenPower: r.hiddenPower,
+                                         hiddenPowerStrength: r.hiddenPowerStrength)
+        }
+    }
+
+    // MARK: - PokeSpot
+
+    struct PokeSpotResult: Identifiable {
+        let id = UUID()
+        let advances: UInt32
+        let encounterAdvances: UInt32
+        let pid: UInt32
+        let ivs: [UInt8]
+        let nature: UInt8
+        let ability: UInt8
+        let gender: UInt8
+        let shiny: UInt8
+        let hiddenPower: UInt8
+        let hiddenPowerStrength: UInt8
+        let encounterSlot: UInt8
+        let level: UInt8
+        let specie: UInt16
+        var specieName: String { PFBridge.specieName(specie) }
+    }
+
+    struct PokeSpotArea: Identifiable {
+        let id = UUID()
+        let location: UInt8
+        let rate: UInt8
+        let encounter: PFEncounter
+        let slots: [PFSlotSwift]
+        var locationName: String = ""
+    }
+
+    static func getPokeSpotEncounters() -> [PokeSpotArea] {
+        initTranslator()
+        var count: Int32 = 0
+        guard let ptr = pf_getPokeSpotEncounters(&count) else { return [] }
+        defer { pf_freeResults(ptr) }
+
+        let names = ["Rock", "Oasis", "Cave"]
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            let enc = PFEncounter(rawValue: r.encounter) ?? .grass
+            let slots = extractSlots(from: r)
+            var area = PokeSpotArea(location: r.location, rate: r.rate, encounter: enc, slots: slots)
+            area.locationName = i < names.count ? "Poké Spot \(names[i])" : "Poké Spot \(i)"
+            return area
+        }
+    }
+
+    static func pokeSpotGenerate(seedFood: UInt32, seedEncounter: UInt32,
+                                   initialAdvances: UInt32, maxAdvances: UInt32, offset: UInt32 = 0,
+                                   initialAdvancesEncounter: UInt32, maxAdvancesEncounter: UInt32, offsetEncounter: UInt32 = 0,
+                                   tid: UInt16, sid: UInt16, game: UInt32 = PFGame.gales.rawValue,
+                                   pokeSpotIndex: Int,
+                                   filterShiny: UInt8 = 255,
+                                   natures: [Bool] = [Bool](repeating: false, count: 25)) -> [PokeSpotResult] {
+        var count: Int32 = 0
+        let ivMin: [UInt8] = [0,0,0,0,0,0]
+        let ivMax: [UInt8] = [31,31,31,31,31,31]
+        let powers = [Bool](repeating: true, count: 16)
+        let slots = [Bool](repeating: true, count: 12)
+
+        let ptr = pf_pokeSpotGenerate(seedFood, seedEncounter,
+                                        initialAdvances, maxAdvances, offset,
+                                        initialAdvancesEncounter, maxAdvancesEncounter, offsetEncounter,
+                                        tid, sid, game,
+                                        Int32(pokeSpotIndex),
+                                        255, 255, filterShiny,
+                                        ivMin, ivMax, natures, powers, slots, &count)
+        guard let ptr else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            let ivs = [r.ivs.0, r.ivs.1, r.ivs.2, r.ivs.3, r.ivs.4, r.ivs.5]
+            return PokeSpotResult(advances: r.advances, encounterAdvances: r.encounterAdvances,
+                                   pid: r.pid, ivs: ivs, nature: r.nature,
+                                   ability: r.ability, gender: r.gender, shiny: r.shiny,
+                                   hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+                                   encounterSlot: r.encounterSlot, level: r.level, specie: r.specie)
+        }
+    }
+
+    // MARK: - Seed Searchers (GameCube)
+
+    static func coloSeedSearchStart(lead: UInt8, trainer: UInt8, threads: Int = 4) -> OpaquePointer {
+        let h = pf_coloSeedSearch_start(lead, trainer, Int32(threads))!
+        return OpaquePointer(h)
+    }
+
+    static func galesSeedSearchStart(enemyHP: (UInt16, UInt16), playerHP: (UInt16, UInt16),
+                                       enemyIndex: UInt8, playerIndex: UInt8, threads: Int = 4) -> OpaquePointer {
+        let h = pf_galesSeedSearch_start(enemyHP.0, enemyHP.1,
+                                           playerHP.0, playerHP.1,
+                                           enemyIndex, playerIndex, Int32(threads))!
+        return OpaquePointer(h)
+    }
+
+    static func channelSeedSearchStart(pattern: [UInt8], threads: Int = 4) -> OpaquePointer {
+        let h = pf_channelSeedSearch_start(pattern, Int32(pattern.count), Int32(threads))!
+        return OpaquePointer(h)
+    }
+
+    static func seedSearchProgress(_ handle: OpaquePointer) -> Int {
+        Int(pf_seedSearch_progress(UnsafeMutableRawPointer(handle)))
+    }
+
+    static func seedSearchGetResults(_ handle: OpaquePointer) -> [UInt32] {
+        var count: Int32 = 0
+        guard let ptr = pf_seedSearch_getResults(UnsafeMutableRawPointer(handle), &count) else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { ptr[$0] }
+    }
+
+    static func seedSearchCancel(_ handle: OpaquePointer) {
+        pf_seedSearch_cancel(UnsafeMutableRawPointer(handle))
+    }
+
+    static func seedSearchFree(_ handle: OpaquePointer) {
+        pf_seedSearch_free(UnsafeMutableRawPointer(handle))
+    }
+
+    // MARK: - XD/Colo ID Generator
+
+    static func idGenerate3XDColo(seed: UInt32, initialAdvances: UInt32, maxAdvances: UInt32) -> [IDResult] {
+        var count: Int32 = 0
+        guard let ptr = pf_idGenerate3_XDColo(seed, initialAdvances, maxAdvances, &count) else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            return IDResult(advances: r.advances, tid: r.tid, sid: r.sid, tsv: r.tsv)
+        }
+    }
+
+    // MARK: - Jirachi Pattern
+
+    static func jirachiPattern(seed: UInt32, targetAdvance: UInt32, bruteForce: UInt32 = 50) -> [UInt8] {
+        var count: Int32 = 0
+        guard let ptr = pf_jirachiPattern(seed, targetAdvance, bruteForce, &count) else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { ptr[$0] }
+    }
+
+    static func computeJirachiSeed(_ seed: UInt32) -> UInt32 {
+        pf_computeJirachiSeed(seed)
+    }
+
+    // MARK: - Gen 5 Result Types
+
+    struct Gen5StaticResult: Identifiable {
+        let id = UUID()
+        let advances: UInt32
+        let ivAdvances: UInt32
+        let pid: UInt32
+        let ivs: [UInt8]
+        let nature: UInt8
+        let ability: UInt8
+        let gender: UInt8
+        let shiny: UInt8
+        let hiddenPower: UInt8
+        let hiddenPowerStrength: UInt8
+        let chatot: UInt8
+    }
+
+    struct Gen5WildResult: Identifiable {
+        let id = UUID()
+        let advances: UInt32
+        let ivAdvances: UInt32
+        let pid: UInt32
+        let ivs: [UInt8]
+        let nature: UInt8
+        let ability: UInt8
+        let gender: UInt8
+        let shiny: UInt8
+        let hiddenPower: UInt8
+        let hiddenPowerStrength: UInt8
+        let encounterSlot: UInt8
+        let level: UInt8
+        let item: UInt16
+        let specie: UInt16
+        let form: UInt8
+        let chatot: UInt8
+    }
+
+    struct Gen5EggResult: Identifiable {
+        let id = UUID()
+        let advances: UInt32
+        let pid: UInt32
+        let ivs: [UInt8]
+        let nature: UInt8
+        let ability: UInt8
+        let gender: UInt8
+        let shiny: UInt8
+        let inheritance: [UInt8]
+        let chatot: UInt8
+    }
+
+    struct Gen5IDResult: Identifiable {
+        let id = UUID()
+        let advances: UInt32
+        let tid: UInt16
+        let sid: UInt16
+        let tsv: UInt16
+    }
+
+    // MARK: Gen 5 Static Generator
+
+    static func staticGenerate5(seed: UInt64,
+                                 initialAdvances: UInt32, maxAdvances: UInt32, offset: UInt32 = 0,
+                                 method: PFMethod, lead: PFLead = .none,
+                                 tid: UInt16, sid: UInt16, game: PFGame,
+                                 staticType: Int32 = 0, staticIndex: Int32 = 0,
+                                 mac: UInt64, keypresses: [Bool],
+                                 vcount: UInt8, gxstat: UInt8, vframe: UInt8,
+                                 skipLR: Bool, timer0Min: UInt16, timer0Max: UInt16,
+                                 memoryLink: Bool, shinyCharm: Bool,
+                                 dsType: UInt8, language: UInt8,
+                                 filterGender: UInt8 = 255, filterAbility: UInt8 = 255, filterShiny: UInt8 = 255,
+                                 ivMin: [UInt8] = [0,0,0,0,0,0], ivMax: [UInt8] = [31,31,31,31,31,31],
+                                 natures: [Bool] = Array(repeating: false, count: 25),
+                                 powers: [Bool] = Array(repeating: false, count: 16)) -> [Gen5StaticResult] {
+        var count: Int32 = 0
+        let ptr = pf_staticGenerate5(seed, initialAdvances, maxAdvances, offset,
+                                      method.rawValue, lead.rawValue, tid, sid, game.rawValue,
+                                      staticType, staticIndex,
+                                      mac, keypresses, vcount, gxstat, vframe,
+                                      skipLR, timer0Min, timer0Max,
+                                      memoryLink, shinyCharm, dsType, language,
+                                      filterGender, filterAbility, filterShiny,
+                                      ivMin, ivMax, natures, powers, &count)
+        guard let ptr else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            let ivs = [r.ivs.0, r.ivs.1, r.ivs.2, r.ivs.3, r.ivs.4, r.ivs.5]
+            return Gen5StaticResult(advances: r.advances, ivAdvances: r.ivAdvances,
+                                     pid: r.pid, ivs: ivs, nature: r.nature,
+                                     ability: r.ability, gender: r.gender, shiny: r.shiny,
+                                     hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+                                     chatot: r.chatot)
+        }
+    }
+
+    // MARK: Gen 5 Wild Generator
+
+    static func wildGenerate5(seed: UInt64,
+                               initialAdvances: UInt32, maxAdvances: UInt32, offset: UInt32 = 0,
+                               method: PFMethod, lead: PFLead = .none,
+                               tid: UInt16, sid: UInt16, game: PFGame,
+                               encounter: PFEncounter, location: UInt8, season: UInt8 = 0,
+                               mac: UInt64, keypresses: [Bool],
+                               vcount: UInt8, gxstat: UInt8, vframe: UInt8,
+                               skipLR: Bool, timer0Min: UInt16, timer0Max: UInt16,
+                               memoryLink: Bool, shinyCharm: Bool,
+                               dsType: UInt8, language: UInt8,
+                               filterGender: UInt8 = 255, filterAbility: UInt8 = 255, filterShiny: UInt8 = 255,
+                               ivMin: [UInt8] = [0,0,0,0,0,0], ivMax: [UInt8] = [31,31,31,31,31,31],
+                               natures: [Bool] = Array(repeating: true, count: 25),
+                               powers: [Bool] = Array(repeating: true, count: 16),
+                               encounterSlots: [Bool] = Array(repeating: true, count: 12)) -> [Gen5WildResult] {
+        var count: Int32 = 0
+        let ptr = pf_wildGenerate5(seed, initialAdvances, maxAdvances, offset,
+                                    method.rawValue, lead.rawValue, tid, sid, game.rawValue,
+                                    encounter.rawValue, location, season,
+                                    mac, keypresses, vcount, gxstat, vframe,
+                                    skipLR, timer0Min, timer0Max,
+                                    memoryLink, shinyCharm, dsType, language,
+                                    filterGender, filterAbility, filterShiny,
+                                    ivMin, ivMax, natures, powers, encounterSlots, &count)
+        guard let ptr else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            let ivs = [r.ivs.0, r.ivs.1, r.ivs.2, r.ivs.3, r.ivs.4, r.ivs.5]
+            return Gen5WildResult(advances: r.advances, ivAdvances: r.ivAdvances,
+                                   pid: r.pid, ivs: ivs, nature: r.nature,
+                                   ability: r.ability, gender: r.gender, shiny: r.shiny,
+                                   hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+                                   encounterSlot: r.encounterSlot, level: r.level,
+                                   item: r.item, specie: r.specie, form: r.form,
+                                   chatot: r.chatot)
+        }
+    }
+
+    // MARK: Gen 5 Encounter Data
+
+    static func getEncounters5(encounter: PFEncounter, game: PFGame,
+                                season: UInt8 = 0,
+                                tid: UInt16 = 0, sid: UInt16 = 0,
+                                mac: UInt64 = 0, keypresses: [Bool] = Array(repeating: false, count: 9),
+                                vcount: UInt8 = 0, gxstat: UInt8 = 0, vframe: UInt8 = 0,
+                                skipLR: Bool = false, timer0Min: UInt16 = 0, timer0Max: UInt16 = 0,
+                                memoryLink: Bool = false, shinyCharm: Bool = false,
+                                dsType: UInt8 = 0, language: UInt8 = 0) -> [PFEncounterAreaSwift] {
+        initTranslator()
+        var count: Int32 = 0
+        guard let ptr = pf_getEncounters5(encounter.rawValue, game.rawValue, season,
+                                           tid, sid, mac, keypresses,
+                                           vcount, gxstat, vframe,
+                                           skipLR, timer0Min, timer0Max,
+                                           memoryLink, shinyCharm, dsType, language,
+                                           &count) else { return [] }
+        defer { pf_freeResults(ptr) }
+
+        var areas = (0..<Int(count)).map { i -> PFEncounterAreaSwift in
+            let r = ptr[i]
+            let enc = PFEncounter(rawValue: r.encounter) ?? .grass
+            return PFEncounterAreaSwift(location: r.location, rate: r.rate,
+                                         encounter: enc, slots: extractSlots(from: r))
+        }
+
+        let locationNums = areas.map { UInt16($0.location) }
+        let uniqueNums = Array(Set(locationNums))
+        let names = locationNames(uniqueNums, game: game)
+        let nameMap = Dictionary(uniqueKeysWithValues: zip(uniqueNums, names))
+        for i in areas.indices {
+            areas[i].locationName = nameMap[UInt16(areas[i].location)] ?? "Unknown"
+        }
+        return areas
+    }
+
+    static func getStaticEncounters5(type: Int32) -> [PFStaticTemplateSwift] {
+        initTranslator()
+        var count: Int32 = 0
+        guard let ptr = pf_getStaticEncounters5(type, &count) else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            return PFStaticTemplateSwift(game: r.game, specie: r.specie, form: r.form,
+                                          shiny: r.shiny, ability: r.ability,
+                                          gender: r.gender, level: r.level)
+        }
+    }
+
+    // MARK: Gen 5 Searcher Result Structs
+
+    struct Gen5SearchResult: Identifiable {
+        let id = UUID()
+        let year: Int
+        let month: Int
+        let day: Int
+        let hour: Int
+        let minute: Int
+        let second: Int
+        let initialSeed: UInt64
+        let timer0: UInt16
+        let buttons: UInt16
+        let advances: UInt32
+        let ivAdvances: UInt32
+        let pid: UInt32
+        let ivs: [UInt8]
+        let nature: UInt8
+        let ability: UInt8
+        let gender: UInt8
+        let shiny: UInt8
+        let hiddenPower: UInt8
+        let hiddenPowerStrength: UInt8
+        let chatot: UInt8
+    }
+
+    struct Gen5WildSearchResult: Identifiable {
+        let id = UUID()
+        let year: Int
+        let month: Int
+        let day: Int
+        let hour: Int
+        let minute: Int
+        let second: Int
+        let initialSeed: UInt64
+        let timer0: UInt16
+        let buttons: UInt16
+        let advances: UInt32
+        let ivAdvances: UInt32
+        let pid: UInt32
+        let ivs: [UInt8]
+        let nature: UInt8
+        let ability: UInt8
+        let gender: UInt8
+        let shiny: UInt8
+        let hiddenPower: UInt8
+        let hiddenPowerStrength: UInt8
+        let encounterSlot: UInt8
+        let level: UInt8
+        let item: UInt16
+        let specie: UInt16
+        let form: UInt8
+        let chatot: UInt8
+    }
+
+    // MARK: Gen 5 Async Searcher
+
+    static func staticSearch5Start(initialAdvances: UInt32, maxAdvances: UInt32, offset: UInt32 = 0,
+                                    method: PFMethod, lead: PFLead = .none,
+                                    tid: UInt16, sid: UInt16, game: PFGame,
+                                    staticType: Int32 = 0, staticIndex: Int32 = 0,
+                                    ivInitialAdvances: UInt32, ivMaxAdvances: UInt32,
+                                    mac: UInt64, keypresses: [Bool],
+                                    vcount: UInt8, gxstat: UInt8, vframe: UInt8,
+                                    skipLR: Bool, timer0Min: UInt16, timer0Max: UInt16,
+                                    memoryLink: Bool, shinyCharm: Bool,
+                                    dsType: UInt8, language: UInt8,
+                                    startYear: UInt16, startMonth: UInt8, startDay: UInt8,
+                                    endYear: UInt16, endMonth: UInt8, endDay: UInt8,
+                                    filterGender: UInt8 = 255, filterAbility: UInt8 = 255, filterShiny: UInt8 = 255,
+                                    ivMin: [UInt8] = [0,0,0,0,0,0], ivMax: [UInt8] = [31,31,31,31,31,31],
+                                    natures: [Bool] = Array(repeating: false, count: 25),
+                                    powers: [Bool] = Array(repeating: false, count: 16)) -> OpaquePointer? {
+        let handle = pf_staticSearch5_start(initialAdvances, maxAdvances, offset,
+                                             method.rawValue, lead.rawValue, tid, sid, game.rawValue,
+                                             staticType, staticIndex,
+                                             ivInitialAdvances, ivMaxAdvances,
+                                             mac, keypresses, vcount, gxstat, vframe,
+                                             skipLR, timer0Min, timer0Max,
+                                             memoryLink, shinyCharm, dsType, language,
+                                             startYear, startMonth, startDay,
+                                             endYear, endMonth, endDay,
+                                             filterGender, filterAbility, filterShiny,
+                                             ivMin, ivMax, natures, powers)
+        return OpaquePointer(handle)
+    }
+
+    static func wildSearch5Start(initialAdvances: UInt32, maxAdvances: UInt32, offset: UInt32 = 0,
+                                  method: PFMethod, lead: PFLead = .none,
+                                  tid: UInt16, sid: UInt16, game: PFGame,
+                                  encounter: PFEncounter, location: UInt8, season: UInt8 = 0,
+                                  ivInitialAdvances: UInt32, ivMaxAdvances: UInt32,
+                                  mac: UInt64, keypresses: [Bool],
+                                  vcount: UInt8, gxstat: UInt8, vframe: UInt8,
+                                  skipLR: Bool, timer0Min: UInt16, timer0Max: UInt16,
+                                  memoryLink: Bool, shinyCharm: Bool,
+                                  dsType: UInt8, language: UInt8,
+                                  startYear: UInt16, startMonth: UInt8, startDay: UInt8,
+                                  endYear: UInt16, endMonth: UInt8, endDay: UInt8,
+                                  filterGender: UInt8 = 255, filterAbility: UInt8 = 255, filterShiny: UInt8 = 255,
+                                  ivMin: [UInt8] = [0,0,0,0,0,0], ivMax: [UInt8] = [31,31,31,31,31,31],
+                                  natures: [Bool] = Array(repeating: false, count: 25),
+                                  powers: [Bool] = Array(repeating: false, count: 16),
+                                  encounterSlots: [Bool] = Array(repeating: true, count: 12)) -> OpaquePointer? {
+        let handle = pf_wildSearch5_start(initialAdvances, maxAdvances, offset,
+                                           method.rawValue, lead.rawValue, tid, sid, game.rawValue,
+                                           encounter.rawValue, location, season,
+                                           ivInitialAdvances, ivMaxAdvances,
+                                           mac, keypresses, vcount, gxstat, vframe,
+                                           skipLR, timer0Min, timer0Max,
+                                           memoryLink, shinyCharm, dsType, language,
+                                           startYear, startMonth, startDay,
+                                           endYear, endMonth, endDay,
+                                           filterGender, filterAbility, filterShiny,
+                                           ivMin, ivMax, natures, powers, encounterSlots)
+        return OpaquePointer(handle)
+    }
+
+    static func search5Progress(_ handle: OpaquePointer) -> Int {
+        Int(pf_search5_progress(UnsafeMutableRawPointer(handle)))
+    }
+
+    static func search5StaticResults(_ handle: OpaquePointer) -> [Gen5SearchResult] {
+        var count: Int32 = 0
+        guard let ptr = pf_search5_static_getResults(UnsafeMutableRawPointer(handle), &count) else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            let ivs = [r.ivs.0, r.ivs.1, r.ivs.2, r.ivs.3, r.ivs.4, r.ivs.5]
+            return Gen5SearchResult(year: Int(r.dateTime.year), month: Int(r.dateTime.month),
+                                     day: Int(r.dateTime.day), hour: Int(r.dateTime.hour),
+                                     minute: Int(r.dateTime.minute), second: Int(r.dateTime.second),
+                                     initialSeed: r.initialSeed, timer0: r.timer0, buttons: r.buttons,
+                                     advances: r.advances, ivAdvances: r.ivAdvances,
+                                     pid: r.pid, ivs: ivs, nature: r.nature,
+                                     ability: r.ability, gender: r.gender, shiny: r.shiny,
+                                     hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+                                     chatot: r.chatot)
+        }
+    }
+
+    static func search5WildResults(_ handle: OpaquePointer) -> [Gen5WildSearchResult] {
+        var count: Int32 = 0
+        guard let ptr = pf_search5_wild_getResults(UnsafeMutableRawPointer(handle), &count) else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            let ivs = [r.ivs.0, r.ivs.1, r.ivs.2, r.ivs.3, r.ivs.4, r.ivs.5]
+            return Gen5WildSearchResult(year: Int(r.dateTime.year), month: Int(r.dateTime.month),
+                                         day: Int(r.dateTime.day), hour: Int(r.dateTime.hour),
+                                         minute: Int(r.dateTime.minute), second: Int(r.dateTime.second),
+                                         initialSeed: r.initialSeed, timer0: r.timer0, buttons: r.buttons,
+                                         advances: r.advances, ivAdvances: r.ivAdvances,
+                                         pid: r.pid, ivs: ivs, nature: r.nature,
+                                         ability: r.ability, gender: r.gender, shiny: r.shiny,
+                                         hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+                                         encounterSlot: r.encounterSlot, level: r.level,
+                                         item: r.item, specie: r.specie, form: r.form,
+                                         chatot: r.chatot)
+        }
+    }
+
+    static func search5Cancel(_ handle: OpaquePointer) {
+        pf_search5_cancel(UnsafeMutableRawPointer(handle))
+    }
+
+    static func search5Free(_ handle: OpaquePointer) {
+        pf_search5_free(UnsafeMutableRawPointer(handle))
     }
 
     // MARK: - Seed Verification (Gen 4)
