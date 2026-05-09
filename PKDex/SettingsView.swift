@@ -17,6 +17,9 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var showResetConfirmation = false
+    @State private var showRedownloadConfirmation = false
+    @State private var isRedownloading = false
+    @State private var redownloadStatus: String?
 
     private var enabledTabSet: Set<String> {
         Set(enabledTabsRaw.split(separator: ",").map(String.init))
@@ -126,9 +129,29 @@ struct SettingsView: View {
 
                 // MARK: - Data Management
                 Section("Data Management") {
+                    Button {
+                        showRedownloadConfirmation = true
+                    } label: {
+                        HStack {
+                            Label("Redownload Pokemon & Move Data", systemImage: "arrow.trianglehead.2.counterclockwise")
+                            Spacer()
+                            if isRedownloading {
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(isRedownloading)
+
+                    if let status = redownloadStatus {
+                        Text(status)
+                            .font(.caption)
+                            .foregroundStyle(status.contains("Failed") ? .red : .secondary)
+                    }
+
                     Button("Reset All Data", role: .destructive) {
                         showResetConfirmation = true
                     }
+                    .disabled(isRedownloading)
                 }
 
                 // MARK: - Disclaimers
@@ -158,6 +181,18 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .confirmationDialog(
+                "Redownload Data",
+                isPresented: $showRedownloadConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Redownload") {
+                    Task { await performRedownload() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will redownload all Pokemon and Move data from PokeAPI. Your saved spreads and teams will not be affected.")
+            }
+            .confirmationDialog(
                 "Reset All Data",
                 isPresented: $showResetConfirmation,
                 titleVisibility: .visible
@@ -167,9 +202,41 @@ struct SettingsView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This will delete all downloaded data and saved spreads. The app will re-sync on next launch. Are you sure?")
+                Text("This will delete all downloaded data. The app will re-sync on next launch. Your saved spreads and teams will not be affected.")
             }
         }
+    }
+
+    private func performRedownload() async {
+        isRedownloading = true
+        redownloadStatus = "Clearing old data…"
+
+        try? modelContext.delete(model: PKMN.self)
+        try? modelContext.delete(model: Gen8Pokemon.self)
+        try? modelContext.delete(model: Gen9Pokemon.self)
+        try? modelContext.delete(model: PKMNStats.self)
+        try? modelContext.delete(model: MoveData.self)
+        try? modelContext.save()
+
+        let container = modelContext.container
+
+        do {
+            redownloadStatus = "Downloading Pokedex data…"
+            let pokeSync = PokeSyncManager(modelContainer: container)
+            try await pokeSync.refreshPokedex()
+            UserDefaults.standard.set(true, forKey: "hasCompletedInitialSync")
+
+            redownloadStatus = "Downloading stats & moves…"
+            let calcSync = CalcDataSyncManager(modelContainer: container)
+            try await calcSync.syncCalcData()
+            UserDefaults.standard.set(true, forKey: "hasCompletedCalcSyncV3")
+
+            redownloadStatus = "Data updated successfully."
+        } catch {
+            redownloadStatus = "Failed: \(error.localizedDescription)"
+        }
+
+        isRedownloading = false
     }
 
     private func performReset() {

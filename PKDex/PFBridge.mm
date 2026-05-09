@@ -80,6 +80,27 @@
 #include <Core/Enum/DSType.hpp>
 #include <Core/Enum/Language.hpp>
 
+#include <Core/Gen8/Profile8.hpp>
+#include <Core/Gen8/StaticTemplate8.hpp>
+#include <Core/Gen8/EncounterArea8.hpp>
+#include <Core/Gen8/UndergroundArea.hpp>
+#include <Core/Gen8/Encounters8.hpp>
+#include <Core/Gen8/Den.hpp>
+#include <Core/Gen8/Raid.hpp>
+#include <Core/Gen8/WB8.hpp>
+#include <Core/Gen8/Generators/StaticGenerator8.hpp>
+#include <Core/Gen8/Generators/WildGenerator8.hpp>
+#include <Core/Gen8/Generators/EggGenerator8.hpp>
+#include <Core/Gen8/Generators/IDGenerator8.hpp>
+#include <Core/Gen8/Generators/RaidGenerator.hpp>
+#include <Core/Gen8/Generators/UndergroundGenerator.hpp>
+#include <Core/Gen8/States/State8.hpp>
+#include <Core/Gen8/States/WildState8.hpp>
+#include <Core/Gen8/States/EggState8.hpp>
+#include <Core/Gen8/States/IDState8.hpp>
+#include <Core/Gen8/States/UndergroundState.hpp>
+#include <Core/Gen8/Filters/UndergroundFilter.hpp>
+
 #include <vector>
 #include <cstring>
 #include <thread>
@@ -2355,4 +2376,407 @@ extern "C" void pf_search5_cancel(PFSearch5Handle handle)
 extern "C" void pf_search5_free(PFSearch5Handle handle)
 {
     delete static_cast<PFAsyncSearch5 *>(handle);
+}
+
+// MARK: - Gen 8 Helpers
+
+static PFGeneratorState8 convertGenState8(const State8 &s)
+{
+    PFGeneratorState8 r;
+    r.ec = s.getEC();
+    r.pid = s.getPID();
+    r.advances = s.getAdvances();
+    auto ivs = s.getIVs();
+    for (int i = 0; i < 6; i++) r.ivs[i] = ivs[i];
+    r.nature = s.getNature();
+    r.ability = s.getAbility();
+    r.gender = s.getGender();
+    r.shiny = s.getShiny();
+    r.hiddenPower = s.getHiddenPower();
+    r.hiddenPowerStrength = s.getHiddenPowerStrength();
+    r.height = s.getHeight();
+    r.weight = s.getWeight();
+    r.level = s.getLevel();
+    return r;
+}
+
+static PFWildGeneratorState8 convertWildGenState8(const WildState8 &s)
+{
+    PFWildGeneratorState8 r;
+    r.ec = s.getEC();
+    r.pid = s.getPID();
+    r.advances = s.getAdvances();
+    auto ivs = s.getIVs();
+    for (int i = 0; i < 6; i++) r.ivs[i] = ivs[i];
+    r.nature = s.getNature();
+    r.ability = s.getAbility();
+    r.gender = s.getGender();
+    r.shiny = s.getShiny();
+    r.hiddenPower = s.getHiddenPower();
+    r.hiddenPowerStrength = s.getHiddenPowerStrength();
+    r.height = s.getHeight();
+    r.weight = s.getWeight();
+    r.encounterSlot = s.getEncounterSlot();
+    r.level = s.getLevel();
+    r.item = s.getItem();
+    r.specie = s.getSpecie();
+    r.form = s.getForm();
+    return r;
+}
+
+static EncounterArea8 findEncounterArea8(Encounter encounter, const EncounterSettings8 &settings,
+                                          const Profile8 &profile, uint8_t location)
+{
+    auto areas = Encounters8::getEncounters(encounter, settings, &profile);
+    for (const auto &area : areas) {
+        if (area.getLocation() == location) {
+            return area;
+        }
+    }
+    if (!areas.empty()) return areas[0];
+    return EncounterArea8(0, 0, Encounter::Grass, {});
+}
+
+// MARK: - Gen 8 Static Generator
+
+extern "C" PFGeneratorState8 *pf_staticGenerate8(uint64_t seed0, uint64_t seed1,
+                                                    uint32_t initialAdvances,
+                                                    uint32_t maxAdvances,
+                                                    uint32_t offset,
+                                                    uint8_t lead,
+                                                    uint16_t tid, uint16_t sid,
+                                                    uint32_t game,
+                                                    bool nationalDex, bool shinyCharm, bool ovalCharm,
+                                                    int staticType, int staticIndex,
+                                                    uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                                    const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                                    const bool natures[25], const bool powers[16],
+                                                    int *outCount)
+{
+    Profile8 profile("-", static_cast<Game>(game), tid, sid, nationalDex, shinyCharm, ovalCharm);
+    StateFilter filter = makeFilter(filterGender, filterAbility, filterShiny, ivMin, ivMax, natures, powers);
+
+    const StaticTemplate8 *tmpl = Encounters8::getStaticEncounter(staticType, staticIndex);
+    if (!tmpl) { *outCount = 0; return nullptr; }
+
+    StaticGenerator8 generator(initialAdvances, maxAdvances, offset,
+                                static_cast<Lead>(lead), *tmpl, profile, filter);
+
+    auto results = generator.generate(seed0, seed1);
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFGeneratorState8 *>(malloc(sizeof(PFGeneratorState8) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i] = convertGenState8(results[i]);
+    }
+    return out;
+}
+
+// MARK: - Gen 8 Wild Generator
+
+extern "C" PFWildGeneratorState8 *pf_wildGenerate8(uint64_t seed0, uint64_t seed1,
+                                                      uint32_t initialAdvances,
+                                                      uint32_t maxAdvances,
+                                                      uint32_t offset,
+                                                      uint8_t lead,
+                                                      uint16_t tid, uint16_t sid,
+                                                      uint32_t game,
+                                                      bool nationalDex, bool shinyCharm, bool ovalCharm,
+                                                      uint8_t encounter, uint8_t location,
+                                                      int time, bool swarm, bool radar,
+                                                      uint16_t replacement0, uint16_t replacement1,
+                                                      uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                                      const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                                      const bool natures[25], const bool powers[16],
+                                                      const bool encounterSlots[12],
+                                                      int *outCount)
+{
+    Profile8 profile("-", static_cast<Game>(game), tid, sid, nationalDex, shinyCharm, ovalCharm);
+    WildStateFilter filter = makeWildFilter(filterGender, filterAbility, filterShiny,
+                                             ivMin, ivMax, natures, powers, encounterSlots);
+
+    EncounterSettings8 settings;
+    settings.time = time;
+    settings.swarm = swarm;
+    settings.radar = radar;
+    settings.replacement = { replacement0, replacement1 };
+
+    EncounterArea8 area = findEncounterArea8(static_cast<Encounter>(encounter), settings,
+                                              profile, location);
+
+    WildGenerator8 generator(initialAdvances, maxAdvances, offset,
+                              Method::None, static_cast<Lead>(lead),
+                              area, profile, filter);
+
+    auto results = generator.generate(seed0, seed1, 0);
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFWildGeneratorState8 *>(malloc(sizeof(PFWildGeneratorState8) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i] = convertWildGenState8(results[i]);
+    }
+    return out;
+}
+
+// MARK: - Gen 8 Egg Generator
+
+extern "C" PFEggGeneratorState8 *pf_eggGenerate8(uint64_t seed0, uint64_t seed1,
+                                                    uint32_t initialAdvances,
+                                                    uint32_t maxAdvances,
+                                                    uint32_t offset,
+                                                    uint8_t compatibility,
+                                                    const uint8_t parentAIVs[6], const uint8_t parentBIVs[6],
+                                                    uint8_t parentAAbility, uint8_t parentBAbility,
+                                                    uint8_t parentAGender, uint8_t parentBGender,
+                                                    uint8_t parentAItem, uint8_t parentBItem,
+                                                    uint8_t parentANature, uint8_t parentBNature,
+                                                    uint16_t eggSpecie, bool masuda,
+                                                    uint16_t tid, uint16_t sid,
+                                                    uint32_t game,
+                                                    bool nationalDex, bool shinyCharm, bool ovalCharm,
+                                                    uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                                    const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                                    const bool natures[25], const bool powers[16],
+                                                    int *outCount)
+{
+    Profile8 profile("-", static_cast<Game>(game), tid, sid, nationalDex, shinyCharm, ovalCharm);
+    StateFilter filter = makeFilter(filterGender, filterAbility, filterShiny, ivMin, ivMax, natures, powers);
+
+    std::array<std::array<u8, 6>, 2> parentIVs;
+    std::copy(parentAIVs, parentAIVs + 6, parentIVs[0].begin());
+    std::copy(parentBIVs, parentBIVs + 6, parentIVs[1].begin());
+
+    std::array<u8, 2> abilities = { parentAAbility, parentBAbility };
+    std::array<u8, 2> genders = { parentAGender, parentBGender };
+    std::array<u8, 2> items = { parentAItem, parentBItem };
+    std::array<u8, 2> dcNatures = { parentANature, parentBNature };
+
+    Daycare daycare(parentIVs, abilities, genders, items, dcNatures, eggSpecie, masuda);
+
+    EggGenerator8 generator(initialAdvances, maxAdvances, offset, compatibility, daycare, profile, filter);
+
+    auto results = generator.generate(seed0, seed1);
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFEggGeneratorState8 *>(malloc(sizeof(PFEggGeneratorState8) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        auto &s = results[i];
+        out[i].ec = s.getEC();
+        out[i].pid = s.getPID();
+        out[i].advances = s.getAdvances();
+        out[i].seed = s.getSeed();
+        auto ivs = s.getIVs();
+        auto inh = s.getInheritance();
+        for (int j = 0; j < 6; j++) {
+            out[i].ivs[j] = ivs[j];
+            out[i].inheritance[j] = inh[j];
+        }
+        out[i].nature = s.getNature();
+        out[i].ability = s.getAbility();
+        out[i].gender = s.getGender();
+        out[i].shiny = s.getShiny();
+    }
+    return out;
+}
+
+// MARK: - Gen 8 ID Generator
+
+extern "C" PFIDState8 *pf_idGenerate8(uint64_t seed0, uint64_t seed1,
+                                         uint32_t initialAdvances, uint32_t maxAdvances,
+                                         uint16_t filterTID, bool hasTIDFilter,
+                                         uint16_t filterSID, bool hasSIDFilter,
+                                         uint32_t filterDisplayTID, bool hasDisplayFilter,
+                                         int *outCount)
+{
+    std::vector<u16> tidVec;
+    std::vector<u16> sidVec;
+    std::vector<u32> displayVec;
+    if (hasTIDFilter) tidVec.push_back(filterTID);
+    if (hasSIDFilter) sidVec.push_back(filterSID);
+    if (hasDisplayFilter) displayVec.push_back(filterDisplayTID);
+
+    IDFilter filter(tidVec, sidVec, {}, {}, {}, displayVec);
+    IDGenerator8 generator(initialAdvances, maxAdvances, filter);
+
+    auto results = generator.generate(seed0, seed1);
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFIDState8 *>(malloc(sizeof(PFIDState8) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i].advances = results[i].getAdvances();
+        out[i].tid = results[i].getTID();
+        out[i].sid = results[i].getSID();
+        out[i].tsv = results[i].getTSV();
+        out[i].displayTID = results[i].getDisplayTID();
+    }
+    return out;
+}
+
+// MARK: - Gen 8 Raid Generator
+
+extern "C" PFGeneratorState8 *pf_raidGenerate8(uint64_t seed,
+                                                  uint32_t initialAdvances,
+                                                  uint32_t maxAdvances,
+                                                  uint32_t offset,
+                                                  uint16_t tid, uint16_t sid,
+                                                  uint32_t game,
+                                                  bool nationalDex, bool shinyCharm, bool ovalCharm,
+                                                  uint16_t denIndex, uint8_t rarity,
+                                                  uint8_t raidIndex, uint8_t level,
+                                                  uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                                  const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                                  const bool natures[25], const bool powers[16],
+                                                  int *outCount)
+{
+    Profile8 profile("-", static_cast<Game>(game), tid, sid, nationalDex, shinyCharm, ovalCharm);
+    StateFilter filter = makeFilter(filterGender, filterAbility, filterShiny, ivMin, ivMax, natures, powers);
+
+    const Den *den = Encounters8::getDen(denIndex, rarity);
+    if (!den) { *outCount = 0; return nullptr; }
+
+    Raid raid = den->getRaid(raidIndex, static_cast<Game>(game));
+
+    RaidGenerator generator(initialAdvances, maxAdvances, offset, profile, filter);
+
+    auto results = generator.generate(seed, level, raid);
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFGeneratorState8 *>(malloc(sizeof(PFGeneratorState8) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i] = convertGenState8(results[i]);
+    }
+    return out;
+}
+
+// MARK: - Gen 8 Underground Generator
+
+extern "C" PFUndergroundState *pf_undergroundGenerate8(uint64_t seed0, uint64_t seed1,
+                                                         uint32_t initialAdvances,
+                                                         uint32_t maxAdvances,
+                                                         uint32_t offset,
+                                                         uint8_t lead,
+                                                         bool diglett, uint8_t levelFlag,
+                                                         uint16_t tid, uint16_t sid,
+                                                         uint32_t game,
+                                                         bool nationalDex, bool shinyCharm, bool ovalCharm,
+                                                         int storyFlag,
+                                                         uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                                         const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                                         const bool natures[25], const bool powers[16],
+                                                         int *outCount)
+{
+    Profile8 profile("-", static_cast<Game>(game), tid, sid, nationalDex, shinyCharm, ovalCharm);
+
+    std::array<u8, 6> min, max;
+    std::copy(ivMin, ivMin + 6, min.begin());
+    std::copy(ivMax, ivMax + 6, max.begin());
+
+    std::array<bool, 25> natArr;
+    std::copy(natures, natures + 25, natArr.begin());
+    bool anyNature = false;
+    for (int i = 0; i < 25; i++) { if (natArr[i]) { anyNature = true; break; } }
+    if (!anyNature) natArr.fill(true);
+
+    std::array<bool, 16> powArr;
+    std::copy(powers, powers + 16, powArr.begin());
+    bool anyPower = false;
+    for (int i = 0; i < 16; i++) { if (powArr[i]) { anyPower = true; break; } }
+    if (!anyPower) powArr.fill(true);
+
+    bool skip = (filterGender == 255 && filterAbility == 255 && filterShiny == 255);
+    UndergroundStateFilter filter(filterGender, filterAbility, filterShiny, 0, 255, 0, 255,
+                                   skip, min, max, natArr, powArr, {});
+
+    auto undergroundAreas = Encounters8::getUndergroundEncounters(storyFlag, diglett, &profile);
+    if (undergroundAreas.empty()) { *outCount = 0; return nullptr; }
+
+    std::vector<PFUndergroundState> allResults;
+
+    for (const auto &area : undergroundAreas) {
+        UndergroundGenerator generator(initialAdvances, maxAdvances, offset,
+                                        static_cast<Lead>(lead), diglett, levelFlag,
+                                        area, profile, filter);
+
+        auto results = generator.generate(seed0, seed1);
+        for (const auto &s : results) {
+            PFUndergroundState r;
+            r.ec = s.getEC();
+            r.pid = s.getPID();
+            r.advances = s.getAdvances();
+            auto ivs = s.getIVs();
+            for (int i = 0; i < 6; i++) r.ivs[i] = ivs[i];
+            r.nature = s.getNature();
+            r.ability = s.getAbility();
+            r.gender = s.getGender();
+            r.shiny = s.getShiny();
+            r.hiddenPower = s.getHiddenPower();
+            r.hiddenPowerStrength = s.getHiddenPowerStrength();
+            r.height = s.getHeight();
+            r.weight = s.getWeight();
+            r.eggMove = s.getEggMove();
+            r.item = s.getItem();
+            r.specie = s.getSpecie();
+            r.level = s.getLevel();
+            allResults.push_back(r);
+        }
+    }
+
+    *outCount = static_cast<int>(allResults.size());
+    if (allResults.empty()) return nullptr;
+
+    auto *out = static_cast<PFUndergroundState *>(malloc(sizeof(PFUndergroundState) * allResults.size()));
+    std::copy(allResults.begin(), allResults.end(), out);
+    return out;
+}
+
+// MARK: - Gen 8 Encounter Data
+
+extern "C" PFEncounterArea *pf_getEncounters8(uint8_t encounter, uint32_t game,
+                                                uint16_t tid, uint16_t sid,
+                                                bool nationalDex, bool shinyCharm, bool ovalCharm,
+                                                int time, bool swarm, bool radar,
+                                                uint16_t replacement0, uint16_t replacement1,
+                                                int *outCount)
+{
+    Profile8 profile("-", static_cast<Game>(game), tid, sid, nationalDex, shinyCharm, ovalCharm);
+    EncounterSettings8 settings;
+    settings.time = time;
+    settings.swarm = swarm;
+    settings.radar = radar;
+    settings.replacement = { replacement0, replacement1 };
+
+    auto areas = Encounters8::getEncounters(static_cast<Encounter>(encounter), settings, &profile);
+    *outCount = static_cast<int>(areas.size());
+    if (areas.empty()) return nullptr;
+
+    auto *out = static_cast<PFEncounterArea *>(malloc(sizeof(PFEncounterArea) * areas.size()));
+    for (size_t i = 0; i < areas.size(); i++) {
+        out[i] = convertEncounterArea(areas[i]);
+    }
+    return out;
+}
+
+extern "C" PFStaticTemplate *pf_getStaticEncounters8(int type, int *outCount)
+{
+    int size = 0;
+    const StaticTemplate8 *templates = Encounters8::getStaticEncounters(type, &size);
+    *outCount = size;
+    if (size == 0 || templates == nullptr) return nullptr;
+
+    auto *out = static_cast<PFStaticTemplate *>(malloc(sizeof(PFStaticTemplate) * size));
+    for (int i = 0; i < size; i++) {
+        out[i].game = static_cast<uint32_t>(templates[i].getVersion());
+        out[i].specie = templates[i].getSpecie();
+        out[i].form = templates[i].getForm();
+        out[i].shiny = static_cast<uint8_t>(templates[i].getShiny());
+        out[i].ability = templates[i].getAbility();
+        out[i].gender = templates[i].getGender();
+        out[i].level = templates[i].getLevel();
+    }
+    return out;
 }

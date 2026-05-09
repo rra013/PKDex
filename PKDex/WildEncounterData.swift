@@ -609,6 +609,8 @@ enum WildEncounterData {
             allRoutes = heartGoldSoulSilver
         case .black, .white, .black2, .white2:
             allRoutes = []
+        case .sword, .shield, .brilliantDiamond, .shiningPearl:
+            allRoutes = []
         }
         return allRoutes.filter { $0.gameVersions.contains(game) }
     }

@@ -888,6 +888,193 @@ PFWildSearchResult5 *pf_search5_wild_getResults(PFSearch5Handle handle, int *out
 void pf_search5_cancel(PFSearch5Handle handle);
 void pf_search5_free(PFSearch5Handle handle);
 
+// MARK: - Gen 8 Generator State
+
+typedef struct {
+    uint32_t ec;
+    uint32_t pid;
+    uint32_t advances;
+    uint8_t ivs[6];
+    uint8_t nature;
+    uint8_t ability;
+    uint8_t gender;
+    uint8_t shiny;
+    uint8_t hiddenPower;
+    uint8_t hiddenPowerStrength;
+    uint8_t height;
+    uint8_t weight;
+    uint8_t level;
+} PFGeneratorState8;
+
+typedef struct {
+    uint32_t ec;
+    uint32_t pid;
+    uint32_t advances;
+    uint8_t ivs[6];
+    uint8_t nature;
+    uint8_t ability;
+    uint8_t gender;
+    uint8_t shiny;
+    uint8_t hiddenPower;
+    uint8_t hiddenPowerStrength;
+    uint8_t height;
+    uint8_t weight;
+    uint8_t encounterSlot;
+    uint8_t level;
+    uint16_t item;
+    uint16_t specie;
+    uint8_t form;
+} PFWildGeneratorState8;
+
+typedef struct {
+    uint32_t ec;
+    uint32_t pid;
+    uint32_t advances;
+    uint32_t seed;
+    uint8_t ivs[6];
+    uint8_t nature;
+    uint8_t ability;
+    uint8_t gender;
+    uint8_t shiny;
+    uint8_t inheritance[6];
+} PFEggGeneratorState8;
+
+typedef struct {
+    uint32_t advances;
+    uint16_t tid;
+    uint16_t sid;
+    uint16_t tsv;
+    uint32_t displayTID;
+} PFIDState8;
+
+typedef struct {
+    uint32_t ec;
+    uint32_t pid;
+    uint32_t advances;
+    uint8_t ivs[6];
+    uint8_t nature;
+    uint8_t ability;
+    uint8_t gender;
+    uint8_t shiny;
+    uint8_t hiddenPower;
+    uint8_t hiddenPowerStrength;
+    uint8_t height;
+    uint8_t weight;
+    uint16_t eggMove;
+    uint16_t item;
+    uint16_t specie;
+    uint8_t level;
+} PFUndergroundState;
+
+// MARK: - Gen 8 Static Generator
+
+PFGeneratorState8 *pf_staticGenerate8(uint64_t seed0, uint64_t seed1,
+                                       uint32_t initialAdvances,
+                                       uint32_t maxAdvances,
+                                       uint32_t offset,
+                                       uint8_t lead,
+                                       uint16_t tid, uint16_t sid,
+                                       uint32_t game,
+                                       bool nationalDex, bool shinyCharm, bool ovalCharm,
+                                       int staticType, int staticIndex,
+                                       uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                       const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                       const bool natures[25], const bool powers[16],
+                                       int *outCount);
+
+// MARK: - Gen 8 Wild Generator
+
+PFWildGeneratorState8 *pf_wildGenerate8(uint64_t seed0, uint64_t seed1,
+                                         uint32_t initialAdvances,
+                                         uint32_t maxAdvances,
+                                         uint32_t offset,
+                                         uint8_t lead,
+                                         uint16_t tid, uint16_t sid,
+                                         uint32_t game,
+                                         bool nationalDex, bool shinyCharm, bool ovalCharm,
+                                         uint8_t encounter, uint8_t location,
+                                         int time, bool swarm, bool radar,
+                                         uint16_t replacement0, uint16_t replacement1,
+                                         uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                         const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                         const bool natures[25], const bool powers[16],
+                                         const bool encounterSlots[12],
+                                         int *outCount);
+
+// MARK: - Gen 8 Egg Generator
+
+PFEggGeneratorState8 *pf_eggGenerate8(uint64_t seed0, uint64_t seed1,
+                                       uint32_t initialAdvances,
+                                       uint32_t maxAdvances,
+                                       uint32_t offset,
+                                       uint8_t compatibility,
+                                       const uint8_t parentAIVs[6], const uint8_t parentBIVs[6],
+                                       uint8_t parentAAbility, uint8_t parentBAbility,
+                                       uint8_t parentAGender, uint8_t parentBGender,
+                                       uint8_t parentAItem, uint8_t parentBItem,
+                                       uint8_t parentANature, uint8_t parentBNature,
+                                       uint16_t eggSpecie, bool masuda,
+                                       uint16_t tid, uint16_t sid,
+                                       uint32_t game,
+                                       bool nationalDex, bool shinyCharm, bool ovalCharm,
+                                       uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                       const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                       const bool natures[25], const bool powers[16],
+                                       int *outCount);
+
+// MARK: - Gen 8 ID Generator
+
+PFIDState8 *pf_idGenerate8(uint64_t seed0, uint64_t seed1,
+                             uint32_t initialAdvances, uint32_t maxAdvances,
+                             uint16_t filterTID, bool hasTIDFilter,
+                             uint16_t filterSID, bool hasSIDFilter,
+                             uint32_t filterDisplayTID, bool hasDisplayFilter,
+                             int *outCount);
+
+// MARK: - Gen 8 Raid Generator
+
+PFGeneratorState8 *pf_raidGenerate8(uint64_t seed,
+                                     uint32_t initialAdvances,
+                                     uint32_t maxAdvances,
+                                     uint32_t offset,
+                                     uint16_t tid, uint16_t sid,
+                                     uint32_t game,
+                                     bool nationalDex, bool shinyCharm, bool ovalCharm,
+                                     uint16_t denIndex, uint8_t rarity,
+                                     uint8_t raidIndex, uint8_t level,
+                                     uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                     const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                     const bool natures[25], const bool powers[16],
+                                     int *outCount);
+
+// MARK: - Gen 8 Underground Generator
+
+PFUndergroundState *pf_undergroundGenerate8(uint64_t seed0, uint64_t seed1,
+                                             uint32_t initialAdvances,
+                                             uint32_t maxAdvances,
+                                             uint32_t offset,
+                                             uint8_t lead,
+                                             bool diglett, uint8_t levelFlag,
+                                             uint16_t tid, uint16_t sid,
+                                             uint32_t game,
+                                             bool nationalDex, bool shinyCharm, bool ovalCharm,
+                                             int storyFlag,
+                                             uint8_t filterGender, uint8_t filterAbility, uint8_t filterShiny,
+                                             const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                             const bool natures[25], const bool powers[16],
+                                             int *outCount);
+
+// MARK: - Gen 8 Encounter Data
+
+PFEncounterArea *pf_getEncounters8(uint8_t encounter, uint32_t game,
+                                    uint16_t tid, uint16_t sid,
+                                    bool nationalDex, bool shinyCharm, bool ovalCharm,
+                                    int time, bool swarm, bool radar,
+                                    uint16_t replacement0, uint16_t replacement1,
+                                    int *outCount);
+
+PFStaticTemplate *pf_getStaticEncounters8(int type, int *outCount);
+
 #ifdef __cplusplus
 }
 #endif

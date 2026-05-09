@@ -19,6 +19,10 @@ enum FinderGameVersion: String, CaseIterable, Identifiable, Hashable {
     case white = "White"
     case black2 = "Black 2"
     case white2 = "White 2"
+    case sword = "Sword"
+    case shield = "Shield"
+    case brilliantDiamond = "Brilliant Diamond"
+    case shiningPearl = "Shining Pearl"
 
     var id: String { rawValue }
 
@@ -27,6 +31,7 @@ enum FinderGameVersion: String, CaseIterable, Identifiable, Hashable {
         case .ruby, .sapphire, .emerald, .fireRed, .leafGreen: return .gen3
         case .diamond, .pearl, .platinum, .heartGold, .soulSilver: return .gen4
         case .black, .white, .black2, .white2: return .gen5
+        case .sword, .shield, .brilliantDiamond, .shiningPearl: return .gen8
         }
     }
 
@@ -50,7 +55,19 @@ enum FinderGameVersion: String, CaseIterable, Identifiable, Hashable {
         case .white: return .white
         case .black2: return .black2
         case .white2: return .white2
+        case .sword: return .sword
+        case .shield: return .shield
+        case .brilliantDiamond: return .bd
+        case .shiningPearl: return .sp
         }
+    }
+
+    var isBDSP: Bool {
+        self == .brilliantDiamond || self == .shiningPearl
+    }
+
+    var isSwSh: Bool {
+        self == .sword || self == .shield
     }
 }
 
@@ -140,6 +157,8 @@ enum EncounterType: String, CaseIterable, Identifiable, Hashable {
             return [.grass, .surf, .oldRod, .goodRod, .superRod, .rockSmash]
         case .gen5:
             return [.grass, .darkGrass, .rustlingGrass, .surf, .ripplingWater, .superRod, .superRodRippling]
+        case .gen8:
+            return [.grass, .surf, .oldRod, .goodRod, .superRod]
         }
     }
 }
@@ -637,6 +656,8 @@ enum StaticEncounterData {
             }
         case .gen5:
             all = []
+        case .gen8:
+            all = []
         }
         return all.filter { $0.gameVersions.contains(game) }
     }
@@ -688,6 +709,8 @@ enum PFEncounterDataProvider {
             areas = PFBridge.getEncounters4(encounter: pfEnc, game: pfGame, tid: 0, sid: 0)
         case .gen5:
             areas = PFBridge.getEncounters5(encounter: pfEnc, game: pfGame, season: 0, tid: 0, sid: 0)
+        case .gen8:
+            areas = PFBridge.getEncounters8(encounter: pfEnc, game: pfGame, tid: 0, sid: 0)
         }
 
         let rates = slotRates(for: encounterType)

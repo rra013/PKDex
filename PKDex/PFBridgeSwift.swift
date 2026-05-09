@@ -1847,6 +1847,336 @@ nonisolated enum PFBridge {
         return result
     }
 
+    // MARK: - Gen 8 Result Types
+
+    struct Gen8StaticResult: Identifiable {
+        let id = UUID()
+        let ec: UInt32
+        let pid: UInt32
+        let advances: UInt32
+        let ivs: [UInt8]
+        let nature: UInt8
+        let ability: UInt8
+        let gender: UInt8
+        let shiny: UInt8
+        let hiddenPower: UInt8
+        let hiddenPowerStrength: UInt8
+        let height: UInt8
+        let weight: UInt8
+        let level: UInt8
+    }
+
+    struct Gen8WildResult: Identifiable {
+        let id = UUID()
+        let ec: UInt32
+        let pid: UInt32
+        let advances: UInt32
+        let ivs: [UInt8]
+        let nature: UInt8
+        let ability: UInt8
+        let gender: UInt8
+        let shiny: UInt8
+        let hiddenPower: UInt8
+        let hiddenPowerStrength: UInt8
+        let height: UInt8
+        let weight: UInt8
+        let encounterSlot: UInt8
+        let level: UInt8
+        let item: UInt16
+        let specie: UInt16
+        let form: UInt8
+    }
+
+    struct Gen8EggResult: Identifiable {
+        let id = UUID()
+        let ec: UInt32
+        let pid: UInt32
+        let advances: UInt32
+        let seed: UInt32
+        let ivs: [UInt8]
+        let nature: UInt8
+        let ability: UInt8
+        let gender: UInt8
+        let shiny: UInt8
+        let inheritance: [UInt8]
+    }
+
+    struct Gen8IDResult: Identifiable {
+        let id = UUID()
+        let advances: UInt32
+        let tid: UInt16
+        let sid: UInt16
+        let tsv: UInt16
+        let displayTID: UInt32
+    }
+
+    struct Gen8UndergroundResult: Identifiable {
+        let id = UUID()
+        let ec: UInt32
+        let pid: UInt32
+        let advances: UInt32
+        let ivs: [UInt8]
+        let nature: UInt8
+        let ability: UInt8
+        let gender: UInt8
+        let shiny: UInt8
+        let hiddenPower: UInt8
+        let hiddenPowerStrength: UInt8
+        let height: UInt8
+        let weight: UInt8
+        let eggMove: UInt16
+        let item: UInt16
+        let specie: UInt16
+        let level: UInt8
+    }
+
+    // MARK: Gen 8 Static Generator
+
+    static func staticGenerate8(seed0: UInt64, seed1: UInt64,
+                                 initialAdvances: UInt32, maxAdvances: UInt32, offset: UInt32 = 0,
+                                 lead: PFLead = .none,
+                                 tid: UInt16, sid: UInt16, game: PFGame,
+                                 nationalDex: Bool = true, shinyCharm: Bool = false, ovalCharm: Bool = false,
+                                 staticType: Int32 = 0, staticIndex: Int32 = 0,
+                                 filterGender: UInt8 = 255, filterAbility: UInt8 = 255, filterShiny: UInt8 = 255,
+                                 ivMin: [UInt8] = [0,0,0,0,0,0], ivMax: [UInt8] = [31,31,31,31,31,31],
+                                 natures: [Bool] = Array(repeating: false, count: 25),
+                                 powers: [Bool] = Array(repeating: false, count: 16)) -> [Gen8StaticResult] {
+        var count: Int32 = 0
+        let ptr = pf_staticGenerate8(seed0, seed1, initialAdvances, maxAdvances, offset,
+                                      lead.rawValue, tid, sid, game.rawValue,
+                                      nationalDex, shinyCharm, ovalCharm,
+                                      staticType, staticIndex,
+                                      filterGender, filterAbility, filterShiny,
+                                      ivMin, ivMax, natures, powers, &count)
+        guard let ptr else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            let ivs = [r.ivs.0, r.ivs.1, r.ivs.2, r.ivs.3, r.ivs.4, r.ivs.5]
+            return Gen8StaticResult(ec: r.ec, pid: r.pid, advances: r.advances,
+                                     ivs: ivs, nature: r.nature, ability: r.ability,
+                                     gender: r.gender, shiny: r.shiny,
+                                     hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+                                     height: r.height, weight: r.weight, level: r.level)
+        }
+    }
+
+    // MARK: Gen 8 Wild Generator
+
+    static func wildGenerate8(seed0: UInt64, seed1: UInt64,
+                               initialAdvances: UInt32, maxAdvances: UInt32, offset: UInt32 = 0,
+                               lead: PFLead = .none,
+                               tid: UInt16, sid: UInt16, game: PFGame,
+                               nationalDex: Bool = true, shinyCharm: Bool = false, ovalCharm: Bool = false,
+                               encounter: PFEncounter, location: UInt8,
+                               time: Int32 = 0, swarm: Bool = false, radar: Bool = false,
+                               replacement0: UInt16 = 0, replacement1: UInt16 = 0,
+                               filterGender: UInt8 = 255, filterAbility: UInt8 = 255, filterShiny: UInt8 = 255,
+                               ivMin: [UInt8] = [0,0,0,0,0,0], ivMax: [UInt8] = [31,31,31,31,31,31],
+                               natures: [Bool] = Array(repeating: true, count: 25),
+                               powers: [Bool] = Array(repeating: true, count: 16),
+                               encounterSlots: [Bool] = Array(repeating: true, count: 12)) -> [Gen8WildResult] {
+        var count: Int32 = 0
+        let ptr = pf_wildGenerate8(seed0, seed1, initialAdvances, maxAdvances, offset,
+                                    lead.rawValue, tid, sid, game.rawValue,
+                                    nationalDex, shinyCharm, ovalCharm,
+                                    encounter.rawValue, location,
+                                    time, swarm, radar, replacement0, replacement1,
+                                    filterGender, filterAbility, filterShiny,
+                                    ivMin, ivMax, natures, powers, encounterSlots, &count)
+        guard let ptr else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            let ivs = [r.ivs.0, r.ivs.1, r.ivs.2, r.ivs.3, r.ivs.4, r.ivs.5]
+            return Gen8WildResult(ec: r.ec, pid: r.pid, advances: r.advances,
+                                   ivs: ivs, nature: r.nature, ability: r.ability,
+                                   gender: r.gender, shiny: r.shiny,
+                                   hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+                                   height: r.height, weight: r.weight,
+                                   encounterSlot: r.encounterSlot, level: r.level,
+                                   item: r.item, specie: r.specie, form: r.form)
+        }
+    }
+
+    // MARK: Gen 8 Egg Generator
+
+    static func eggGenerate8(seed0: UInt64, seed1: UInt64,
+                              initialAdvances: UInt32, maxAdvances: UInt32, offset: UInt32 = 0,
+                              compatibility: UInt8,
+                              parentAIVs: [UInt8], parentBIVs: [UInt8],
+                              parentAAbility: UInt8, parentBAbility: UInt8,
+                              parentAGender: UInt8, parentBGender: UInt8,
+                              parentAItem: UInt8, parentBItem: UInt8,
+                              parentANature: UInt8, parentBNature: UInt8,
+                              eggSpecie: UInt16, masuda: Bool,
+                              tid: UInt16, sid: UInt16, game: PFGame,
+                              nationalDex: Bool = true, shinyCharm: Bool = false, ovalCharm: Bool = false,
+                              filterGender: UInt8 = 255, filterAbility: UInt8 = 255, filterShiny: UInt8 = 255,
+                              ivMin: [UInt8] = [0,0,0,0,0,0], ivMax: [UInt8] = [31,31,31,31,31,31],
+                              natures: [Bool] = Array(repeating: false, count: 25),
+                              powers: [Bool] = Array(repeating: false, count: 16)) -> [Gen8EggResult] {
+        var count: Int32 = 0
+        let ptr = pf_eggGenerate8(seed0, seed1, initialAdvances, maxAdvances, offset,
+                                   compatibility,
+                                   parentAIVs, parentBIVs,
+                                   parentAAbility, parentBAbility,
+                                   parentAGender, parentBGender,
+                                   parentAItem, parentBItem,
+                                   parentANature, parentBNature,
+                                   eggSpecie, masuda,
+                                   tid, sid, game.rawValue,
+                                   nationalDex, shinyCharm, ovalCharm,
+                                   filterGender, filterAbility, filterShiny,
+                                   ivMin, ivMax, natures, powers, &count)
+        guard let ptr else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            let ivs = [r.ivs.0, r.ivs.1, r.ivs.2, r.ivs.3, r.ivs.4, r.ivs.5]
+            let inh = [r.inheritance.0, r.inheritance.1, r.inheritance.2,
+                       r.inheritance.3, r.inheritance.4, r.inheritance.5]
+            return Gen8EggResult(ec: r.ec, pid: r.pid, advances: r.advances,
+                                  seed: r.seed, ivs: ivs, nature: r.nature,
+                                  ability: r.ability, gender: r.gender, shiny: r.shiny,
+                                  inheritance: inh)
+        }
+    }
+
+    // MARK: Gen 8 ID Generator
+
+    static func idGenerate8(seed0: UInt64, seed1: UInt64,
+                              initialAdvances: UInt32, maxAdvances: UInt32,
+                              filterTID: UInt16 = 0, hasTIDFilter: Bool = false,
+                              filterSID: UInt16 = 0, hasSIDFilter: Bool = false,
+                              filterDisplayTID: UInt32 = 0, hasDisplayFilter: Bool = false) -> [Gen8IDResult] {
+        var count: Int32 = 0
+        guard let ptr = pf_idGenerate8(seed0, seed1, initialAdvances, maxAdvances,
+                                        filterTID, hasTIDFilter,
+                                        filterSID, hasSIDFilter,
+                                        filterDisplayTID, hasDisplayFilter, &count) else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            return Gen8IDResult(advances: r.advances, tid: r.tid, sid: r.sid,
+                                 tsv: r.tsv, displayTID: r.displayTID)
+        }
+    }
+
+    // MARK: Gen 8 Raid Generator
+
+    static func raidGenerate8(seed: UInt64,
+                               initialAdvances: UInt32, maxAdvances: UInt32, offset: UInt32 = 0,
+                               tid: UInt16, sid: UInt16, game: PFGame,
+                               nationalDex: Bool = true, shinyCharm: Bool = false, ovalCharm: Bool = false,
+                               denIndex: UInt16, rarity: UInt8,
+                               raidIndex: UInt8, level: UInt8,
+                               filterGender: UInt8 = 255, filterAbility: UInt8 = 255, filterShiny: UInt8 = 255,
+                               ivMin: [UInt8] = [0,0,0,0,0,0], ivMax: [UInt8] = [31,31,31,31,31,31],
+                               natures: [Bool] = Array(repeating: false, count: 25),
+                               powers: [Bool] = Array(repeating: false, count: 16)) -> [Gen8StaticResult] {
+        var count: Int32 = 0
+        let ptr = pf_raidGenerate8(seed, initialAdvances, maxAdvances, offset,
+                                    tid, sid, game.rawValue,
+                                    nationalDex, shinyCharm, ovalCharm,
+                                    denIndex, rarity, raidIndex, level,
+                                    filterGender, filterAbility, filterShiny,
+                                    ivMin, ivMax, natures, powers, &count)
+        guard let ptr else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            let ivs = [r.ivs.0, r.ivs.1, r.ivs.2, r.ivs.3, r.ivs.4, r.ivs.5]
+            return Gen8StaticResult(ec: r.ec, pid: r.pid, advances: r.advances,
+                                     ivs: ivs, nature: r.nature, ability: r.ability,
+                                     gender: r.gender, shiny: r.shiny,
+                                     hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+                                     height: r.height, weight: r.weight, level: r.level)
+        }
+    }
+
+    // MARK: Gen 8 Underground Generator
+
+    static func undergroundGenerate8(seed0: UInt64, seed1: UInt64,
+                                      initialAdvances: UInt32, maxAdvances: UInt32, offset: UInt32 = 0,
+                                      lead: PFLead = .none,
+                                      diglett: Bool = false, levelFlag: UInt8 = 0,
+                                      tid: UInt16, sid: UInt16, game: PFGame,
+                                      nationalDex: Bool = true, shinyCharm: Bool = false, ovalCharm: Bool = false,
+                                      storyFlag: Int32 = 0,
+                                      filterGender: UInt8 = 255, filterAbility: UInt8 = 255, filterShiny: UInt8 = 255,
+                                      ivMin: [UInt8] = [0,0,0,0,0,0], ivMax: [UInt8] = [31,31,31,31,31,31],
+                                      natures: [Bool] = Array(repeating: false, count: 25),
+                                      powers: [Bool] = Array(repeating: false, count: 16)) -> [Gen8UndergroundResult] {
+        var count: Int32 = 0
+        let ptr = pf_undergroundGenerate8(seed0, seed1, initialAdvances, maxAdvances, offset,
+                                           lead.rawValue, diglett, levelFlag,
+                                           tid, sid, game.rawValue,
+                                           nationalDex, shinyCharm, ovalCharm,
+                                           storyFlag,
+                                           filterGender, filterAbility, filterShiny,
+                                           ivMin, ivMax, natures, powers, &count)
+        guard let ptr else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            let ivs = [r.ivs.0, r.ivs.1, r.ivs.2, r.ivs.3, r.ivs.4, r.ivs.5]
+            return Gen8UndergroundResult(ec: r.ec, pid: r.pid, advances: r.advances,
+                                          ivs: ivs, nature: r.nature, ability: r.ability,
+                                          gender: r.gender, shiny: r.shiny,
+                                          hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength,
+                                          height: r.height, weight: r.weight,
+                                          eggMove: r.eggMove, item: r.item,
+                                          specie: r.specie, level: r.level)
+        }
+    }
+
+    // MARK: Gen 8 Encounter Data
+
+    static func getEncounters8(encounter: PFEncounter, game: PFGame,
+                                tid: UInt16 = 0, sid: UInt16 = 0,
+                                nationalDex: Bool = true, shinyCharm: Bool = false, ovalCharm: Bool = false,
+                                time: Int32 = 0, swarm: Bool = false, radar: Bool = false,
+                                replacement0: UInt16 = 0, replacement1: UInt16 = 0) -> [PFEncounterAreaSwift] {
+        initTranslator()
+        var count: Int32 = 0
+        guard let ptr = pf_getEncounters8(encounter.rawValue, game.rawValue,
+                                           tid, sid, nationalDex, shinyCharm, ovalCharm,
+                                           time, swarm, radar,
+                                           replacement0, replacement1, &count) else { return [] }
+        defer { pf_freeResults(ptr) }
+
+        var areas = (0..<Int(count)).map { i -> PFEncounterAreaSwift in
+            let r = ptr[i]
+            let enc = PFEncounter(rawValue: r.encounter) ?? .grass
+            return PFEncounterAreaSwift(location: r.location, rate: r.rate,
+                                         encounter: enc, slots: extractSlots(from: r))
+        }
+
+        let locationNums = areas.map { UInt16($0.location) }
+        let uniqueNums = Array(Set(locationNums))
+        let names = locationNames(uniqueNums, game: game)
+        let nameMap = Dictionary(uniqueKeysWithValues: zip(uniqueNums, names))
+        for i in areas.indices {
+            areas[i].locationName = nameMap[UInt16(areas[i].location)] ?? "Unknown"
+        }
+        return areas
+    }
+
+    static func getStaticEncounters8(type: Int32) -> [PFStaticTemplateSwift] {
+        initTranslator()
+        var count: Int32 = 0
+        guard let ptr = pf_getStaticEncounters8(type, &count) else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            return PFStaticTemplateSwift(game: r.game, specie: r.specie, form: r.form,
+                                          shiny: r.shiny, ability: r.ability,
+                                          gender: r.gender, level: r.level)
+        }
+    }
+
     // MARK: Slot Extraction Helper
 
     private static func extractSlots(from area: PFEncounterArea) -> [PFSlotSwift] {
