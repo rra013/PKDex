@@ -202,7 +202,7 @@ struct SettingsView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This will delete all downloaded data. The app will re-sync on next launch. Your saved spreads and teams will not be affected.")
+                Text("This will restore the app to a fresh install state, deleting all downloaded data, saved spreads, teams, and preferences. The app will re-sync on next launch.")
             }
         }
     }
@@ -240,14 +240,16 @@ struct SettingsView: View {
     }
 
     private func performReset() {
-        UserDefaults.standard.removeObject(forKey: "hasCompletedInitialSync")
-        UserDefaults.standard.removeObject(forKey: "hasCompletedCalcSyncV3")
+        if let bundleID = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: bundleID)
+        }
         try? modelContext.delete(model: PKMN.self)
         try? modelContext.delete(model: Gen8Pokemon.self)
         try? modelContext.delete(model: Gen9Pokemon.self)
         try? modelContext.delete(model: PKMNStats.self)
         try? modelContext.delete(model: MoveData.self)
+        try? modelContext.delete(model: SavedSpread.self)
+        try? modelContext.delete(model: SavedTeam.self)
         try? modelContext.save()
-        print("App reset! Restart the app to re-sync.")
     }
 }
