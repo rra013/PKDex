@@ -76,5 +76,9 @@ struct PokedexApp: App {
                 print("Calc data sync failed: \(error)")
             }
         }
+
+        await MainActor.run {
+            BattleSimSeed.seedIfNeeded(modelContainer: container)
+        }
     }
 }

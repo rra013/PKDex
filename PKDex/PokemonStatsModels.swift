@@ -234,6 +234,24 @@ final class SavedTeam {
         get { (try? JSONDecoder().decode([TeamSlotInfo].self, from: slotsJSON)) ?? [] }
         set { slotsJSON = (try? JSONEncoder().encode(newValue)) ?? Data() }
     }
+
+    /// Returns the team's slots resolved against the live `SavedSpread` records by
+    /// name. Each slot stores a JSON snapshot when added (so the team survives spread
+    /// deletion), but display and battle code should call this so subsequent edits to
+    /// the underlying spread — new moves, EVs, ability, etc. — propagate automatically.
+    /// If a slot's `spreadName` no longer matches any saved spread, the cached
+    /// snapshot is returned as a fallback.
+    func resolvedSlots(allSpreads: [SavedSpread],
+                       allPokemon: [PKMNStats],
+                       allMoves: [MoveData]) -> [TeamSlotInfo] {
+        slots.map { stored -> TeamSlotInfo in
+            guard let live = allSpreads.first(where: { $0.name == stored.spreadName }) else {
+                return stored
+            }
+            let pkmn = allPokemon.first(where: { $0.id == live.pokemonID })
+            return TeamSlotInfo.from(spread: live, pokemon: pkmn, moves: allMoves) ?? stored
+        }
+    }
 }
 
 struct TeamSlotInfo: Codable, Identifiable, Equatable {
@@ -352,8 +370,179 @@ enum HeldItem: String, CaseIterable, Identifiable {
     case lightBall = "Light Ball"
     case thickClub = "Thick Club"
 
+    // Mega Stones — no damage-calc effect, but required to trigger Mega Evolution
+    // in the Battle Simulator. Mega Rayquaza uses Dragon Ascent instead of a stone.
+    case venusaurite     = "Venusaurite"
+    case charizarditeX   = "Charizardite X"
+    case charizarditeY   = "Charizardite Y"
+    case blastoisinite   = "Blastoisinite"
+    case beedrillite     = "Beedrillite"
+    case pidgeotite      = "Pidgeotite"
+    case alakazite       = "Alakazite"
+    case slowbronite     = "Slowbronite"
+    case gengarite       = "Gengarite"
+    case kangaskhanite   = "Kangaskhanite"
+    case pinsirite       = "Pinsirite"
+    case gyaradosite     = "Gyaradosite"
+    case aerodactylite   = "Aerodactylite"
+    case mewtwoniteX     = "Mewtwonite X"
+    case mewtwoniteY     = "Mewtwonite Y"
+    case ampharosite     = "Ampharosite"
+    case steelixite      = "Steelixite"
+    case scizorite       = "Scizorite"
+    case heracronite     = "Heracronite"
+    case houndoominite   = "Houndoominite"
+    case tyranitarite    = "Tyranitarite"
+    case sceptilite      = "Sceptilite"
+    case blazikenite     = "Blazikenite"
+    case swampertite     = "Swampertite"
+    case gardevoirite    = "Gardevoirite"
+    case sablenite       = "Sablenite"
+    case mawilite        = "Mawilite"
+    case medichamite     = "Medichamite"
+    case manectite       = "Manectite"
+    case sharpedonite    = "Sharpedonite"
+    case cameruptite     = "Cameruptite"
+    case altarianite     = "Altarianite"
+    case banettite       = "Banettite"
+    case absolite        = "Absolite"
+    case glalitite       = "Glalitite"
+    case salamencite     = "Salamencite"
+    case metagrossite    = "Metagrossite"
+    case latiasite       = "Latiasite"
+    case latiosite       = "Latiosite"
+    case garchompite     = "Garchompite"
+    case lucarionite     = "Lucarionite"
+    case abomasite       = "Abomasite"
+    case lopunnite       = "Lopunnite"
+    case audinite        = "Audinite"
+    case diancite        = "Diancite"
+
+    // Additional Mega Stones (canon Gallade/Aggron + Z-A roster). Stones in this
+    // group exist as held-item data so users can save them on team spreads. Forms
+    // without entries in `MegaForms.all` won't trigger a Mega Evolution yet — they're
+    // present here so the team builder doesn't reject the item.
+    case aggronite       = "Aggronite"
+    case galladite       = "Galladite"
+    case chandelurite    = "Chandelurite"
+    case chesnaughtite   = "Chesnaughtite"
+    case chimechite      = "Chimechite"
+    case clefablite      = "Clefablite"
+    case crabominite     = "Crabominite"
+    case delphoxite      = "Delphoxite"
+    case dragoninite     = "Dragoninite"
+    case drampanite      = "Drampanite"
+    case emboarite       = "Emboarite"
+    case excadrite       = "Excadrite"
+    case feraligite      = "Feraligite"
+    case floettite       = "Floettite"
+    case froslassite     = "Froslassite"
+    case glimmoranite    = "Glimmoranite"
+    case golurkite       = "Golurkite"
+    case greninjite      = "Greninjite"
+    case hawluchanite    = "Hawluchanite"
+    case meganiumite     = "Meganiumite"
+    case meowsticite     = "Meowsticite"
+    case scovillainite   = "Scovillainite"
+    case skarmorite      = "Skarmorite"
+    case starminite      = "Starminite"
+    case victreebelite   = "Victreebelite"
+
+    // Type-boosting items (1.2x to moves of the listed type).
+    case silkScarf       = "Silk Scarf"        // Normal
+    case charcoal        = "Charcoal"          // Fire
+    case mysticWater     = "Mystic Water"      // Water
+    case magnet          = "Magnet"            // Electric
+    case miracleSeed     = "Miracle Seed"      // Grass
+    case neverMeltIce    = "Never-Melt Ice"    // Ice
+    case blackBelt       = "Black Belt"        // Fighting
+    case poisonBarb      = "Poison Barb"       // Poison
+    case softSand        = "Soft Sand"         // Ground
+    case sharpBeak       = "Sharp Beak"        // Flying
+    case twistedSpoon    = "Twisted Spoon"     // Psychic
+    case silverPowder    = "Silver Powder"     // Bug
+    case hardStone       = "Hard Stone"        // Rock
+    case spellTag        = "Spell Tag"         // Ghost
+    case dragonFang      = "Dragon Fang"       // Dragon
+    case blackGlasses    = "Black Glasses"     // Dark
+    case metalCoat       = "Metal Coat"        // Steel
+    case fairyFeather    = "Fairy Feather"     // Fairy
+
+    // Other competitive items
+    case choiceScarf     = "Choice Scarf"
+    case focusSash       = "Focus Sash"
+    case focusBand       = "Focus Band"
+    case leftovers       = "Leftovers"
+    case scopeLens       = "Scope Lens"
+    case shellBell       = "Shell Bell"
+    case quickClaw       = "Quick Claw"
+    case kingsRock       = "King's Rock"
+    case brightPowder    = "Bright Powder"
+    case mentalHerb      = "Mental Herb"
+    case whiteHerb       = "White Herb"
+
+    // Healing & status berries
+    case aspearBerry     = "Aspear Berry"
+    case cheriBerry      = "Cheri Berry"
+    case chestoBerry     = "Chesto Berry"
+    case leppaBerry      = "Leppa Berry"
+    case lumBerry        = "Lum Berry"
+    case oranBerry       = "Oran Berry"
+    case pechaBerry      = "Pecha Berry"
+    case persimBerry     = "Persim Berry"
+    case rawstBerry      = "Rawst Berry"
+    case sitrusBerry     = "Sitrus Berry"
+
+    // Type-resist berries (halve a supereffective hit of the matching type, once).
+    case occaBerry       = "Occa Berry"        // Fire
+    case passhoBerry     = "Passho Berry"      // Water
+    case wacanBerry      = "Wacan Berry"       // Electric
+    case rindoBerry      = "Rindo Berry"       // Grass
+    case yacheBerry      = "Yache Berry"       // Ice
+    case chopleBerry     = "Chople Berry"      // Fighting
+    case kebiaBerry      = "Kebia Berry"       // Poison
+    case shucaBerry      = "Shuca Berry"       // Ground
+    case cobaBerry       = "Coba Berry"        // Flying
+    case payapaBerry     = "Payapa Berry"      // Psychic
+    case tangaBerry      = "Tanga Berry"       // Bug
+    case chartiBerry     = "Charti Berry"      // Rock
+    case kasibBerry      = "Kasib Berry"       // Ghost
+    case habanBerry      = "Haban Berry"       // Dragon
+    case colburBerry     = "Colbur Berry"      // Dark
+    case babiriBerry     = "Babiri Berry"      // Steel
+    case roseliBerry     = "Roseli Berry"      // Fairy
+    case chilanBerry     = "Chilan Berry"      // Normal (triggers regardless of effectiveness)
+
     var id: String { rawValue }
+
+    /// True for any item that exists as a Mega Stone in `MegaForms.all`. Used by
+    /// Knock Off (can't remove a Mega Stone) and similar item-removal effects.
+    var isMegaStone: Bool {
+        MegaForms.all.contains { $0.stone == self }
+    }
 }
+
+/// Maps a damage-affecting held item to the type it boosts. Used by the damage calc
+/// to apply 1.2x to moves of that type without bloating the main switch statement.
+let typeBoostingItemMap: [HeldItem: String] = [
+    .silkScarf: "Normal", .charcoal: "Fire", .mysticWater: "Water",
+    .magnet: "Electric", .miracleSeed: "Grass", .neverMeltIce: "Ice",
+    .blackBelt: "Fighting", .poisonBarb: "Poison", .softSand: "Ground",
+    .sharpBeak: "Flying", .twistedSpoon: "Psychic", .silverPowder: "Bug",
+    .hardStone: "Rock", .spellTag: "Ghost", .dragonFang: "Dragon",
+    .blackGlasses: "Dark", .metalCoat: "Steel", .fairyFeather: "Fairy",
+]
+
+/// Maps a type-resist berry to the move type it resists. Triggers in the damage calc
+/// (halves damage) and is consumed by the engine after the hit.
+let typeResistBerryMap: [HeldItem: String] = [
+    .occaBerry: "Fire", .passhoBerry: "Water", .wacanBerry: "Electric",
+    .rindoBerry: "Grass", .yacheBerry: "Ice", .chopleBerry: "Fighting",
+    .kebiaBerry: "Poison", .shucaBerry: "Ground", .cobaBerry: "Flying",
+    .payapaBerry: "Psychic", .tangaBerry: "Bug", .chartiBerry: "Rock",
+    .kasibBerry: "Ghost", .habanBerry: "Dragon", .colburBerry: "Dark",
+    .babiriBerry: "Steel", .roseliBerry: "Fairy",
+]
 
 struct ItemModResult {
     var atkMultiplier: Double = 1.0
@@ -394,6 +583,11 @@ func computeItemModifiers(
         break
     }
 
+    // Attacker: type-specific 1.2x boosters (Charcoal, Magnet, Silk Scarf, ...)
+    if let boostedType = typeBoostingItemMap[attackerItem], boostedType == moveType {
+        r.damageMult *= 1.2
+    }
+
     // Defender items
     switch defenderItem {
     case .assaultVest:
@@ -402,6 +596,17 @@ func computeItemModifiers(
         r.defMultiplier = 1.5; r.spDefMultiplier = 1.5
     default:
         break
+    }
+
+    // Defender: type-resist berries (halve a supereffective hit of that type).
+    // Chilan Berry is special — halves any Normal-type hit regardless of effectiveness.
+    if let resistedType = typeResistBerryMap[defenderItem],
+       resistedType == moveType,
+       typeEffectiveness > 1.0 {
+        r.damageMult *= 0.5
+    }
+    if defenderItem == .chilanBerry && moveType == "Normal" {
+        r.damageMult *= 0.5
     }
 
     return r
@@ -601,7 +806,8 @@ func computeAbilityModifiers(
     attackerAtFullHP: Bool,
     defenderAtFullHP: Bool,
     defenderTypes: [String] = [],
-    terrain: TerrainCondition = .none
+    terrain: TerrainCondition = .none,
+    isSpread: Bool = false
 ) -> AbilityModResult {
     var r = AbilityModResult()
     let atk = attackerAbility ?? ""
@@ -773,7 +979,8 @@ func computeAbilityModifiers(
         r.finalMultiplier *= 1.3
 
     case "parental-bond":
-        r.powerMultiplier *= 1.25
+        // Parental Bond does not activate on spread (multi-target) moves in doubles.
+        if !isSpread { r.powerMultiplier *= 1.25 }
 
     case "sword-of-ruin":
         if isPhysical { r.defMultiplier *= 0.75 }

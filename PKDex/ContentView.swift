@@ -12,7 +12,7 @@ import WebKit
 // MARK: - App Tab Definition
 
 enum AppTab: String, CaseIterable, Identifiable {
-    case monIndex, moveIndex, damageCalc, sets, teams, speedTiers, rngTools, tournaments, settings
+    case monIndex, moveIndex, damageCalc, sets, teams, speedTiers, battleSim, rngTools, tournaments, settings
 
     var id: String { rawValue }
 
@@ -24,6 +24,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .sets:       return "Sets"
         case .teams:      return "Teams"
         case .speedTiers: return "Speed Tiers"
+        case .battleSim:    return "Battle Sim"
         case .rngTools:     return "RNG Tools"
         case .tournaments:  return "Tournaments"
         case .settings:     return "Settings"
@@ -38,13 +39,14 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .sets:       return "square.and.pencil"
         case .teams:      return "person.3"
         case .speedTiers: return "hare"
+        case .battleSim:    return "gamecontroller.fill"
         case .rngTools:     return "dice"
         case .tournaments:  return "trophy"
         case .settings:     return "gear"
         }
     }
 
-    static let allUserTabs: [AppTab] = [.monIndex, .moveIndex, .damageCalc, .sets, .teams, .speedTiers, .rngTools, .tournaments]
+    static let allUserTabs: [AppTab] = [.monIndex, .moveIndex, .damageCalc, .sets, .teams, .speedTiers, .battleSim, .rngTools, .tournaments]
     static let defaultEnabledRaw = allUserTabs.map(\.rawValue).joined(separator: ",")
 }
 
@@ -148,6 +150,7 @@ struct ContentView: View {
         case .sets:       SetListView()
         case .teams:      TeamListView()
         case .speedTiers: SpeedTierView()
+        case .battleSim:    BattleSimulatorView()
         case .rngTools:     RNGToolsView()
         case .tournaments:  TournamentsTab()
         case .settings:     SettingsView()

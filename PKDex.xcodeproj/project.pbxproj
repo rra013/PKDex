@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		33BBD5522FBA65EC00842754 /* BattleSimulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BBD5512FBA65EC00842754 /* BattleSimulator.swift */; };
+		33BBD5542FBB32A900842754 /* BattleSimSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BBD5532FBB32A900842754 /* BattleSimSeed.swift */; };
+		33BBD5562FBB384900842754 /* MegaForms.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BBD5552FBB384900842754 /* MegaForms.swift */; };
 		33C3EAE62F946AB5004BB026 /* libzstd.1.5.7.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 33C3EAE52F946AB5004BB026 /* libzstd.1.5.7.dylib */; platformFilters = (macos, ); };
 		33C3EAE72F946AB5004BB026 /* libzstd.1.5.7.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 33C3EAE52F946AB5004BB026 /* libzstd.1.5.7.dylib */; platformFilters = (macos, ); settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		33C3ECA62F947399004BB026 /* entropy_common.c in Sources */ = {isa = PBXBuildFile; fileRef = 33C3EC6C2F947399004BB026 /* entropy_common.c */; settings = {COMPILER_FLAGS = "-w"; }; };
@@ -65,6 +68,9 @@
 
 /* Begin PBXFileReference section */
 		332D1F312F9128C500E7D180 /* PKDexTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PKDexTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		33BBD5512FBA65EC00842754 /* BattleSimulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BattleSimulator.swift; sourceTree = "<group>"; };
+		33BBD5532FBB32A900842754 /* BattleSimSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BattleSimSeed.swift; sourceTree = "<group>"; };
+		33BBD5552FBB384900842754 /* MegaForms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MegaForms.swift; sourceTree = "<group>"; };
 		33C3DE292F946A84004BB026 /* absl */ = {isa = PBXFileReference; lastKnownFileType = text; path = absl; sourceTree = "<group>"; };
 		33C3DE2A2F946A84004BB026 /* OpenSSL */ = {isa = PBXFileReference; lastKnownFileType = text; path = OpenSSL; sourceTree = "<group>"; };
 		33C3DE2B2F946A84004BB026 /* protobuf */ = {isa = PBXFileReference; lastKnownFileType = text; path = protobuf; sourceTree = "<group>"; };
@@ -8840,6 +8846,9 @@
 				332D1F322F9128C500E7D180 /* PKDexTests */,
 				33C3DE282F946A84004BB026 /* Frameworks */,
 				33C6C9A12F8D3CFB005FFCCC /* Products */,
+				33BBD5512FBA65EC00842754 /* BattleSimulator.swift */,
+				33BBD5532FBB32A900842754 /* BattleSimSeed.swift */,
+				33BBD5552FBB384900842754 /* MegaForms.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -8981,6 +8990,7 @@
 				33C3ECAB2F947399004BB026 /* threading.c in Sources */,
 				33C3ECAC2F947399004BB026 /* zstd_common.c in Sources */,
 				33C3ECAD2F947399004BB026 /* zstd_compress_literals.c in Sources */,
+				33BBD5562FBB384900842754 /* MegaForms.swift in Sources */,
 				33C3ECAE2F947399004BB026 /* zstd_fast.c in Sources */,
 				33C3ECAF2F947399004BB026 /* huf_decompress.c in Sources */,
 				33C3ECB02F947399004BB026 /* xxhash.c in Sources */,
@@ -8989,7 +8999,9 @@
 				33C3ECB32F947399004BB026 /* huf_decompress_amd64.S in Sources */,
 				33C3ECB42F947399004BB026 /* pool.c in Sources */,
 				33C3ECB52F947399004BB026 /* zstd_preSplit.c in Sources */,
+				33BBD5522FBA65EC00842754 /* BattleSimulator.swift in Sources */,
 				33C3ECB62F947399004BB026 /* zstd_double_fast.c in Sources */,
+				33BBD5542FBB32A900842754 /* BattleSimSeed.swift in Sources */,
 				33C3ECB72F947399004BB026 /* error_private.c in Sources */,
 				33C3ECB82F947399004BB026 /* zstd_opt.c in Sources */,
 				33C3ECB92F947399004BB026 /* zstd_compress_sequences.c in Sources */,

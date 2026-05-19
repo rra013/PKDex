@@ -14,7 +14,8 @@ struct AttackerAbilityTests {
         weather: WeatherCondition = .none,
         atkFullHP: Bool = true, defFullHP: Bool = true,
         defenderTypes: [String] = [],
-        terrain: TerrainCondition = .none
+        terrain: TerrainCondition = .none,
+        isSpread: Bool = false
     ) -> AbilityModResult {
         computeAbilityModifiers(
             attackerAbility: ability, defenderAbility: nil,
@@ -24,7 +25,8 @@ struct AttackerAbilityTests {
             weather: weather,
             attackerAtFullHP: atkFullHP, defenderAtFullHP: defFullHP,
             defenderTypes: defenderTypes,
-            terrain: terrain
+            terrain: terrain,
+            isSpread: isSpread
         )
     }
 
@@ -427,6 +429,11 @@ struct AttackerAbilityTests {
     @Test func parentalBondBoostsPower() {
         let r = atkMods(ability: "parental-bond")
         #expect(r.powerMultiplier == 1.25)
+    }
+
+    @Test func parentalBondDoesNotBoostSpreadMoves() {
+        let r = atkMods(ability: "parental-bond", isSpread: true)
+        #expect(r.powerMultiplier == 1.0)
     }
 
     // MARK: Ruin Abilities (Attacker Side)

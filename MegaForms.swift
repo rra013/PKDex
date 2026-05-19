@@ -1,0 +1,234 @@
+//
+//  MegaForms.swift
+//  PKDex
+//
+
+import Foundation
+
+/// Static description of a Pokemon's Mega form: post-evolution stats, types, and ability.
+/// HP is intentionally omitted — no canonical Mega Evolution changes HP, so the base
+/// species' HP stat carries over.
+struct MegaForm: Equatable {
+    let speciesKey: String      // Normalized lowercase species name, e.g. "charizard"
+    let stone: HeldItem?        // nil iff Rayquaza (mega trigger is Dragon Ascent)
+    let requiresMove: String?   // Normalized move name; nil unless Rayquaza
+    let displayName: String     // "Mega Charizard Y"
+    let type1: String
+    let type2: String?
+    let baseAtk: Int
+    let baseDef: Int
+    let baseSpAtk: Int
+    let baseSpDef: Int
+    let baseSpeed: Int
+    let ability: String         // Ability ID matching computeAbilityModifiers keys
+}
+
+enum MegaForms {
+
+    /// Returns the Mega form a participant is eligible to transform into, or nil if it
+    /// doesn't qualify (wrong species, wrong stone, or missing Dragon Ascent for Rayquaza).
+    /// Uses the same normalization as `BattleSimSeed.normalize` so PokeAPI's
+    /// "charizard" matches the table's "charizard" regardless of casing/hyphens.
+    static func form(forSpecies species: String,
+                     heldItem: HeldItem,
+                     moveNames: [String]) -> MegaForm? {
+        let s = BattleSimSeed.normalize(species)
+
+        // Rayquaza is the lone exception: no stone, but must know Dragon Ascent.
+        if s == "rayquaza" {
+            let hasDA = moveNames.contains { BattleSimSeed.normalize($0) == "dragonascent" }
+            return hasDA ? rayquazaMega : nil
+        }
+
+        return all.first { $0.speciesKey == s && $0.stone == heldItem }
+    }
+
+    static let rayquazaMega = MegaForm(
+        speciesKey: "rayquaza", stone: nil, requiresMove: "dragonascent",
+        displayName: "Mega Rayquaza", type1: "Dragon", type2: "Flying",
+        baseAtk: 180, baseDef: 100, baseSpAtk: 180, baseSpDef: 100, baseSpeed: 115,
+        ability: "delta-stream")
+
+    static let all: [MegaForm] = [
+        MegaForm(speciesKey: "venusaur",   stone: .venusaurite,   requiresMove: nil,
+                 displayName: "Mega Venusaur", type1: "Grass", type2: "Poison",
+                 baseAtk: 100, baseDef: 123, baseSpAtk: 122, baseSpDef: 120, baseSpeed: 80,
+                 ability: "thick-fat"),
+        MegaForm(speciesKey: "charizard",  stone: .charizarditeX, requiresMove: nil,
+                 displayName: "Mega Charizard X", type1: "Fire", type2: "Dragon",
+                 baseAtk: 130, baseDef: 111, baseSpAtk: 130, baseSpDef: 85, baseSpeed: 100,
+                 ability: "tough-claws"),
+        MegaForm(speciesKey: "charizard",  stone: .charizarditeY, requiresMove: nil,
+                 displayName: "Mega Charizard Y", type1: "Fire", type2: "Flying",
+                 baseAtk: 104, baseDef: 78, baseSpAtk: 159, baseSpDef: 115, baseSpeed: 100,
+                 ability: "drought"),
+        MegaForm(speciesKey: "blastoise",  stone: .blastoisinite, requiresMove: nil,
+                 displayName: "Mega Blastoise", type1: "Water", type2: nil,
+                 baseAtk: 103, baseDef: 120, baseSpAtk: 135, baseSpDef: 115, baseSpeed: 78,
+                 ability: "mega-launcher"),
+        MegaForm(speciesKey: "beedrill",   stone: .beedrillite,   requiresMove: nil,
+                 displayName: "Mega Beedrill", type1: "Bug", type2: "Poison",
+                 baseAtk: 150, baseDef: 40, baseSpAtk: 15, baseSpDef: 80, baseSpeed: 145,
+                 ability: "adaptability"),
+        MegaForm(speciesKey: "pidgeot",    stone: .pidgeotite,    requiresMove: nil,
+                 displayName: "Mega Pidgeot", type1: "Normal", type2: "Flying",
+                 baseAtk: 80, baseDef: 80, baseSpAtk: 135, baseSpDef: 80, baseSpeed: 121,
+                 ability: "no-guard"),
+        MegaForm(speciesKey: "alakazam",   stone: .alakazite,     requiresMove: nil,
+                 displayName: "Mega Alakazam", type1: "Psychic", type2: nil,
+                 baseAtk: 50, baseDef: 65, baseSpAtk: 175, baseSpDef: 105, baseSpeed: 150,
+                 ability: "trace"),
+        MegaForm(speciesKey: "slowbro",    stone: .slowbronite,   requiresMove: nil,
+                 displayName: "Mega Slowbro", type1: "Water", type2: "Psychic",
+                 baseAtk: 75, baseDef: 180, baseSpAtk: 130, baseSpDef: 80, baseSpeed: 30,
+                 ability: "shell-armor"),
+        MegaForm(speciesKey: "gengar",     stone: .gengarite,     requiresMove: nil,
+                 displayName: "Mega Gengar", type1: "Ghost", type2: "Poison",
+                 baseAtk: 65, baseDef: 80, baseSpAtk: 170, baseSpDef: 95, baseSpeed: 130,
+                 ability: "shadow-tag"),
+        MegaForm(speciesKey: "kangaskhan", stone: .kangaskhanite, requiresMove: nil,
+                 displayName: "Mega Kangaskhan", type1: "Normal", type2: nil,
+                 baseAtk: 125, baseDef: 100, baseSpAtk: 60, baseSpDef: 100, baseSpeed: 100,
+                 ability: "parental-bond"),
+        MegaForm(speciesKey: "pinsir",     stone: .pinsirite,     requiresMove: nil,
+                 displayName: "Mega Pinsir", type1: "Bug", type2: "Flying",
+                 baseAtk: 155, baseDef: 120, baseSpAtk: 65, baseSpDef: 90, baseSpeed: 105,
+                 ability: "aerilate"),
+        MegaForm(speciesKey: "gyarados",   stone: .gyaradosite,   requiresMove: nil,
+                 displayName: "Mega Gyarados", type1: "Water", type2: "Dark",
+                 baseAtk: 155, baseDef: 109, baseSpAtk: 70, baseSpDef: 130, baseSpeed: 81,
+                 ability: "mold-breaker"),
+        MegaForm(speciesKey: "aerodactyl", stone: .aerodactylite, requiresMove: nil,
+                 displayName: "Mega Aerodactyl", type1: "Rock", type2: "Flying",
+                 baseAtk: 135, baseDef: 85, baseSpAtk: 70, baseSpDef: 95, baseSpeed: 150,
+                 ability: "tough-claws"),
+        MegaForm(speciesKey: "mewtwo",     stone: .mewtwoniteX,   requiresMove: nil,
+                 displayName: "Mega Mewtwo X", type1: "Psychic", type2: "Fighting",
+                 baseAtk: 190, baseDef: 100, baseSpAtk: 154, baseSpDef: 100, baseSpeed: 130,
+                 ability: "steadfast"),
+        MegaForm(speciesKey: "mewtwo",     stone: .mewtwoniteY,   requiresMove: nil,
+                 displayName: "Mega Mewtwo Y", type1: "Psychic", type2: nil,
+                 baseAtk: 150, baseDef: 70, baseSpAtk: 194, baseSpDef: 120, baseSpeed: 140,
+                 ability: "insomnia"),
+        MegaForm(speciesKey: "ampharos",   stone: .ampharosite,   requiresMove: nil,
+                 displayName: "Mega Ampharos", type1: "Electric", type2: "Dragon",
+                 baseAtk: 95, baseDef: 105, baseSpAtk: 165, baseSpDef: 110, baseSpeed: 45,
+                 ability: "mold-breaker"),
+        MegaForm(speciesKey: "steelix",    stone: .steelixite,    requiresMove: nil,
+                 displayName: "Mega Steelix", type1: "Steel", type2: "Ground",
+                 baseAtk: 125, baseDef: 230, baseSpAtk: 55, baseSpDef: 95, baseSpeed: 30,
+                 ability: "sand-force"),
+        MegaForm(speciesKey: "scizor",     stone: .scizorite,     requiresMove: nil,
+                 displayName: "Mega Scizor", type1: "Bug", type2: "Steel",
+                 baseAtk: 150, baseDef: 140, baseSpAtk: 65, baseSpDef: 100, baseSpeed: 75,
+                 ability: "technician"),
+        MegaForm(speciesKey: "heracross",  stone: .heracronite,   requiresMove: nil,
+                 displayName: "Mega Heracross", type1: "Bug", type2: "Fighting",
+                 baseAtk: 185, baseDef: 115, baseSpAtk: 40, baseSpDef: 105, baseSpeed: 75,
+                 ability: "skill-link"),
+        MegaForm(speciesKey: "houndoom",   stone: .houndoominite, requiresMove: nil,
+                 displayName: "Mega Houndoom", type1: "Dark", type2: "Fire",
+                 baseAtk: 90, baseDef: 90, baseSpAtk: 140, baseSpDef: 90, baseSpeed: 115,
+                 ability: "solar-power"),
+        MegaForm(speciesKey: "tyranitar",  stone: .tyranitarite,  requiresMove: nil,
+                 displayName: "Mega Tyranitar", type1: "Rock", type2: "Dark",
+                 baseAtk: 164, baseDef: 150, baseSpAtk: 95, baseSpDef: 120, baseSpeed: 71,
+                 ability: "sand-stream"),
+        MegaForm(speciesKey: "sceptile",   stone: .sceptilite,    requiresMove: nil,
+                 displayName: "Mega Sceptile", type1: "Grass", type2: "Dragon",
+                 baseAtk: 110, baseDef: 75, baseSpAtk: 145, baseSpDef: 85, baseSpeed: 145,
+                 ability: "lightning-rod"),
+        MegaForm(speciesKey: "blaziken",   stone: .blazikenite,   requiresMove: nil,
+                 displayName: "Mega Blaziken", type1: "Fire", type2: "Fighting",
+                 baseAtk: 160, baseDef: 80, baseSpAtk: 130, baseSpDef: 80, baseSpeed: 100,
+                 ability: "speed-boost"),
+        MegaForm(speciesKey: "swampert",   stone: .swampertite,   requiresMove: nil,
+                 displayName: "Mega Swampert", type1: "Water", type2: "Ground",
+                 baseAtk: 150, baseDef: 110, baseSpAtk: 95, baseSpDef: 110, baseSpeed: 70,
+                 ability: "swift-swim"),
+        MegaForm(speciesKey: "gardevoir",  stone: .gardevoirite,  requiresMove: nil,
+                 displayName: "Mega Gardevoir", type1: "Psychic", type2: "Fairy",
+                 baseAtk: 85, baseDef: 65, baseSpAtk: 165, baseSpDef: 135, baseSpeed: 100,
+                 ability: "pixilate"),
+        MegaForm(speciesKey: "sableye",    stone: .sablenite,     requiresMove: nil,
+                 displayName: "Mega Sableye", type1: "Dark", type2: "Ghost",
+                 baseAtk: 85, baseDef: 125, baseSpAtk: 85, baseSpDef: 115, baseSpeed: 20,
+                 ability: "magic-bounce"),
+        MegaForm(speciesKey: "mawile",     stone: .mawilite,      requiresMove: nil,
+                 displayName: "Mega Mawile", type1: "Steel", type2: "Fairy",
+                 baseAtk: 105, baseDef: 125, baseSpAtk: 55, baseSpDef: 95, baseSpeed: 50,
+                 ability: "huge-power"),
+        MegaForm(speciesKey: "medicham",   stone: .medichamite,   requiresMove: nil,
+                 displayName: "Mega Medicham", type1: "Fighting", type2: "Psychic",
+                 baseAtk: 100, baseDef: 85, baseSpAtk: 80, baseSpDef: 85, baseSpeed: 100,
+                 ability: "pure-power"),
+        MegaForm(speciesKey: "manectric",  stone: .manectite,     requiresMove: nil,
+                 displayName: "Mega Manectric", type1: "Electric", type2: nil,
+                 baseAtk: 75, baseDef: 80, baseSpAtk: 135, baseSpDef: 80, baseSpeed: 135,
+                 ability: "intimidate"),
+        MegaForm(speciesKey: "sharpedo",   stone: .sharpedonite,  requiresMove: nil,
+                 displayName: "Mega Sharpedo", type1: "Water", type2: "Dark",
+                 baseAtk: 140, baseDef: 70, baseSpAtk: 110, baseSpDef: 65, baseSpeed: 105,
+                 ability: "strong-jaw"),
+        MegaForm(speciesKey: "camerupt",   stone: .cameruptite,   requiresMove: nil,
+                 displayName: "Mega Camerupt", type1: "Fire", type2: "Ground",
+                 baseAtk: 120, baseDef: 100, baseSpAtk: 145, baseSpDef: 105, baseSpeed: 20,
+                 ability: "sheer-force"),
+        MegaForm(speciesKey: "altaria",    stone: .altarianite,   requiresMove: nil,
+                 displayName: "Mega Altaria", type1: "Dragon", type2: "Fairy",
+                 baseAtk: 110, baseDef: 110, baseSpAtk: 110, baseSpDef: 105, baseSpeed: 80,
+                 ability: "pixilate"),
+        MegaForm(speciesKey: "banette",    stone: .banettite,     requiresMove: nil,
+                 displayName: "Mega Banette", type1: "Ghost", type2: nil,
+                 baseAtk: 165, baseDef: 75, baseSpAtk: 93, baseSpDef: 83, baseSpeed: 75,
+                 ability: "prankster"),
+        MegaForm(speciesKey: "absol",      stone: .absolite,      requiresMove: nil,
+                 displayName: "Mega Absol", type1: "Dark", type2: nil,
+                 baseAtk: 150, baseDef: 60, baseSpAtk: 115, baseSpDef: 60, baseSpeed: 115,
+                 ability: "magic-bounce"),
+        MegaForm(speciesKey: "glalie",     stone: .glalitite,     requiresMove: nil,
+                 displayName: "Mega Glalie", type1: "Ice", type2: nil,
+                 baseAtk: 120, baseDef: 80, baseSpAtk: 120, baseSpDef: 80, baseSpeed: 100,
+                 ability: "refrigerate"),
+        MegaForm(speciesKey: "salamence",  stone: .salamencite,   requiresMove: nil,
+                 displayName: "Mega Salamence", type1: "Dragon", type2: "Flying",
+                 baseAtk: 145, baseDef: 130, baseSpAtk: 120, baseSpDef: 90, baseSpeed: 120,
+                 ability: "aerilate"),
+        MegaForm(speciesKey: "metagross",  stone: .metagrossite,  requiresMove: nil,
+                 displayName: "Mega Metagross", type1: "Steel", type2: "Psychic",
+                 baseAtk: 145, baseDef: 150, baseSpAtk: 105, baseSpDef: 110, baseSpeed: 110,
+                 ability: "tough-claws"),
+        MegaForm(speciesKey: "latias",     stone: .latiasite,     requiresMove: nil,
+                 displayName: "Mega Latias", type1: "Dragon", type2: "Psychic",
+                 baseAtk: 100, baseDef: 120, baseSpAtk: 140, baseSpDef: 150, baseSpeed: 110,
+                 ability: "levitate"),
+        MegaForm(speciesKey: "latios",     stone: .latiosite,     requiresMove: nil,
+                 displayName: "Mega Latios", type1: "Dragon", type2: "Psychic",
+                 baseAtk: 130, baseDef: 100, baseSpAtk: 160, baseSpDef: 120, baseSpeed: 110,
+                 ability: "levitate"),
+        MegaForm(speciesKey: "garchomp",   stone: .garchompite,   requiresMove: nil,
+                 displayName: "Mega Garchomp", type1: "Dragon", type2: "Ground",
+                 baseAtk: 170, baseDef: 115, baseSpAtk: 120, baseSpDef: 95, baseSpeed: 92,
+                 ability: "sand-force"),
+        MegaForm(speciesKey: "lucario",    stone: .lucarionite,   requiresMove: nil,
+                 displayName: "Mega Lucario", type1: "Fighting", type2: "Steel",
+                 baseAtk: 145, baseDef: 88, baseSpAtk: 140, baseSpDef: 70, baseSpeed: 112,
+                 ability: "adaptability"),
+        MegaForm(speciesKey: "abomasnow",  stone: .abomasite,     requiresMove: nil,
+                 displayName: "Mega Abomasnow", type1: "Grass", type2: "Ice",
+                 baseAtk: 132, baseDef: 105, baseSpAtk: 132, baseSpDef: 105, baseSpeed: 30,
+                 ability: "snow-warning"),
+        MegaForm(speciesKey: "lopunny",    stone: .lopunnite,     requiresMove: nil,
+                 displayName: "Mega Lopunny", type1: "Normal", type2: "Fighting",
+                 baseAtk: 136, baseDef: 94, baseSpAtk: 54, baseSpDef: 96, baseSpeed: 135,
+                 ability: "scrappy"),
+        MegaForm(speciesKey: "audino",     stone: .audinite,      requiresMove: nil,
+                 displayName: "Mega Audino", type1: "Normal", type2: "Fairy",
+                 baseAtk: 60, baseDef: 126, baseSpAtk: 80, baseSpDef: 126, baseSpeed: 50,
+                 ability: "healer"),
+        MegaForm(speciesKey: "diancie",    stone: .diancite,      requiresMove: nil,
+                 displayName: "Mega Diancie", type1: "Rock", type2: "Fairy",
+                 baseAtk: 160, baseDef: 110, baseSpAtk: 160, baseSpDef: 110, baseSpeed: 110,
+                 ability: "magic-bounce"),
+    ]
+}

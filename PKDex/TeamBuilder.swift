@@ -36,7 +36,7 @@ struct TeamListView: View {
                             NavigationLink {
                                 TeamDetailView(team: team, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
                             } label: {
-                                TeamRowView(team: team)
+                                TeamRowView(team: team, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
                             }
                         }
                         .onDelete { indices in
@@ -64,11 +64,14 @@ struct TeamListView: View {
 
 private struct TeamRowView: View {
     let team: SavedTeam
+    let savedSpreads: [SavedSpread]
+    let allPokemon: [PKMNStats]
+    let allMoves: [MoveData]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(team.name).font(.headline)
-            let slots = team.slots
+            let slots = team.resolvedSlots(allSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
             if slots.isEmpty {
                 Text("Empty team").font(.caption).foregroundStyle(.tertiary)
             } else {
@@ -201,7 +204,11 @@ struct TeamDetailView: View {
                 guard !hasLoaded else { return }
                 hasLoaded = true
                 name = team.name
-                slots = team.slots
+                // Resolve through live SavedSpread data so the editor shows the latest
+                // moves/EVs/ability for each slot, not the snapshot from when it was added.
+                slots = team.resolvedSlots(allSpreads: savedSpreads,
+                                           allPokemon: allPokemon,
+                                           allMoves: allMoves)
                 originalName = name
                 originalSlots = slots
             }
