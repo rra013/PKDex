@@ -184,6 +184,11 @@ final class BattleParticipant: Identifiable {
     /// True after Knock Off (or a future item-removal move) has stripped the item.
     var knockedOff: Bool = false
 
+    /// Set when a hit that procced King's Rock (or any future flinch source) hit
+    /// this participant. Checked at the start of their move and cleared at end of
+    /// turn so it never carries across turns.
+    var flinched: Bool = false
+
     init(slot: TeamSlotInfo, allPokemon: [PKMNStats], allMoves: [MoveData]) {
         self.slot = slot
         self.stats = allPokemon.first(where: { $0.id == slot.pokemonID })
@@ -227,6 +232,15 @@ final class BattleParticipant: Identifiable {
         var v = Int(Double(raw) * statStageMultiplier(stage: speedStage))
         if status == .paralysis { v /= 2 }
         if effectiveHeldItem == .choiceScarf { v = Int(Double(v) * 1.5) }
+        // Unburden — doubles speed once the holder's item is gone via consumption
+        // (berries, Focus Sash, Mental/White Herb) or Knock Off. Mega Evolution does
+        // NOT trigger Unburden in canon: the stone isn't considered "lost" since
+        // it's intrinsic to the transformation. The ability check uses `activeAbility`
+        // so a Mega's replacement ability (no longer "unburden") correctly suppresses
+        // the boost post-evolution.
+        if activeAbility == "unburden", megaForm == nil, (consumedItem || knockedOff) {
+            v *= 2
+        }
         return v
     }
 
@@ -474,21 +488,54 @@ final class BattleEngine {
             }
         }
 
-        // Switches first, then by move priority (desc), then by speed (desc), random ties.
+        // Quick Claw — 20% per turn for the holder to bypass speed (within their
+        // priority bracket). Rolled once per move action; cleared automatically by
+        // virtue of being local to this turn.
+        var quickClawWinners: Set<String> = []
+        for action in actions {
+            guard let actor = side(at: action.sideIndex).active(at: action.actorSlot) else { continue }
+            if actor.effectiveHeldItem == .quickClaw, Double.random(in: 0..<1) < 0.2 {
+                quickClawWinners.insert("\(action.sideIndex)-\(action.actorSlot)")
+                log.append(BattleLogEntry(text: "\(actor.displayName)'s Quick Claw activated!"))
+            }
+        }
+
+        // Pre-roll a stable random tie-breaker per actor. Swift's `sort` can call the
+        // comparator multiple times for the same pair, so a `Bool.random()` inside
+        // the comparator would violate strict weak ordering and could crash or
+        // produce nonsensical sorts. Pre-rolling once gives true speed ties a
+        // game-accurate random resolution AND a sound comparator.
+        var tieBreaker: [String: UInt64] = [:]
+        for action in actions {
+            tieBreaker["\(action.sideIndex)-\(action.actorSlot)"] = UInt64.random(in: 0...UInt64.max)
+        }
+
+        // Switches first, then by move priority (desc), then Quick Claw winners, then
+        // speed (desc), with deterministic per-actor random tie-breaker last.
         actions.sort { a, b in
+            let keyA = "\(a.sideIndex)-\(a.actorSlot)"
+            let keyB = "\(b.sideIndex)-\(b.actorSlot)"
+            let tieA = tieBreaker[keyA] ?? 0
+            let tieB = tieBreaker[keyB] ?? 0
+
             let aIsSwitch = isSwitchAction(a.action)
             let bIsSwitch = isSwitchAction(b.action)
-            if aIsSwitch && !bIsSwitch { return true }
-            if !aIsSwitch && bIsSwitch { return false }
-            if aIsSwitch && bIsSwitch { return Bool.random() }
+            if aIsSwitch != bIsSwitch { return aIsSwitch }
+            if aIsSwitch && bIsSwitch { return tieA > tieB }
 
             let pa = priority(side: a.sideIndex, slot: a.actorSlot, action: a.action)
             let pb = priority(side: b.sideIndex, slot: b.actorSlot, action: b.action)
             if pa != pb { return pa > pb }
+
+            // Quick Claw winners go first within the same priority bracket.
+            let aQC = quickClawWinners.contains(keyA)
+            let bQC = quickClawWinners.contains(keyB)
+            if aQC != bQC { return aQC }
+
             let sa = side(at: a.sideIndex).active(at: a.actorSlot)?.speed ?? 0
             let sb = side(at: b.sideIndex).active(at: b.actorSlot)?.speed ?? 0
             if sa != sb { return sa > sb }
-            return Bool.random()
+            return tieA > tieB
         }
 
         for action in actions {
@@ -617,6 +664,10 @@ final class BattleEngine {
     // MARK: Move Execution
 
     private func preMoveStatusCheck(_ p: BattleParticipant) -> Bool {
+        if p.flinched {
+            log.append(BattleLogEntry(text: "\(p.displayName) flinched and couldn't move!"))
+            return false
+        }
         if p.status == .sleep {
             p.sleepTurnsRemaining -= 1
             if p.sleepTurnsRemaining <= 0 {
@@ -632,6 +683,16 @@ final class BattleEngine {
             return false
         }
         return true
+    }
+
+    /// Effective accuracy the move needs to clear against this target. Bright Powder
+    /// shaves 10% off the move's printed accuracy.
+    private func effectiveAccuracy(_ move: MoveData, against defender: BattleParticipant?) -> Int? {
+        guard let acc = move.accuracy else { return nil }
+        if defender?.effectiveHeldItem == .brightPowder {
+            return Int(Double(acc) * 0.9)
+        }
+        return acc
     }
 
     private func performMove(attackerSide: Int, attackerSlot: Int,
@@ -652,19 +713,21 @@ final class BattleEngine {
         log.append(BattleLogEntry(text: "\(attacker.displayName) used \(move.name)!"))
         if attacker.pp.indices.contains(moveIndex) { attacker.pp[moveIndex] -= 1 }
 
-        if let acc = move.accuracy {
+        // Retarget if the intended target fainted before this action resolved. We
+        // resolve before the accuracy roll so Bright Powder on the live target
+        // applies.
+        var defender = dSide.active(at: defenderSlot)
+        if defender == nil || defender?.fainted == true {
+            defender = (0..<format.activeSlots).compactMap { dSide.active(at: $0) }
+                .first(where: { !$0.fainted })
+        }
+
+        if let acc = effectiveAccuracy(move, against: defender) {
             let roll = Int.random(in: 1...100)
             if roll > acc {
                 log.append(BattleLogEntry(text: "It missed!"))
                 return
             }
-        }
-
-        // Retarget if the intended target fainted before this action resolved.
-        var defender = dSide.active(at: defenderSlot)
-        if defender == nil || defender?.fainted == true {
-            defender = (0..<format.activeSlots).compactMap { dSide.active(at: $0) }
-                .first(where: { !$0.fainted })
         }
 
         if move.damageClass == "status" {
@@ -700,7 +763,10 @@ final class BattleEngine {
         log.append(BattleLogEntry(text: "\(attacker.displayName) used \(move.name)!"))
         if attacker.pp.indices.contains(moveIndex) { attacker.pp[moveIndex] -= 1 }
 
-        if let acc = move.accuracy {
+        let firstLiveDefender = (0..<format.activeSlots).compactMap { dSide.active(at: $0) }
+            .first(where: { !$0.fainted })
+
+        if let acc = effectiveAccuracy(move, against: firstLiveDefender) {
             let roll = Int.random(in: 1...100)
             if roll > acc {
                 log.append(BattleLogEntry(text: "It missed!"))
@@ -709,11 +775,9 @@ final class BattleEngine {
         }
 
         if move.damageClass == "status" {
-            let first = (0..<format.activeSlots).compactMap { dSide.active(at: $0) }
-                .first(where: { !$0.fainted })
             applyStatusMoveEffect(move: move, attacker: attacker,
                                   attackerSideIdx: attackerSide,
-                                  defender: first, defenderSideIdx: defenderSideIdx)
+                                  defender: firstLiveDefender, defenderSideIdx: defenderSideIdx)
             return
         }
 
@@ -786,8 +850,10 @@ final class BattleEngine {
         let wasFullHP = defender.atFullHP
 
         let isKnockOff = BattleSimSeed.normalize(move.name) == "knockoff"
+        let didCrit = rollCrit(attacker: attacker, move: move)
 
-        let result = computeDamage(attacker: attacker, defender: defender, move: move, isSpread: isSpread)
+        let result = computeDamage(attacker: attacker, defender: defender,
+                                   move: move, isSpread: isSpread, crit: didCrit)
         if result.eff == 0 {
             log.append(BattleLogEntry(text: "It doesn't affect \(defender.displayName)…"))
             return
@@ -801,6 +867,8 @@ final class BattleEngine {
         if isKnockOff && defenderHadItemBefore && !preBerry.isMegaStone {
             damage = Int(Double(damage) * 1.5)
         }
+
+        if didCrit { log.append(BattleLogEntry(text: "A critical hit!")) }
 
         defender.currentHP = max(0, defender.currentHP - damage)
 
@@ -854,6 +922,16 @@ final class BattleEngine {
                 defender.knockedOff = true
                 log.append(BattleLogEntry(text: "\(defender.displayName)'s \(preBerry.rawValue) was knocked off!"))
             }
+        }
+
+        // King's Rock — 10% chance to flinch the defender (if they survived and
+        // haven't acted yet this turn). flinched is cleared at end of turn so
+        // post-action procs harmlessly fizzle.
+        if !defender.fainted,
+           attacker.effectiveHeldItem == .kingsRock,
+           Double.random(in: 0..<1) < 0.1 {
+            defender.flinched = true
+            log.append(BattleLogEntry(text: "\(defender.displayName) is going to flinch!"))
         }
 
         if defender.fainted {
@@ -923,6 +1001,9 @@ final class BattleEngine {
                 changeStage(attacker, stat: stat, by: delta)
             }
             log.append(BattleLogEntry(text: "\(attacker.displayName)'s stats changed!"))
+            // Shell Smash etc. lower defensive stats on top of the offensive boost;
+            // White Herb fixes those drops.
+            consumeWhiteHerbIfNeeded(attacker)
         case .opponentMod(let mods):
             guard let d = defender else { return }
             // Drops from the attacker flow through opposing-drop logic so guard
@@ -932,6 +1013,7 @@ final class BattleEngine {
                 applyOpposingStatDrop(to: d, stat: stat, delta: delta)
             }
             log.append(BattleLogEntry(text: "\(d.displayName)'s stats changed!"))
+            consumeWhiteHerbIfNeeded(d)
         }
     }
 
@@ -1100,7 +1182,27 @@ final class BattleEngine {
                 break
             }
         }
+
+        // White Herb fires after reactive boosts so it cleans up only the residual
+        // drops (e.g. -1 Atk from Intimidate when no Defiant pushed it back up).
+        consumeWhiteHerbIfNeeded(target)
         return true
+    }
+
+    /// White Herb resets every negative stat stage to 0 the moment any of them are
+    /// negative. Consumed after firing. Real-game behavior — Shell Smash users carry
+    /// White Herb to undo the −1 Def/SpDef penalty.
+    private func consumeWhiteHerbIfNeeded(_ p: BattleParticipant) {
+        guard !p.consumedItem, p.effectiveHeldItem == .whiteHerb else { return }
+        let stages = [p.atkStage, p.defStage, p.spAtkStage, p.spDefStage, p.speedStage]
+        guard stages.contains(where: { $0 < 0 }) else { return }
+        if p.atkStage   < 0 { p.atkStage   = 0 }
+        if p.defStage   < 0 { p.defStage   = 0 }
+        if p.spAtkStage < 0 { p.spAtkStage = 0 }
+        if p.spDefStage < 0 { p.spDefStage = 0 }
+        if p.speedStage < 0 { p.speedStage = 0 }
+        p.consumedItem = true
+        log.append(BattleLogEntry(text: "\(p.displayName) restored its stats with its White Herb!"))
     }
 
     /// Intimidate's on-entry effect: lowers each opposing active Pokemon's Attack by
@@ -1151,7 +1253,8 @@ final class BattleEngine {
     /// Reuse the existing damage calculator end-to-end so STAB, ability, item, weather,
     /// terrain, type, and stat-stage logic stays the single source of truth.
     private func computeDamage(attacker: BattleParticipant, defender: BattleParticipant,
-                               move: MoveData, isSpread: Bool) -> (min: Double, max: Double, eff: Double) {
+                               move: MoveData, isSpread: Bool,
+                               crit: Bool = false) -> (min: Double, max: Double, eff: Double) {
         let vm = DamageCalcVM()
         configure(side: vm.side1, from: attacker, withMove: move)
         configure(side: vm.side2, from: defender, withMove: nil)
@@ -1159,8 +1262,24 @@ final class BattleEngine {
         vm.burn = attacker.status == .burn
         vm.weather = weather
         vm.terrain = terrain
+        vm.crit = crit
         guard let r = vm.side1Results.first else { return (0, 0, 1) }
         return (r.damageMin, r.damageMax, r.effectiveness)
+    }
+
+    /// Gen 7+ crit ratio table. Stage 0 → 1/24, Stage 1 → 1/8, Stage 2 → 1/2,
+    /// Stage 3+ → always crit. Move's `critRate` field stacks with Scope Lens.
+    private func rollCrit(attacker: BattleParticipant, move: MoveData) -> Bool {
+        var stage = move.critRate
+        if attacker.effectiveHeldItem == .scopeLens { stage += 1 }
+        let chance: Double
+        switch stage {
+        case 0:  chance = 1.0 / 24.0
+        case 1:  chance = 1.0 / 8.0
+        case 2:  chance = 1.0 / 2.0
+        default: chance = 1.0
+        }
+        return Double.random(in: 0..<1) < chance
     }
 
     private func configure(side: CalcSide, from p: BattleParticipant, withMove move: MoveData?) {
@@ -1252,9 +1371,23 @@ final class BattleEngine {
                 // Status DoT may have dropped HP enough to trigger a pinch berry.
                 if !p.fainted { maybeTriggerHPBerry(for: p) }
 
+                // Harvest — chance to regrow a consumed berry. 100% in sun, 50% else.
+                if !p.fainted,
+                   p.activeAbility == "harvest",
+                   p.consumedItem, p.heldItem.isBerry, !p.knockedOff {
+                    let chance = weather == .sun ? 1.0 : 0.5
+                    if Double.random(in: 0..<1) < chance {
+                        p.consumedItem = false
+                        log.append(BattleLogEntry(text: "\(p.displayName)'s Harvest restored its \(p.heldItem.rawValue)!"))
+                    }
+                }
+
                 if p.fainted {
                     log.append(BattleLogEntry(text: "\(p.displayName) fainted!", emphasis: true))
                 }
+
+                // Flinch resets at end of turn — never carries forward.
+                p.flinched = false
             }
         }
 

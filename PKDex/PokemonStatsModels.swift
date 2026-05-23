@@ -520,6 +520,12 @@ enum HeldItem: String, CaseIterable, Identifiable {
     var isMegaStone: Bool {
         MegaForms.all.contains { $0.stone == self }
     }
+
+    /// True for any held item whose display name ends in "Berry" (Oran, Sitrus, Lum,
+    /// Occa, ...). Used by Harvest to know which consumed items can be regrown.
+    var isBerry: Bool {
+        rawValue.hasSuffix("Berry")
+    }
 }
 
 /// Maps a damage-affecting held item to the type it boosts. Used by the damage calc
