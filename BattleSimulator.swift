@@ -326,6 +326,12 @@ private struct PlannedAction {
     let sideIndex: Int
     let actorSlot: Int
     let action: BattleAction
+    var key: ActorKey { ActorKey(side: sideIndex, slot: actorSlot) }
+}
+
+private struct ActorKey: Hashable {
+    let side: Int
+    let slot: Int
 }
 
 // MARK: - Log
@@ -491,11 +497,11 @@ final class BattleEngine {
         // Quick Claw — 20% per turn for the holder to bypass speed (within their
         // priority bracket). Rolled once per move action; cleared automatically by
         // virtue of being local to this turn.
-        var quickClawWinners: Set<String> = []
+        var quickClawWinners: Set<ActorKey> = []
         for action in actions {
             guard let actor = side(at: action.sideIndex).active(at: action.actorSlot) else { continue }
             if actor.effectiveHeldItem == .quickClaw, Double.random(in: 0..<1) < 0.2 {
-                quickClawWinners.insert("\(action.sideIndex)-\(action.actorSlot)")
+                quickClawWinners.insert(action.key)
                 log.append(BattleLogEntry(text: "\(actor.displayName)'s Quick Claw activated!"))
             }
         }
@@ -505,18 +511,16 @@ final class BattleEngine {
         // the comparator would violate strict weak ordering and could crash or
         // produce nonsensical sorts. Pre-rolling once gives true speed ties a
         // game-accurate random resolution AND a sound comparator.
-        var tieBreaker: [String: UInt64] = [:]
+        var tieBreaker: [ActorKey: UInt64] = [:]
         for action in actions {
-            tieBreaker["\(action.sideIndex)-\(action.actorSlot)"] = UInt64.random(in: 0...UInt64.max)
+            tieBreaker[action.key] = UInt64.random(in: 0...UInt64.max)
         }
 
         // Switches first, then by move priority (desc), then Quick Claw winners, then
         // speed (desc), with deterministic per-actor random tie-breaker last.
         actions.sort { a, b in
-            let keyA = "\(a.sideIndex)-\(a.actorSlot)"
-            let keyB = "\(b.sideIndex)-\(b.actorSlot)"
-            let tieA = tieBreaker[keyA] ?? 0
-            let tieB = tieBreaker[keyB] ?? 0
+            let tieA = tieBreaker[a.key] ?? 0
+            let tieB = tieBreaker[b.key] ?? 0
 
             let aIsSwitch = isSwitchAction(a.action)
             let bIsSwitch = isSwitchAction(b.action)
@@ -528,8 +532,8 @@ final class BattleEngine {
             if pa != pb { return pa > pb }
 
             // Quick Claw winners go first within the same priority bracket.
-            let aQC = quickClawWinners.contains(keyA)
-            let bQC = quickClawWinners.contains(keyB)
+            let aQC = quickClawWinners.contains(a.key)
+            let bQC = quickClawWinners.contains(b.key)
             if aQC != bQC { return aQC }
 
             let sa = side(at: a.sideIndex).active(at: a.actorSlot)?.speed ?? 0
@@ -695,6 +699,11 @@ final class BattleEngine {
         return acc
     }
 
+    private func firstLiveDefender(in side: BattleSide) -> BattleParticipant? {
+        (0..<format.activeSlots).compactMap { side.active(at: $0) }
+            .first(where: { !$0.fainted })
+    }
+
     private func performMove(attackerSide: Int, attackerSlot: Int,
                              moveIndex: Int, defenderSide: Int, defenderSlot: Int) {
         let aSide = side(at: attackerSide)
@@ -718,8 +727,7 @@ final class BattleEngine {
         // applies.
         var defender = dSide.active(at: defenderSlot)
         if defender == nil || defender?.fainted == true {
-            defender = (0..<format.activeSlots).compactMap { dSide.active(at: $0) }
-                .first(where: { !$0.fainted })
+            defender = firstLiveDefender(in: dSide)
         }
 
         if let acc = effectiveAccuracy(move, against: defender) {
@@ -763,10 +771,9 @@ final class BattleEngine {
         log.append(BattleLogEntry(text: "\(attacker.displayName) used \(move.name)!"))
         if attacker.pp.indices.contains(moveIndex) { attacker.pp[moveIndex] -= 1 }
 
-        let firstLiveDefender = (0..<format.activeSlots).compactMap { dSide.active(at: $0) }
-            .first(where: { !$0.fainted })
+        let liveDefender = firstLiveDefender(in: dSide)
 
-        if let acc = effectiveAccuracy(move, against: firstLiveDefender) {
+        if let acc = effectiveAccuracy(move, against: liveDefender) {
             let roll = Int.random(in: 1...100)
             if roll > acc {
                 log.append(BattleLogEntry(text: "It missed!"))
@@ -777,7 +784,7 @@ final class BattleEngine {
         if move.damageClass == "status" {
             applyStatusMoveEffect(move: move, attacker: attacker,
                                   attackerSideIdx: attackerSide,
-                                  defender: firstLiveDefender, defenderSideIdx: defenderSideIdx)
+                                  defender: liveDefender, defenderSideIdx: defenderSideIdx)
             return
         }
 
@@ -1009,11 +1016,11 @@ final class BattleEngine {
             // Drops from the attacker flow through opposing-drop logic so guard
             // abilities (Clear Body, Hyper Cutter, ...) and reactive abilities
             // (Defiant, Competitive) trigger the same way they do off Intimidate.
+            // `applyOpposingStatDrop` consumes White Herb internally.
             for (stat, delta) in mods {
                 applyOpposingStatDrop(to: d, stat: stat, delta: delta)
             }
             log.append(BattleLogEntry(text: "\(d.displayName)'s stats changed!"))
-            consumeWhiteHerbIfNeeded(d)
         }
     }
 
@@ -1386,8 +1393,9 @@ final class BattleEngine {
                     log.append(BattleLogEntry(text: "\(p.displayName) fainted!", emphasis: true))
                 }
 
-                // Flinch resets at end of turn — never carries forward.
-                p.flinched = false
+                // Flinch resets at end of turn — never carries forward. Guarded so
+                // the no-op write doesn't churn @Observable subscribers every turn.
+                if p.flinched { p.flinched = false }
             }
         }
 
