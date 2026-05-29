@@ -154,6 +154,9 @@ struct SettingsView: View {
                     .disabled(isRedownloading)
                 }
 
+                // MARK: - AI Builder
+                AIModelDownloadView()
+
                 // MARK: - Disclaimers
                 Section("About") {
                     VStack(alignment: .leading, spacing: 12) {

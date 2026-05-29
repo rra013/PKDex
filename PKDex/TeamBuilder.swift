@@ -111,6 +111,13 @@ private struct NewTeamSheet: View {
                 .navigationTitle("New Team")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        AIBuilderButton(mode: .singleSet) { result in
+                            if case .success(let generatedSet) = result {
+                                appendGeneratedToTeam(generatedSet)
+                            }
+                        }
+                    }
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
                             if hasChanges {
@@ -139,6 +146,39 @@ private struct NewTeamSheet: View {
         }
         .interactiveDismissDisabled(hasChanges)
         .presentationDetents([.large])
+    }
+
+    private func appendGeneratedToTeam(_ generated: PokemonSet) {
+        guard slots.count < 6 else { return }
+        guard let pokemon = allPokemon.first(where: { $0.name == generated.species })
+        else { return }
+        let moveSlots: [TeamMoveInfo] = generated.moves.compactMap { moveName in
+            guard let move = allMoves.first(where: { $0.name == moveName })
+            else { return nil }
+            let types = [pokemon.type1] + [pokemon.type2].compactMap { $0 }
+            return TeamMoveInfo(
+                moveID: move.id, moveName: move.name, moveType: move.type,
+                damageClass: move.damageClass, power: move.power,
+                isSTAB: move.damageClass != "status" && types.contains(move.type)
+            )
+        }
+        let slot = TeamSlotInfo(
+            spreadName: "\(generated.species) (AI)",
+            pokemonID: pokemon.id,
+            pokemonName: pokemon.name,
+            type1: pokemon.type1, type2: pokemon.type2,
+            abilityName: generated.ability,
+            itemRawValue: generated.item,
+            championsMode: true,
+            natureID: allNatures.first(where: { $0.name == generated.nature })?.id
+                      ?? "adamant",
+            level: 50,
+            evHP: generated.statPoints.hp, evAtk: generated.statPoints.atk,
+            evDef: generated.statPoints.def, evSpAtk: generated.statPoints.spa,
+            evSpDef: generated.statPoints.spd, evSpeed: generated.statPoints.spe,
+            moveSlots: moveSlots
+        )
+        slots.append(slot)
     }
 }
 

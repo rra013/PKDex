@@ -7,6 +7,19 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		337BE9B72FC9A05A00859F96 /* BenchmarkHelpers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9B62FC9A05A00859F96 /* BenchmarkHelpers */; };
+		337BE9B92FC9A05A00859F96 /* IntegrationTestHelpers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9B82FC9A05A00859F96 /* IntegrationTestHelpers */; };
+		337BE9BB2FC9A05A00859F96 /* MLXEmbedders in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9BA2FC9A05A00859F96 /* MLXEmbedders */; };
+		337BE9BD2FC9A05A00859F96 /* MLXHuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9BC2FC9A05A00859F96 /* MLXHuggingFace */; };
+		337BE9BF2FC9A05A00859F96 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9BE2FC9A05A00859F96 /* MLXLLM */; };
+		337BE9C12FC9A05A00859F96 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9C02FC9A05A00859F96 /* MLXLMCommon */; };
+		337BE9C32FC9A05A00859F96 /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9C22FC9A05A00859F96 /* MLXVLM */; };
+		337BE9C72FC9A25700859F96 /* champions-m-a-learnsets.json in Resources */ = {isa = PBXBuildFile; fileRef = 337BE9C52FC9A25700859F96 /* champions-m-a-learnsets.json */; };
+		337BE9C82FC9A25700859F96 /* champions-m-a.json in Resources */ = {isa = PBXBuildFile; fileRef = 337BE9C62FC9A25700859F96 /* champions-m-a.json */; };
+		337BE9CA2FC9D8EF00859F96 /* move_categories.json in Resources */ = {isa = PBXBuildFile; fileRef = 337BE9C92FC9D8EF00859F96 /* move_categories.json */; };
+		337BE9D92FC9DE0F00859F96 /* Hub in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9D82FC9DE0F00859F96 /* Hub */; };
+		337BE9DB2FC9DE0F00859F96 /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9DA2FC9DE0F00859F96 /* Tokenizers */; };
+		337BE9DD2FC9DE0F00859F96 /* Transformers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9DC2FC9DE0F00859F96 /* Transformers */; };
 		33BBD5522FBA65EC00842754 /* BattleSimulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BBD5512FBA65EC00842754 /* BattleSimulator.swift */; };
 		33BBD5542FBB32A900842754 /* BattleSimSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BBD5532FBB32A900842754 /* BattleSimSeed.swift */; };
 		33BBD5562FBB384900842754 /* MegaForms.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BBD5552FBB384900842754 /* MegaForms.swift */; };
@@ -68,6 +81,9 @@
 
 /* Begin PBXFileReference section */
 		332D1F312F9128C500E7D180 /* PKDexTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PKDexTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		337BE9C52FC9A25700859F96 /* champions-m-a-learnsets.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-a-learnsets.json"; sourceTree = "<group>"; };
+		337BE9C62FC9A25700859F96 /* champions-m-a.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-a.json"; sourceTree = "<group>"; };
+		337BE9C92FC9D8EF00859F96 /* move_categories.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = move_categories.json; sourceTree = "<group>"; };
 		33BBD5512FBA65EC00842754 /* BattleSimulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BattleSimulator.swift; sourceTree = "<group>"; };
 		33BBD5532FBB32A900842754 /* BattleSimSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BattleSimSeed.swift; sourceTree = "<group>"; };
 		33BBD5552FBB384900842754 /* MegaForms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MegaForms.swift; sourceTree = "<group>"; };
@@ -3085,8 +3101,18 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				337BE9BF2FC9A05A00859F96 /* MLXLLM in Frameworks */,
 				33C3EAE62F946AB5004BB026 /* libzstd.1.5.7.dylib in Frameworks */,
+				337BE9B92FC9A05A00859F96 /* IntegrationTestHelpers in Frameworks */,
 				33C6C9BD2F8D5DE5005FFCCC /* PokemonAPI in Frameworks */,
+				337BE9B72FC9A05A00859F96 /* BenchmarkHelpers in Frameworks */,
+				337BE9C32FC9A05A00859F96 /* MLXVLM in Frameworks */,
+				337BE9DD2FC9DE0F00859F96 /* Transformers in Frameworks */,
+				337BE9D92FC9DE0F00859F96 /* Hub in Frameworks */,
+				337BE9DB2FC9DE0F00859F96 /* Tokenizers in Frameworks */,
+				337BE9BB2FC9A05A00859F96 /* MLXEmbedders in Frameworks */,
+				337BE9C12FC9A05A00859F96 /* MLXLMCommon in Frameworks */,
+				337BE9BD2FC9A05A00859F96 /* MLXHuggingFace in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -8841,6 +8867,9 @@
 		33C6C9972F8D3CFB005FFCCC = {
 			isa = PBXGroup;
 			children = (
+				337BE9C92FC9D8EF00859F96 /* move_categories.json */,
+				337BE9C62FC9A25700859F96 /* champions-m-a.json */,
+				337BE9C52FC9A25700859F96 /* champions-m-a-learnsets.json */,
 				33C3EC642F94737C004BB026 /* zstd */,
 				33C6C9A22F8D3CFB005FFCCC /* PKDex */,
 				332D1F322F9128C500E7D180 /* PKDexTests */,
@@ -8906,6 +8935,16 @@
 			name = PKDex;
 			packageProductDependencies = (
 				33C6C9BC2F8D5DE5005FFCCC /* PokemonAPI */,
+				337BE9B62FC9A05A00859F96 /* BenchmarkHelpers */,
+				337BE9B82FC9A05A00859F96 /* IntegrationTestHelpers */,
+				337BE9BA2FC9A05A00859F96 /* MLXEmbedders */,
+				337BE9BC2FC9A05A00859F96 /* MLXHuggingFace */,
+				337BE9BE2FC9A05A00859F96 /* MLXLLM */,
+				337BE9C02FC9A05A00859F96 /* MLXLMCommon */,
+				337BE9C22FC9A05A00859F96 /* MLXVLM */,
+				337BE9D82FC9DE0F00859F96 /* Hub */,
+				337BE9DA2FC9DE0F00859F96 /* Tokenizers */,
+				337BE9DC2FC9DE0F00859F96 /* Transformers */,
 			);
 			productName = PKDex;
 			productReference = 33C6C9A02F8D3CFB005FFCCC /* PKDex.app */;
@@ -8941,6 +8980,8 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				33C6C9BB2F8D5DE5005FFCCC /* XCRemoteSwiftPackageReference "PokemonAPI" */,
+				337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
+				337BE9D72FC9DE0F00859F96 /* XCRemoteSwiftPackageReference "swift-transformers" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 33C6C9A12F8D3CFB005FFCCC /* Products */;
@@ -8965,6 +9006,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				337BE9CA2FC9D8EF00859F96 /* move_categories.json in Resources */,
+				337BE9C72FC9A25700859F96 /* champions-m-a-learnsets.json in Resources */,
+				337BE9C82FC9A25700859F96 /* champions-m-a.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -9202,6 +9246,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
+				CODE_SIGN_ENTITLEMENTS = PKDex/PKDex.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -9280,6 +9325,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
+				CODE_SIGN_ENTITLEMENTS = PKDex/PKDex.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -9384,6 +9430,22 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.31.3;
+			};
+		};
+		337BE9D72FC9DE0F00859F96 /* XCRemoteSwiftPackageReference "swift-transformers" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/huggingface/swift-transformers";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.3.3;
+			};
+		};
 		33C6C9BB2F8D5DE5005FFCCC /* XCRemoteSwiftPackageReference "PokemonAPI" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/kinkofer/PokemonAPI";
@@ -9395,6 +9457,56 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		337BE9B62FC9A05A00859F96 /* BenchmarkHelpers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = BenchmarkHelpers;
+		};
+		337BE9B82FC9A05A00859F96 /* IntegrationTestHelpers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = IntegrationTestHelpers;
+		};
+		337BE9BA2FC9A05A00859F96 /* MLXEmbedders */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXEmbedders;
+		};
+		337BE9BC2FC9A05A00859F96 /* MLXHuggingFace */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXHuggingFace;
+		};
+		337BE9BE2FC9A05A00859F96 /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLLM;
+		};
+		337BE9C02FC9A05A00859F96 /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLMCommon;
+		};
+		337BE9C22FC9A05A00859F96 /* MLXVLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXVLM;
+		};
+		337BE9D82FC9DE0F00859F96 /* Hub */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9D72FC9DE0F00859F96 /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Hub;
+		};
+		337BE9DA2FC9DE0F00859F96 /* Tokenizers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9D72FC9DE0F00859F96 /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Tokenizers;
+		};
+		337BE9DC2FC9DE0F00859F96 /* Transformers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9D72FC9DE0F00859F96 /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Transformers;
+		};
 		33C6C9BC2F8D5DE5005FFCCC /* PokemonAPI */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 33C6C9BB2F8D5DE5005FFCCC /* XCRemoteSwiftPackageReference "PokemonAPI" */;

@@ -137,6 +137,13 @@ private struct NewSetSheet: View {
                 .navigationTitle("New Set")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        AIBuilderButton(mode: .singleSet) { result in
+                            if case .success(let generatedSet) = result {
+                                applyGeneratedSet(generatedSet)
+                            }
+                        }
+                    }
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
                             if hasChanges {
@@ -165,6 +172,34 @@ private struct NewSetSheet: View {
         }
         .interactiveDismissDisabled(hasChanges)
         .presentationDetents([.large])
+    }
+
+    private func applyGeneratedSet(_ generated: PokemonSet) {
+        if let match = allPokemon.first(where: { $0.name == generated.species }) {
+            side.pokemon = match
+            side.selectedAbility = generated.ability
+            side.heldItem = HeldItem(rawValue: generated.item ?? "") ?? .none
+            side.nature = allNatures.first(where: { $0.name == generated.nature })
+                      ?? side.nature
+            side.championsMode = true
+            side.evHP = generated.statPoints.hp
+            side.evAtk = generated.statPoints.atk
+            side.evDef = generated.statPoints.def
+            side.evSpAtk = generated.statPoints.spa
+            side.evSpDef = generated.statPoints.spd
+            side.evSpeed = generated.statPoints.spe
+            side.ivHP = 31; side.ivAtk = 31; side.ivDef = 31
+            side.ivSpAtk = 31; side.ivSpDef = 31; side.ivSpeed = 31
+
+            for i in 0..<4 {
+                let moveName = i < generated.moves.count ? generated.moves[i] : ""
+                side.moves[i] = allMoves.first(where: { $0.name == moveName })
+            }
+
+            if name.isEmpty {
+                name = "\(generated.species) (AI)"
+            }
+        }
     }
 
     private func saveAndDismiss() {
