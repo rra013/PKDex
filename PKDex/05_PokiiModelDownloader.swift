@@ -22,13 +22,17 @@ public final class PokiiModelDownloader: NSObject, ObservableObject {
 
     /// Where the per-file manifest lives. The manifest is the source of
     /// truth for which files to download and what their checksums must be.
+    /// Pinned to a specific commit so README/doc edits on `main` can't
+    /// change the bytes served to clients.
     public static let manifestURL = URL(string:
-        "https://huggingface.co/rra013/pokii-mlx-q4/resolve/main/manifest.json")!
+        "https://huggingface.co/rra013/pokii-mlx-q4-3b/resolve/" +
+        "d420861f4a834cfa18a1aca0fcde5f155ab22109/manifest.json")!
 
     /// Base URL for file downloads. Filenames from the manifest are
-    /// appended to this base.
+    /// appended to this base. Same commit pin as the manifest.
     public static let fileBaseURL = URL(string:
-        "https://huggingface.co/rra013/pokii-mlx-q4/resolve/main/")!
+        "https://huggingface.co/rra013/pokii-mlx-q4-3b/resolve/" +
+        "d420861f4a834cfa18a1aca0fcde5f155ab22109/")!
 
     // MARK: Published state
 
@@ -118,6 +122,22 @@ public final class PokiiModelDownloader: NSObject, ObservableObject {
             else { return false }
         }
         return true
+    }
+
+    /// Delete every model version directory other than `currentVersion`.
+    /// Called once at engine init so a freshly-updated app reclaims the
+    /// ~4.5 GB occupied by a previous version's model without prompting.
+    public func pruneOldVersions(keeping currentVersion: String) {
+        let root = Self.rootDirectory
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: [.isDirectoryKey]
+        ) else { return }
+        for entry in entries {
+            let isDir = (try? entry.resourceValues(forKeys: [.isDirectoryKey])
+                .isDirectory) ?? false
+            guard isDir, entry.lastPathComponent != currentVersion else { continue }
+            try? FileManager.default.removeItem(at: entry)
+        }
     }
 
     public func diskUsage(version: String) -> Int64 {

@@ -59,7 +59,7 @@ public final class PokiiInferenceEngine: ObservableObject {
 
     /// Bumped when shipping a new adapter version. Matches the directory
     /// suffix written by PokiiModelDownloader.
-    public static let modelVersion = "v2-q4"
+    public static let modelVersion = "v3-q4-3b"
 
     /// Tuning knobs for generation. Mirrors test_prompt.py defaults.
     public struct GenerationConfig: Sendable {
@@ -131,6 +131,7 @@ public final class PokiiInferenceEngine: ObservableObject {
     """
 
     private init() {
+        PokiiModelDownloader.shared.pruneOldVersions(keeping: Self.modelVersion)
         refreshDownloadState()
     }
 
