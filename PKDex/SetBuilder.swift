@@ -116,9 +116,10 @@ private struct SetRowView: View {
 
 // MARK: - New Set Sheet
 
-private struct NewSetSheet: View {
+struct NewSetSheet: View {
     let allPokemon: [PKMNStats]
     let allMoves: [MoveData]
+    var initialPokemon: PKMNStats? = nil
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
@@ -139,7 +140,7 @@ private struct NewSetSheet: View {
                 .toolbar {
                     ToolbarItem(placement: .principal) {
                         AIBuilderButton(mode: .singleSet) { result in
-                            if case .success(let generatedSet) = result {
+                            if case .success(.set(let generatedSet)) = result {
                                 applyGeneratedSet(generatedSet)
                             }
                         }
@@ -161,6 +162,13 @@ private struct NewSetSheet: View {
                 .onAppear {
                     if defaultGeneration == PokedexFilter.champions.rawValue {
                         side.setChampionsMode(true)
+                    }
+                    if side.pokemon == nil, let initial = initialPokemon {
+                        side.pokemon = initial
+                        side.selectedAbility = initial.ability1
+                        if name.isEmpty {
+                            name = initial.name
+                        }
                     }
                 }
                 .confirmationDialog("Discard Changes?", isPresented: $showDiscardAlert, titleVisibility: .visible) {

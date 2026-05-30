@@ -20,6 +20,13 @@ import SwiftUI
 
 // MARK: - Reusable button
 
+/// Discriminated output of an AI builder run — either a single set or a full
+/// team. The button's `mode` determines which case the callback will receive.
+public enum AIBuilderOutput {
+    case set(PokemonSet)
+    case team(name: String?, strategy: String?, members: [PokemonSet])
+}
+
 /// Drop this anywhere a "generate with AI" entry point makes sense. It's
 /// styled to match PKReference's existing card buttons.
 public struct AIBuilderButton: View {
@@ -29,14 +36,14 @@ public struct AIBuilderButton: View {
     }
 
     let mode: Mode
-    let onCompletion: (Result<PokemonSet, Error>) -> Void
+    let onCompletion: (Result<AIBuilderOutput, Error>) -> Void
 
     @State private var showingSheet = false
     @State private var showingDownloadPrompt = false
     @ObservedObject private var engine = PokiiInferenceEngine.shared
 
     public init(mode: Mode,
-                onCompletion: @escaping (Result<PokemonSet, Error>) -> Void) {
+                onCompletion: @escaping (Result<AIBuilderOutput, Error>) -> Void) {
         self.mode = mode
         self.onCompletion = onCompletion
     }
@@ -88,12 +95,13 @@ public struct AIBuilderButton: View {
 
 public struct AIBuilderSheet: View {
     let mode: AIBuilderButton.Mode
-    let onCompletion: (Result<PokemonSet, Error>) -> Void
+    let onCompletion: (Result<AIBuilderOutput, Error>) -> Void
 
     @State private var prompt = ""
     @State private var isGenerating = false
     @State private var attemptCount = 0
     @State private var generatedResult: PokiiInferenceEngine.GenerationResult?
+    @State private var generatedTeamResult: PokiiInferenceEngine.TeamGenerationResult?
     @State private var errorMessage: String?
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var engine = PokiiInferenceEngine.shared
@@ -107,6 +115,8 @@ public struct AIBuilderSheet: View {
                         generatingCard
                     } else if let result = generatedResult {
                         resultCard(result: result)
+                    } else if let teamResult = generatedTeamResult {
+                        teamResultCard(result: teamResult)
                     } else if let err = errorMessage {
                         errorCard(message: err)
                     }
@@ -274,7 +284,7 @@ public struct AIBuilderSheet: View {
                 .buttonStyle(.bordered)
                 Spacer()
                 Button {
-                    onCompletion(.success(set))
+                    onCompletion(.success(.set(set)))
                 } label: {
                     Label("Use this set", systemImage: "checkmark")
                         .font(.subheadline.weight(.semibold))
@@ -286,6 +296,111 @@ public struct AIBuilderSheet: View {
         .padding()
         .background(.background, in: RoundedRectangle(cornerRadius: 14))
         .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
+    }
+
+    private func teamResultCard(result: PokiiInferenceEngine.TeamGenerationResult)
+        -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Team", systemImage: "checkmark.seal.fill")
+                    .font(.headline)
+                    .foregroundStyle(.green)
+                Spacer()
+                Text("\(result.members.count) of 6")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            if let name = result.teamName, !name.isEmpty {
+                Text(name).font(.title3.bold())
+            }
+            if let strat = result.strategy, !strat.isEmpty {
+                Text(strat)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Divider()
+
+            VStack(spacing: 8) {
+                ForEach(Array(result.members.enumerated()), id: \.offset) { idx, member in
+                    teamMemberRow(index: idx + 1, member: member)
+                }
+            }
+
+            if !result.unresolvedViolations.isEmpty {
+                infoBanner(
+                    systemImage: "exclamationmark.triangle",
+                    text: "\(result.unresolvedViolations.count) unresolved " +
+                          "violation(s). You can still use this team and " +
+                          "edit individual slots afterwards.",
+                    tint: .orange
+                )
+            }
+
+            Divider()
+            HStack {
+                Button {
+                    runGeneration()
+                } label: {
+                    Label("Try Again", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.bordered)
+                Spacer()
+                Button {
+                    onCompletion(.success(.team(
+                        name: result.teamName,
+                        strategy: result.strategy,
+                        members: result.members
+                    )))
+                } label: {
+                    Label("Use this team", systemImage: "checkmark")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
+                .disabled(result.members.isEmpty)
+            }
+        }
+        .padding()
+        .background(.background, in: RoundedRectangle(cornerRadius: 14))
+        .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
+    }
+
+    private func teamMemberRow(index: Int, member: PokemonSet) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text("\(index).")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+                Text(member.species)
+                    .font(.subheadline.bold())
+                Spacer()
+                if let item = member.item, !item.isEmpty {
+                    Text(item)
+                        .font(.caption2)
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(.fill.tertiary, in: Capsule())
+                }
+            }
+            HStack(spacing: 8) {
+                Text(member.ability)
+                    .font(.caption2).foregroundStyle(.orange)
+                if let role = member.role, !role.isEmpty {
+                    Text(role)
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Text(member.moves.joined(separator: " / "))
+                .font(.caption2.monospaced())
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(8)
+        .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 8))
     }
 
     /// Compact tinted banner used for clip and budget info under the
@@ -373,22 +488,38 @@ public struct AIBuilderSheet: View {
         isGenerating = true
         attemptCount = 0
         generatedResult = nil
+        generatedTeamResult = nil
         errorMessage = nil
 
         Task {
             do {
                 // Make sure model is loaded
                 try await engine.load()
-                let result = try await engine.generateSet(
-                    userPrompt: userPrompt
-                ) { attempt, _ in
-                    Task { @MainActor in
-                        attemptCount = attempt
+                switch mode {
+                case .singleSet:
+                    let result = try await engine.generateSet(
+                        userPrompt: userPrompt
+                    ) { attempt, _ in
+                        Task { @MainActor in
+                            attemptCount = attempt
+                        }
                     }
-                }
-                await MainActor.run {
-                    generatedResult = result
-                    isGenerating = false
+                    await MainActor.run {
+                        generatedResult = result
+                        isGenerating = false
+                    }
+                case .fullTeam:
+                    let result = try await engine.generateTeam(
+                        userPrompt: userPrompt
+                    ) { attempt, _ in
+                        Task { @MainActor in
+                            attemptCount = attempt
+                        }
+                    }
+                    await MainActor.run {
+                        generatedTeamResult = result
+                        isGenerating = false
+                    }
                 }
             } catch {
                 await MainActor.run {

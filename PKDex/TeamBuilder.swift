@@ -112,9 +112,17 @@ private struct NewTeamSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .principal) {
-                        AIBuilderButton(mode: .singleSet) { result in
-                            if case .success(let generatedSet) = result {
+                        AIBuilderButton(mode: .fullTeam) { result in
+                            switch result {
+                            case .success(.team(let teamName, _, let members)):
+                                replaceTeamWithGenerated(name: teamName,
+                                                         members: members)
+                            case .success(.set(let generatedSet)):
+                                // Fallback if a single set ever comes back
+                                // through this entry point.
                                 appendGeneratedToTeam(generatedSet)
+                            case .failure:
+                                break
                             }
                         }
                     }
@@ -150,8 +158,22 @@ private struct NewTeamSheet: View {
 
     private func appendGeneratedToTeam(_ generated: PokemonSet) {
         guard slots.count < 6 else { return }
+        guard let slot = buildSlot(from: generated) else { return }
+        slots.append(slot)
+    }
+
+    private func replaceTeamWithGenerated(name teamName: String?,
+                                          members: [PokemonSet]) {
+        let built = members.compactMap { buildSlot(from: $0) }
+        slots = built
+        if name.isEmpty, let teamName, !teamName.isEmpty {
+            name = teamName
+        }
+    }
+
+    private func buildSlot(from generated: PokemonSet) -> TeamSlotInfo? {
         guard let pokemon = allPokemon.first(where: { $0.name == generated.species })
-        else { return }
+        else { return nil }
         let moveSlots: [TeamMoveInfo] = generated.moves.compactMap { moveName in
             guard let move = allMoves.first(where: { $0.name == moveName })
             else { return nil }
@@ -162,7 +184,7 @@ private struct NewTeamSheet: View {
                 isSTAB: move.damageClass != "status" && types.contains(move.type)
             )
         }
-        let slot = TeamSlotInfo(
+        return TeamSlotInfo(
             spreadName: "\(generated.species) (AI)",
             pokemonID: pokemon.id,
             pokemonName: pokemon.name,
@@ -178,7 +200,6 @@ private struct NewTeamSheet: View {
             evSpDef: generated.statPoints.spd, evSpeed: generated.statPoints.spe,
             moveSlots: moveSlots
         )
-        slots.append(slot)
     }
 }
 

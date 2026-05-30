@@ -160,7 +160,7 @@ private struct MoveRow: View {
 
 // MARK: - Move Detail View
 
-private struct MoveDetailView: View {
+struct MoveDetailView: View {
     let move: MoveData
     let genFilter: PokedexFilter
 

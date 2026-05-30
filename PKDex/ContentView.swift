@@ -273,7 +273,14 @@ struct FilteredList: View {
             .padding(.bottom, 4)
 
             List(visiblePokemon) { pokemon in
-                if let detailURL = pokemon.detailURL(for: filter) {
+                let detailURL = pokemon.detailURL(for: filter)
+                if filter == .champions {
+                    NavigationLink {
+                        ChampionsPokemonDetailView(pokemon: pokemon, detailURL: detailURL)
+                    } label: {
+                        PokemonRow(pokemon: pokemon)
+                    }
+                } else if let detailURL {
                     NavigationLink {
                         PokemonDetailView(pokemon: pokemon, filter: filter, detailURL: detailURL)
                     } label: {

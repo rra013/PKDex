@@ -72,6 +72,13 @@ public final class PokiiInferenceEngine: ObservableObject {
         /// errors degrades species/move fidelity.
         public var temperatureRetryBump: Float = 0.15
         public var maxRetries: Int = 4
+        /// Per-attempt timeout. The 4-bit Qwen 2.5 7B model running on iPhone
+        /// can wedge on certain prompts (especially the 1800-token team gen),
+        /// and an open-ended wait looks like a crash to the user. When the
+        /// budget is exceeded we cancel the in-flight stream and surface a
+        /// clear error so the user can retry with a different prompt or
+        /// reduce token pressure.
+        public var timeoutSeconds: TimeInterval = 90
 
         public nonisolated init() {}
     }
@@ -95,6 +102,16 @@ public final class PokiiInferenceEngine: ObservableObject {
         public var hasInfoMessages: Bool {
             clipMessage != nil || budgetNote != nil
         }
+    }
+
+    /// Result of a `generateTeam` call. Includes the parsed team plus any
+    /// unresolved validator violations from the last attempt.
+    public struct TeamGenerationResult {
+        public let teamName: String?
+        public let strategy: String?
+        public let members: [PokemonSet]
+        public let attempts: Int
+        public let unresolvedViolations: [Violation]
     }
 
     /// System prompt — must match exactly what the model was trained
@@ -128,6 +145,40 @@ public final class PokiiInferenceEngine: ObservableObject {
     - Legal items: 30 generic items (Choice Scarf, Focus Sash, Leftovers, type boosters, etc.), 28 berries, and Mega Stones. No Choice Band/Specs, Life Orb, Assault Vest, or Heavy-Duty Boots.
     - Movesets follow the Champions Pokédex (different from mainline games).
     - Mega Stones must match the holder's species.
+    """
+
+    /// Team-mode system prompt — must match SYSTEM_PROMPT_TEAM from
+    /// scripts/test_prompt.py exactly. Used when the user requests a full
+    /// six-Pokémon team rather than a single set.
+    public static let systemPromptTeam = """
+    You are a competitive Pokémon team-building assistant specializing in Pokémon Champions Regulation M-A. When asked to build a full team, respond ONLY with valid JSON in this exact format:
+
+    {
+      "team_name": "Team Archetype Name",
+      "format": "Champions M-A",
+      "strategy": "Brief overall strategy",
+      "members": [
+        {
+          "name": "Pokemon Name",
+          "item": "Item Name",
+          "ability": "Ability Name",
+          "nature": "Nature Name",
+          "stat_points": {"hp": 0, "atk": 0, "def": 0, "spa": 0, "spd": 0, "spe": 0},
+          "moves": ["Move 1", "Move 2", "Move 3", "Move 4"],
+          "role": "Role on this team"
+        }
+      ]
+    }
+
+    Champions M-A rules:
+    - Teams have exactly 6 members, all distinct species (Species Clause).
+    - At most 1 Pokémon may hold a Mega Stone per team.
+    - Stat Points (SP): total ≤ 66 per Pokémon, max 32 per stat, IVs locked at 31.
+    - Only Mega Evolution is available (no Tera, no Dynamax, no Z-Moves).
+    - Legal items: 30 generic items, 28 berries, and Mega Stones. No Choice Band/Specs, Life Orb, Assault Vest, or Heavy-Duty Boots.
+    - Movesets follow the Champions Pokédex.
+
+    Ensure that each Pokémon has ONLY LEGAL MOVES, a LEGAL ABILITY for the Pokémon, and a stat point investment that matches the Pokémon's role. All Pokémon must be different species and should fulfill different roles.
     """
 
     private init() {
@@ -210,6 +261,7 @@ public final class PokiiInferenceEngine: ObservableObject {
         case notReady
         case allRetriesExhausted(lastErrors: [String])
         case generationFailed(String)
+        case generationTimedOut(seconds: TimeInterval)
 
         public var errorDescription: String? {
             switch self {
@@ -227,6 +279,10 @@ public final class PokiiInferenceEngine: ObservableObject {
                        (errs.last ?? "no detail")
             case .generationFailed(let s):
                 return "Generation failed: \(s)"
+            case .generationTimedOut(let s):
+                return "Generation timed out after \(Int(s))s. " +
+                       "Try a shorter prompt or generate a single set " +
+                       "instead of a full team."
             }
         }
     }
@@ -280,8 +336,10 @@ public final class PokiiInferenceEngine: ObservableObject {
                 return normalized.text
             }()
 
-            let raw = try await runGeneration(
+            let raw = try await runGenerationWithTimeout(
+                seconds: config.timeoutSeconds,
                 container: container,
+                systemPrompt: Self.systemPrompt,
                 userText: userText,
                 temperature: temp,
                 topP: config.topP,
@@ -362,17 +420,189 @@ public final class PokiiInferenceEngine: ObservableObject {
         )
     }
 
+    /// Generate a full six-Pokémon team from a user prompt. Uses
+    /// `systemPromptTeam` with a larger max-token budget (the team JSON is
+    /// substantially longer than a single set). Validates the parsed team
+    /// against Champions M-A rules (species clause, per-set caps, mega
+    /// stone uniqueness) and retries with feedback on each failure.
+    public func generateTeam(
+        userPrompt: String,
+        config: GenerationConfig = GenerationConfig(),
+        onProgress: ((Int, String) -> Void)? = nil
+    ) async throws -> TeamGenerationResult {
+        guard let container = modelContainer, let validator = self.validator
+        else { throw EngineError.notReady }
+
+        state = .generating
+        defer { state = .ready }
+
+        // The team prompt is much longer than a single set's; bump the cap
+        // unless the caller overrode it.
+        let teamMaxTokens = max(config.maxTokens, 1800)
+
+        var lastErrors: [String] = []
+        var feedbackPostscript: String? = nil
+        var prevRaw: String? = nil
+        var bumpCount = 0
+        var lastTeam: ParsedTeam? = nil
+        var lastViolations: [Violation] = []
+        var attemptsUsed = 0
+
+        for attempt in 0..<config.maxRetries {
+            attemptsUsed = attempt + 1
+            let temp = config.temperature
+                     + (Float(bumpCount) * config.temperatureRetryBump)
+            let userText: String = {
+                if let fb = feedbackPostscript {
+                    return userPrompt + "\n\n[Previous attempt had issues: " +
+                           fb + " — please fix.]"
+                }
+                return userPrompt
+            }()
+
+            // Team mode is much more token-intensive than single-set mode
+            // (1800 vs ~400 tokens), so allow more wall-clock time per attempt.
+            let teamTimeout = max(config.timeoutSeconds, 240)
+            let raw = try await runGenerationWithTimeout(
+                seconds: teamTimeout,
+                container: container,
+                systemPrompt: Self.systemPromptTeam,
+                userText: userText,
+                temperature: temp,
+                topP: config.topP,
+                maxTokens: teamMaxTokens
+            )
+            onProgress?(attempt + 1, raw)
+
+            if let prev = prevRaw,
+               raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                   == prev.trimmingCharacters(in: .whitespacesAndNewlines) {
+                bumpCount += 1
+            }
+            prevRaw = raw
+
+            guard let json = extractJSON(from: raw),
+                  let team = parseTeam(jsonString: json) else {
+                lastErrors.append("Could not parse team JSON from output")
+                feedbackPostscript = "your previous output wasn't valid JSON " +
+                    "in the required team format"
+                continue
+            }
+
+            let violations = validator.validate(team: team.members)
+            lastTeam = team
+            lastViolations = violations
+
+            if violations.isEmpty {
+                return TeamGenerationResult(
+                    teamName: team.teamName,
+                    strategy: team.strategy,
+                    members: team.members,
+                    attempts: attempt + 1,
+                    unresolvedViolations: []
+                )
+            }
+
+            let topThree = violations.prefix(3).map(\.message)
+                .joined(separator: "; ")
+            feedbackPostscript = topThree
+            lastErrors.append(topThree)
+        }
+
+        // Retries exhausted: return the best team we got, with remaining
+        // violations attached. The UI surfaces these to the user rather than
+        // silently shipping a broken team.
+        guard let team = lastTeam else {
+            throw EngineError.allRetriesExhausted(lastErrors: lastErrors)
+        }
+        return TeamGenerationResult(
+            teamName: team.teamName,
+            strategy: team.strategy,
+            members: team.members,
+            attempts: attemptsUsed,
+            unresolvedViolations: lastViolations
+        )
+    }
+
+    // MARK: - Team JSON parsing
+
+    private struct ParsedTeam {
+        let teamName: String?
+        let strategy: String?
+        let members: [PokemonSet]
+    }
+
+    private func parseTeam(jsonString: String) -> ParsedTeam? {
+        guard let data = jsonString.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data)
+                as? [String: Any]
+        else { return nil }
+
+        guard let memberDicts = obj["members"] as? [[String: Any]],
+              !memberDicts.isEmpty
+        else { return nil }
+
+        let members = memberDicts.compactMap { PokemonSet.parse($0) }
+        guard members.count == memberDicts.count else { return nil }
+
+        return ParsedTeam(
+            teamName: obj["team_name"] as? String,
+            strategy: obj["strategy"] as? String,
+            members: members
+        )
+    }
+
     // MARK: - Private generation primitive
+
+    /// Wraps `runGeneration` in a per-attempt timeout. If the budget elapses
+    /// before the model finishes streaming, the in-flight task is cancelled
+    /// (which unwinds the MLX stream) and `EngineError.generationTimedOut`
+    /// is thrown. Without this, a runaway generation looks like a frozen UI
+    /// or an outright crash to the user.
+    private func runGenerationWithTimeout(
+        seconds: TimeInterval,
+        container: ModelContainer,
+        systemPrompt: String,
+        userText: String,
+        temperature: Float,
+        topP: Float,
+        maxTokens: Int
+    ) async throws -> String {
+        try await withThrowingTaskGroup(of: String.self) { group in
+            group.addTask {
+                try await self.runGeneration(
+                    container: container,
+                    systemPrompt: systemPrompt,
+                    userText: userText,
+                    temperature: temperature,
+                    topP: topP,
+                    maxTokens: maxTokens
+                )
+            }
+            group.addTask {
+                try await Task.sleep(
+                    nanoseconds: UInt64(seconds * 1_000_000_000)
+                )
+                throw EngineError.generationTimedOut(seconds: seconds)
+            }
+            defer { group.cancelAll() }
+            guard let first = try await group.next() else {
+                throw EngineError.generationTimedOut(seconds: seconds)
+            }
+            return first
+        }
+    }
 
     private func runGeneration(
         container: ModelContainer,
+        systemPrompt: String,
         userText: String,
         temperature: Float,
         topP: Float,
         maxTokens: Int
     ) async throws -> String {
         let messages: [[String: any Sendable]] = [
-            ["role": "system", "content": Self.systemPrompt],
+            ["role": "system", "content": systemPrompt],
             ["role": "user", "content": userText],
         ]
 

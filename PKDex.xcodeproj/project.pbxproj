@@ -20,6 +20,8 @@
 		337BE9D92FC9DE0F00859F96 /* Hub in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9D82FC9DE0F00859F96 /* Hub */; };
 		337BE9DB2FC9DE0F00859F96 /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9DA2FC9DE0F00859F96 /* Tokenizers */; };
 		337BE9DD2FC9DE0F00859F96 /* Transformers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9DC2FC9DE0F00859F96 /* Transformers */; };
+		337BE9DF2FCA906600859F96 /* ChampionsLearnsetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 337BE9DE2FCA906600859F96 /* ChampionsLearnsetStore.swift */; };
+		337BE9E12FCA911800859F96 /* ChampionsPokemonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 337BE9E02FCA911800859F96 /* ChampionsPokemonDetailView.swift */; };
 		33BBD5522FBA65EC00842754 /* BattleSimulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BBD5512FBA65EC00842754 /* BattleSimulator.swift */; };
 		33BBD5542FBB32A900842754 /* BattleSimSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BBD5532FBB32A900842754 /* BattleSimSeed.swift */; };
 		33BBD5562FBB384900842754 /* MegaForms.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BBD5552FBB384900842754 /* MegaForms.swift */; };
@@ -84,6 +86,8 @@
 		337BE9C52FC9A25700859F96 /* champions-m-a-learnsets.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-a-learnsets.json"; sourceTree = "<group>"; };
 		337BE9C62FC9A25700859F96 /* champions-m-a.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-a.json"; sourceTree = "<group>"; };
 		337BE9C92FC9D8EF00859F96 /* move_categories.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = move_categories.json; sourceTree = "<group>"; };
+		337BE9DE2FCA906600859F96 /* ChampionsLearnsetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChampionsLearnsetStore.swift; sourceTree = "<group>"; };
+		337BE9E02FCA911800859F96 /* ChampionsPokemonDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChampionsPokemonDetailView.swift; sourceTree = "<group>"; };
 		33BBD5512FBA65EC00842754 /* BattleSimulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BattleSimulator.swift; sourceTree = "<group>"; };
 		33BBD5532FBB32A900842754 /* BattleSimSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BattleSimSeed.swift; sourceTree = "<group>"; };
 		33BBD5552FBB384900842754 /* MegaForms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MegaForms.swift; sourceTree = "<group>"; };
@@ -8878,6 +8882,8 @@
 				33BBD5512FBA65EC00842754 /* BattleSimulator.swift */,
 				33BBD5532FBB32A900842754 /* BattleSimSeed.swift */,
 				33BBD5552FBB384900842754 /* MegaForms.swift */,
+				337BE9DE2FCA906600859F96 /* ChampionsLearnsetStore.swift */,
+				337BE9E02FCA911800859F96 /* ChampionsPokemonDetailView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -9039,6 +9045,8 @@
 				33C3ECAF2F947399004BB026 /* huf_decompress.c in Sources */,
 				33C3ECB02F947399004BB026 /* xxhash.c in Sources */,
 				33C3ECB12F947399004BB026 /* huf_compress.c in Sources */,
+				337BE9DF2FCA906600859F96 /* ChampionsLearnsetStore.swift in Sources */,
+				337BE9E12FCA911800859F96 /* ChampionsPokemonDetailView.swift in Sources */,
 				33C3ECB22F947399004BB026 /* debug.c in Sources */,
 				33C3ECB32F947399004BB026 /* huf_decompress_amd64.S in Sources */,
 				33C3ECB42F947399004BB026 /* pool.c in Sources */,
