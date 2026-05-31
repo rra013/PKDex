@@ -480,6 +480,7 @@ enum HeldItem: String, CaseIterable, Identifiable {
     case brightPowder    = "Bright Powder"
     case mentalHerb      = "Mental Herb"
     case whiteHerb       = "White Herb"
+    case rockyHelmet     = "Rocky Helmet"
 
     // Healing & status berries
     case aspearBerry     = "Aspear Berry"

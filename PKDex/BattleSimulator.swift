@@ -20,7 +20,7 @@ enum BattleFormat: String, CaseIterable, Identifiable {
 // MARK: - Status & Move Effects
 
 enum BattleStatus: String, Equatable {
-    case none, burn, paralysis, poison, toxic, sleep
+    case none, burn, paralysis, poison, toxic, sleep, freeze
 
     var shortLabel: String {
         switch self {
@@ -30,6 +30,7 @@ enum BattleStatus: String, Equatable {
         case .poison: return "PSN"
         case .toxic: return "TOX"
         case .sleep: return "SLP"
+        case .freeze: return "FRZ"
         }
     }
 
@@ -39,6 +40,7 @@ enum BattleStatus: String, Equatable {
         case .paralysis: return .yellow
         case .poison, .toxic: return .purple
         case .sleep: return .gray
+        case .freeze: return .cyan
         case .none: return .clear
         }
     }
@@ -148,6 +150,129 @@ enum BattleMoveEffects {
         "psychic-surge":  .psychic,
         "hadron-engine":  .electric,
     ]
+
+    /// Fallback for moves whose GraphQL sync didn't populate `minHits`/`maxHits`.
+    /// `(min, max)` — fixed-count moves use the same value for both.
+    static let multiHitFallback: [String: (Int, Int)] = [
+        "bulletseed":     (2, 5),
+        "rockblast":      (2, 5),
+        "iciclespear":    (2, 5),
+        "pinmissile":     (2, 5),
+        "tailslap":       (2, 5),
+        "armthrust":      (2, 5),
+        "barrage":        (2, 5),
+        "cometpunch":     (2, 5),
+        "furyattack":     (2, 5),
+        "furyswipes":     (2, 5),
+        "scaleshot":      (2, 5),
+        "spikecannon":    (2, 5),
+        "watershuriken":  (2, 5),
+        "bonemerang":     (2, 2),
+        "doublehit":      (2, 2),
+        "doublekick":     (2, 2),
+        "dualchop":       (2, 2),
+        "dualwingbeat":   (2, 2),
+        "gearGrind":      (2, 2),
+        "geargrind":      (2, 2),
+        "twineedle":      (2, 2),
+        "doubleironbash": (2, 2),
+        "tripledive":     (3, 3),
+        "triplekick":     (3, 3),
+        "tripleaxel":     (3, 3),
+        "surgingstrikes": (3, 3),
+        "watersport":     (3, 3),
+    ]
+
+    /// Fallback contact-move table. Used by Phase-5 contact recoil (Rocky Helmet,
+    /// Rough Skin, Iron Barbs) when the synced `MoveData.makesContact` is unreliable.
+    /// Keys are normalized via `BattleSimSeed.normalize`. Final contact check is
+    /// `move.makesContact || contactMoves.contains(key)`. Common physical contact
+    /// moves only — non-contact physicals (Earthquake, Bonemerang, rocks) are
+    /// intentionally absent.
+    static let contactMoves: Set<String> = [
+        "tackle", "scratch", "pound", "bite", "doubleedge", "bodyslam",
+        "headbutt", "quickattack", "extremespeed", "machpunch", "bulletpunch",
+        "shadowsneak", "suckerpunch", "watershuriken", "fakeout", "feint",
+        "uturn", "flipturn", "firstimpression",
+        "facade", "return", "frustration", "playrough", "wildcharge",
+        "closecombat", "drainpunch", "superpower", "highjumpkick", "jumpkick",
+        "doublekick", "triplekick", "tripleaxel", "lowsweep", "lowkick",
+        "knockoff", "crunch", "psychicfangs", "icefang", "firefang", "thunderfang",
+        "poisonfang", "leechlife", "xscissor", "bugbite",
+        "ironhead", "irontail", "meteormash", "metalclaw",
+        "outrage", "dragonclaw", "dragonrush",
+        "megakick", "megapunch", "dynamicpunch", "skyuppercut", "rocksmash",
+        "brickbreak", "stomp", "stompingtantrum",
+        "aquajet", "waterfall", "liquidation", "crabhammer", "wavecrash",
+        "flamewheel", "firepunch", "blazekick", "flareblitz",
+        "thunderpunch", "volttackle",
+        "iciclecrash", "icepunch", "iciclespear",
+        "leafblade", "powerwhip", "vinewhip", "hornleech", "petaldance",
+        "razorshell", "shadowclaw", "shadowforce", "shadowpunch",
+        "skyattack", "bravebird", "drillpeck",
+        "boltbeak", "fishiousrend", "lashout",
+        "behemothbash", "behemothblade",
+        "headlongrush", "scaleshot",
+        "ragefist", "doubleironbash",
+    ]
+
+    /// Probabilistic on-hit effects (target must survive).
+    static let secondaryEffects: [String: SecondaryEffect] = [
+        "flamethrower": .init(chance: 10, status: .burn),
+        "fireblast":    .init(chance: 10, status: .burn),
+        "scald":        .init(chance: 30, status: .burn),
+        "lavaplume":    .init(chance: 30, status: .burn),
+        "flamewheel":   .init(chance: 10, status: .burn),
+        "firepunch":    .init(chance: 10, status: .burn),
+        "blazekick":    .init(chance: 10, status: .burn),
+        "thunderbolt":  .init(chance: 10, status: .paralysis),
+        "thunder":      .init(chance: 30, status: .paralysis),
+        "discharge":    .init(chance: 30, status: .paralysis),
+        "bodyslam":     .init(chance: 30, status: .paralysis),
+        "thunderpunch": .init(chance: 10, status: .paralysis),
+        "thunderfang":  .init(chance: 10, status: .paralysis),
+        "sludgebomb":   .init(chance: 30, status: .poison),
+        "poisonjab":    .init(chance: 30, status: .poison),
+        "smogbomb":     .init(chance: 30, status: .poison),
+        "sludgewave":   .init(chance: 10, status: .poison),
+        "ironhead":     .init(chance: 30, flinch: true),
+        "airslash":     .init(chance: 30, flinch: true),
+        "rockslide":    .init(chance: 30, flinch: true),
+        "zenheadbutt":  .init(chance: 20, flinch: true),
+        "headbutt":     .init(chance: 30, flinch: true),
+        "darkpulse":    .init(chance: 20, flinch: true),
+        "crunch":       .init(chance: 20, targetDrops: [(.def, -1)]),
+        "shadowball":   .init(chance: 20, targetDrops: [(.spDef, -1)]),
+        "psychic":      .init(chance: 10, targetDrops: [(.spDef, -1)]),
+        "energyball":   .init(chance: 10, targetDrops: [(.spDef, -1)]),
+        "flashcannon":  .init(chance: 10, targetDrops: [(.spDef, -1)]),
+        "earthpower":   .init(chance: 10, targetDrops: [(.spDef, -1)]),
+        "focusblast":   .init(chance: 10, targetDrops: [(.spDef, -1)]),
+        "icebeam":      .init(chance: 10, status: .freeze),
+        "blizzard":     .init(chance: 10, status: .freeze),
+        "icepunch":     .init(chance: 10, status: .freeze),
+    ]
+
+    /// ALWAYS-on self stat changes after a damaging hit (not probabilistic).
+    static let selfStatChangesOnHit: [String: [(Nature.StatKey, Int)]] = [
+        "closecombat": [(.def, -1), (.spDef, -1)],
+        "superpower":  [(.atk, -1), (.def, -1)],
+        "dracometeor": [(.spAtk, -2)],
+        "overheat":    [(.spAtk, -2)],
+        "leafstorm":   [(.spAtk, -2)],
+        "fleurcannon": [(.spAtk, -2)],
+        "makeitrain":  [(.spAtk, -1)],
+    ]
+}
+
+/// Encoded secondary effect for a damaging move. `chance` is the printed percent;
+/// `status` (if non-nil) is inflicted on the target; `flinch` causes a flinch flag;
+/// `targetDrops` lists negative stat-stage deltas on the target.
+struct SecondaryEffect {
+    var chance: Int
+    var status: BattleStatus? = nil
+    var flinch: Bool = false
+    var targetDrops: [(Nature.StatKey, Int)] = []
 }
 
 // MARK: - Live Participant
@@ -188,6 +313,11 @@ final class BattleParticipant: Identifiable {
     /// this participant. Checked at the start of their move and cleared at end of
     /// turn so it never carries across turns.
     var flinched: Bool = false
+
+    /// While holding a Choice item (Band/Specs/Scarf), the holder is locked into
+    /// the first move they successfully execute until they switch out. The index
+    /// is into `moves`; switching clears it via `resetVolatile()`.
+    var choiceLockedMoveIndex: Int? = nil
 
     init(slot: TeamSlotInfo, allPokemon: [PKMNStats], allMoves: [MoveData]) {
         self.slot = slot
@@ -249,6 +379,7 @@ final class BattleParticipant: Identifiable {
     func resetVolatile() {
         atkStage = 0; defStage = 0; spAtkStage = 0; spDefStage = 0; speedStage = 0
         toxicCounter = 0
+        choiceLockedMoveIndex = nil
     }
 
     var hasAnyPP: Bool { pp.contains(where: { $0 > 0 }) }
@@ -682,6 +813,16 @@ final class BattleEngine {
                 return false
             }
         }
+        if p.status == .freeze {
+            // 20% thaw-and-act each turn.
+            if Double.random(in: 0..<1) < 0.2 {
+                p.status = .none
+                log.append(BattleLogEntry(text: "\(p.displayName) thawed out!"))
+            } else {
+                log.append(BattleLogEntry(text: "\(p.displayName) is frozen solid!"))
+                return false
+            }
+        }
         if p.status == .paralysis && Double.random(in: 0..<1) < 0.25 {
             log.append(BattleLogEntry(text: "\(p.displayName) is fully paralyzed! It can't move!"))
             return false
@@ -704,23 +845,55 @@ final class BattleEngine {
             .first(where: { !$0.fainted })
     }
 
+    /// True if the participant currently holds a Choice item and is therefore
+    /// move-locked once they pick a move. Reads `effectiveHeldItem` so a knocked-off
+    /// or consumed item correctly frees the holder.
+    func isChoiceLocked(_ p: BattleParticipant) -> Bool {
+        switch p.effectiveHeldItem {
+        case .choiceBand, .choiceSpecs, .choiceScarf: return true
+        default: return false
+        }
+    }
+
     private func performMove(attackerSide: Int, attackerSlot: Int,
                              moveIndex: Int, defenderSide: Int, defenderSlot: Int) {
         let aSide = side(at: attackerSide)
         let dSide = side(at: defenderSide)
         guard let attacker = aSide.active(at: attackerSlot), !attacker.fainted else { return }
         guard moveIndex < attacker.moves.count else { return }
-        let move = attacker.moves[moveIndex]
+
+        // Choice item lock — if the holder is locked into a different move index,
+        // redirect to the locked one as a defensive fallback. The UI already
+        // disables the other buttons, but engine-level enforcement keeps things
+        // sound if an action was queued before the lock was set.
+        var resolvedMoveIndex = moveIndex
+        if isChoiceLocked(attacker),
+           let locked = attacker.choiceLockedMoveIndex,
+           locked != moveIndex, attacker.moves.indices.contains(locked) {
+            resolvedMoveIndex = locked
+        }
+        let move = attacker.moves[resolvedMoveIndex]
+
+        // A Fire-type move thaws the frozen user before the status check resolves.
+        if attacker.status == .freeze && move.type == "Fire" {
+            attacker.status = .none
+            log.append(BattleLogEntry(text: "\(attacker.displayName) thawed out by its move!"))
+        }
 
         if !preMoveStatusCheck(attacker) { return }
 
-        if attacker.pp.indices.contains(moveIndex), attacker.pp[moveIndex] <= 0 {
+        if attacker.pp.indices.contains(resolvedMoveIndex), attacker.pp[resolvedMoveIndex] <= 0 {
             log.append(BattleLogEntry(text: "\(attacker.displayName) has no PP left for \(move.name)!"))
             return
         }
 
         log.append(BattleLogEntry(text: "\(attacker.displayName) used \(move.name)!"))
-        if attacker.pp.indices.contains(moveIndex) { attacker.pp[moveIndex] -= 1 }
+        if attacker.pp.indices.contains(resolvedMoveIndex) { attacker.pp[resolvedMoveIndex] -= 1 }
+
+        // Lock the holder into this move for as long as it keeps its Choice item.
+        if attacker.choiceLockedMoveIndex == nil, isChoiceLocked(attacker) {
+            attacker.choiceLockedMoveIndex = resolvedMoveIndex
+        }
 
         // Retarget if the intended target fainted before this action resolved. We
         // resolve before the accuracy roll so Bright Powder on the live target
@@ -759,17 +932,34 @@ final class BattleEngine {
         let dSide = side(at: defenderSideIdx)
         guard let attacker = aSide.active(at: attackerSlot), !attacker.fainted else { return }
         guard moveIndex < attacker.moves.count else { return }
-        let move = attacker.moves[moveIndex]
+
+        // Choice lock defensive redirect, mirroring performMove.
+        var resolvedMoveIndex = moveIndex
+        if isChoiceLocked(attacker),
+           let locked = attacker.choiceLockedMoveIndex,
+           locked != moveIndex, attacker.moves.indices.contains(locked) {
+            resolvedMoveIndex = locked
+        }
+        let move = attacker.moves[resolvedMoveIndex]
+
+        if attacker.status == .freeze && move.type == "Fire" {
+            attacker.status = .none
+            log.append(BattleLogEntry(text: "\(attacker.displayName) thawed out by its move!"))
+        }
 
         if !preMoveStatusCheck(attacker) { return }
 
-        if attacker.pp.indices.contains(moveIndex), attacker.pp[moveIndex] <= 0 {
+        if attacker.pp.indices.contains(resolvedMoveIndex), attacker.pp[resolvedMoveIndex] <= 0 {
             log.append(BattleLogEntry(text: "\(attacker.displayName) has no PP left for \(move.name)!"))
             return
         }
 
         log.append(BattleLogEntry(text: "\(attacker.displayName) used \(move.name)!"))
-        if attacker.pp.indices.contains(moveIndex) { attacker.pp[moveIndex] -= 1 }
+        if attacker.pp.indices.contains(resolvedMoveIndex) { attacker.pp[resolvedMoveIndex] -= 1 }
+
+        if attacker.choiceLockedMoveIndex == nil, isChoiceLocked(attacker) {
+            attacker.choiceLockedMoveIndex = resolvedMoveIndex
+        }
 
         let liveDefender = firstLiveDefender(in: dSide)
 
@@ -848,6 +1038,41 @@ final class BattleEngine {
         }
     }
 
+    /// Number of times a multi-hit move strikes this turn. Honors Skill Link and
+    /// the Gen V+ 2–5 distribution (35/35/15/15). Falls back to `multiHitFallback`
+    /// when the synced `MoveData` doesn't populate hit counts.
+    private func hitCount(for move: MoveData, attacker: BattleParticipant) -> Int {
+        var maxH = move.maxHits
+        var minH = move.minHits
+        if maxH == nil || (maxH ?? 1) <= 1 {
+            if let fallback = BattleMoveEffects.multiHitFallback[BattleSimSeed.normalize(move.name)] {
+                minH = fallback.0
+                maxH = fallback.1
+            }
+        }
+        guard let maxV = maxH, maxV > 1 else { return 1 }
+        let minV = minH ?? maxV
+        if minV == maxV { return maxV }
+        if attacker.activeAbility == "skill-link" { return maxV }
+        // Gen V+ 2–5 distribution: 35/35/15/15.
+        let r = Double.random(in: 0..<1)
+        switch r {
+        case ..<0.35: return 2
+        case ..<0.70: return 3
+        case ..<0.85: return 4
+        default:      return 5
+        }
+    }
+
+    /// True if the move counts as making contact. Combines the synced flag with a
+    /// curated fallback list (`BattleMoveEffects.contactMoves`) so contact-recoil
+    /// (Rocky Helmet, Rough Skin, Iron Barbs) still fires on common physical moves
+    /// even when the GraphQL sync didn't populate `makesContact`.
+    private func isContactMove(_ move: MoveData) -> Bool {
+        if move.makesContact { return true }
+        return BattleMoveEffects.contactMoves.contains(BattleSimSeed.normalize(move.name))
+    }
+
     private func applyDamageHit(attacker: BattleParticipant, defender: BattleParticipant,
                                 move: MoveData, isSpread: Bool) {
         // Snapshot data we need *before* the hit lands: damage calc reads
@@ -857,65 +1082,95 @@ final class BattleEngine {
         let wasFullHP = defender.atFullHP
 
         let isKnockOff = BattleSimSeed.normalize(move.name) == "knockoff"
-        let didCrit = rollCrit(attacker: attacker, move: move)
 
-        let result = computeDamage(attacker: attacker, defender: defender,
-                                   move: move, isSpread: isSpread, crit: didCrit)
-        if result.eff == 0 {
+        // First-hit zero-effectiveness check: avoid the loop entirely if the move
+        // doesn't affect the defender at all (type immunity, etc.).
+        let probe = computeDamage(attacker: attacker, defender: defender,
+                                  move: move, isSpread: isSpread, crit: false)
+        if probe.eff == 0 {
             log.append(BattleLogEntry(text: "It doesn't affect \(defender.displayName)…"))
             return
         }
-        let dMin = Int(result.min)
-        let dMax = max(Int(result.max), dMin)
-        var damage = dMin == dMax ? dMin : Int.random(in: dMin...dMax)
-        // Knock Off: 1.5x damage when the defender has a removable item (any item
-        // except Mega Stones counts here for the boost; Sticky Hold doesn't block the
-        // boost, only the removal).
-        if isKnockOff && defenderHadItemBefore && !preBerry.isMegaStone {
-            damage = Int(Double(damage) * 1.5)
-        }
 
-        if didCrit { log.append(BattleLogEntry(text: "A critical hit!")) }
+        let hits = hitCount(for: move, attacker: attacker)
+        var totalDamage = 0
+        var hitsLanded = 0
+        var anyCrit = false
+        var lastEff: Double = probe.eff
 
-        defender.currentHP = max(0, defender.currentHP - damage)
-
-        // Focus Sash / Focus Band — survive a would-be OHKO at 1 HP.
-        if defender.currentHP == 0 {
-            if wasFullHP && defender.effectiveHeldItem == .focusSash {
-                defender.currentHP = 1
-                defender.consumedItem = true
-                log.append(BattleLogEntry(text: "\(defender.displayName) hung on with its Focus Sash!"))
-            } else if defender.effectiveHeldItem == .focusBand && Double.random(in: 0..<1) < 0.1 {
-                defender.currentHP = 1
-                log.append(BattleLogEntry(text: "\(defender.displayName) hung on using Focus Band!"))
+        for _ in 0..<hits {
+            if defender.fainted { break }
+            // Roll crit independently per hit (Gen VI+).
+            let didCrit = rollCrit(attacker: attacker, move: move)
+            if didCrit { anyCrit = true }
+            let result = computeDamage(attacker: attacker, defender: defender,
+                                       move: move, isSpread: isSpread, crit: didCrit)
+            if result.eff == 0 { break }
+            lastEff = result.eff
+            let dMin = Int(result.min)
+            let dMax = max(Int(result.max), dMin)
+            var damage = dMin == dMax ? dMin : Int.random(in: dMin...dMax)
+            // Knock Off: 1.5x damage when the defender has a removable item.
+            if isKnockOff && defenderHadItemBefore && !preBerry.isMegaStone {
+                damage = Int(Double(damage) * 1.5)
             }
+            defender.currentHP = max(0, defender.currentHP - damage)
+
+            // Focus Sash / Focus Band — survive a would-be OHKO at 1 HP. Only the
+            // first hit can be at full HP, so the sash only applies there.
+            if defender.currentHP == 0 {
+                if wasFullHP && hitsLanded == 0 && defender.effectiveHeldItem == .focusSash {
+                    defender.currentHP = 1
+                    defender.consumedItem = true
+                    log.append(BattleLogEntry(text: "\(defender.displayName) hung on with its Focus Sash!"))
+                } else if defender.effectiveHeldItem == .focusBand && Double.random(in: 0..<1) < 0.1 {
+                    defender.currentHP = 1
+                    log.append(BattleLogEntry(text: "\(defender.displayName) hung on using Focus Band!"))
+                }
+            }
+
+            // Type-resist berry consumption — `computeItemModifiers` halved this
+            // hit's damage; mark the berry spent so subsequent hits get full damage.
+            if !defender.consumedItem,
+               let resistedType = typeResistBerryMap[preBerry],
+               resistedType == move.type, result.eff > 1.0 {
+                defender.consumedItem = true
+                log.append(BattleLogEntry(text: "\(defender.displayName)'s \(preBerry.rawValue) weakened the attack!"))
+            } else if !defender.consumedItem, preBerry == .chilanBerry, move.type == "Normal" {
+                defender.consumedItem = true
+                log.append(BattleLogEntry(text: "\(defender.displayName)'s Chilan Berry weakened the attack!"))
+            }
+
+            totalDamage += damage
+            hitsLanded += 1
         }
+
+        if hitsLanded == 0 {
+            log.append(BattleLogEntry(text: "It had no effect on \(defender.displayName)."))
+            return
+        }
+
+        if anyCrit { log.append(BattleLogEntry(text: "A critical hit!")) }
 
         var effText = ""
-        if result.eff > 1 { effText = " It's super effective!" }
-        else if result.eff < 1 && result.eff > 0 { effText = " It's not very effective…" }
-        log.append(BattleLogEntry(text: "\(defender.displayName) took \(damage) damage.\(effText)"))
-
-        // Type-resist berry consumption — the damage halving was already baked in by
-        // `computeItemModifiers`; we just need to mark the berry spent.
-        if !defender.consumedItem,
-           let resistedType = typeResistBerryMap[preBerry],
-           resistedType == move.type, result.eff > 1.0 {
-            defender.consumedItem = true
-            log.append(BattleLogEntry(text: "\(defender.displayName)'s \(preBerry.rawValue) weakened the attack!"))
-        } else if !defender.consumedItem, preBerry == .chilanBerry, move.type == "Normal" {
-            defender.consumedItem = true
-            log.append(BattleLogEntry(text: "\(defender.displayName)'s Chilan Berry weakened the attack!"))
+        if lastEff > 1 { effText = " It's super effective!" }
+        else if lastEff < 1 && lastEff > 0 { effText = " It's not very effective…" }
+        if hitsLanded > 1 {
+            log.append(BattleLogEntry(
+                text: "Hit \(hitsLanded) time(s)! \(defender.displayName) took \(totalDamage) damage.\(effText)"))
+        } else {
+            log.append(BattleLogEntry(
+                text: "\(defender.displayName) took \(totalDamage) damage.\(effText)"))
         }
 
-        // HP-restore berry (Sitrus, Oran) after the hit.
+        // HP-restore berry (Sitrus, Oran) after the hit sequence.
         maybeTriggerHPBerry(for: defender)
 
-        // Shell Bell — attacker recovers a slice of damage dealt.
+        // Shell Bell — attacker recovers a slice of total damage dealt.
         if !attacker.fainted,
            attacker.effectiveHeldItem == .shellBell,
-           damage > 0, attacker.currentHP < attacker.maxHP {
-            let heal = max(1, damage / 8)
+           totalDamage > 0, attacker.currentHP < attacker.maxHP {
+            let heal = max(1, totalDamage / 8)
             attacker.currentHP = min(attacker.maxHP, attacker.currentHP + heal)
             log.append(BattleLogEntry(text: "\(attacker.displayName) recovered HP via Shell Bell."))
         }
@@ -931,9 +1186,7 @@ final class BattleEngine {
             }
         }
 
-        // King's Rock — 10% chance to flinch the defender (if they survived and
-        // haven't acted yet this turn). flinched is cleared at end of turn so
-        // post-action procs harmlessly fizzle.
+        // King's Rock — 10% chance to flinch the defender per move use.
         if !defender.fainted,
            attacker.effectiveHeldItem == .kingsRock,
            Double.random(in: 0..<1) < 0.1 {
@@ -941,8 +1194,121 @@ final class BattleEngine {
             log.append(BattleLogEntry(text: "\(defender.displayName) is going to flinch!"))
         }
 
+        // Phase 2 — Drain / move recoil / Life Orb recoil based on totals.
+        applyDrainAndRecoil(attacker: attacker, defender: defender,
+                            move: move, totalDamage: totalDamage)
+
+        // Phase 5 — Contact recoil from the defender (Rocky Helmet, Rough Skin,
+        // Iron Barbs). Skip if attacker has Magic Guard or has already fainted.
+        applyContactRecoil(attacker: attacker, defender: defender, move: move)
+
+        // Phase 3 — Self stat changes (always) and probabilistic secondary effects
+        // on the target (only if it survived).
+        applySelfStatChangesOnHit(attacker: attacker, move: move)
+        applySecondaryEffects(attacker: attacker, defender: defender, move: move)
+
         if defender.fainted {
             log.append(BattleLogEntry(text: "\(defender.displayName) fainted!", emphasis: true))
+        }
+        if attacker.fainted {
+            log.append(BattleLogEntry(text: "\(attacker.displayName) fainted!", emphasis: true))
+        }
+    }
+
+    /// Phase 2 — Drain heals the attacker (`move.drain > 0`); move recoil chips
+    /// the attacker (`move.drain < 0`). Life Orb adds 1/10 max HP recoil per move
+    /// use when damage was dealt. Rock Head/Magic Guard suppress move recoil;
+    /// Magic Guard also suppresses Life Orb.
+    private func applyDrainAndRecoil(attacker: BattleParticipant,
+                                     defender: BattleParticipant,
+                                     move: MoveData, totalDamage: Int) {
+        guard totalDamage > 0 else { return }
+
+        // Drain.
+        if move.drain > 0, !attacker.fainted, attacker.currentHP < attacker.maxHP {
+            let heal = max(1, totalDamage * move.drain / 100)
+            attacker.currentHP = min(attacker.maxHP, attacker.currentHP + heal)
+            log.append(BattleLogEntry(text: "\(attacker.displayName) drained HP!"))
+        }
+
+        // Move recoil.
+        if move.drain < 0, !attacker.fainted,
+           attacker.activeAbility != "rock-head",
+           attacker.activeAbility != "magic-guard" {
+            let recoil = max(1, totalDamage * -move.drain / 100)
+            attacker.currentHP = max(0, attacker.currentHP - recoil)
+            log.append(BattleLogEntry(text: "\(attacker.displayName) is hit with recoil! (-\(recoil) HP)"))
+        }
+
+        // Life Orb — 1/10 max HP self-damage per move use that dealt damage.
+        if !attacker.fainted,
+           attacker.effectiveHeldItem == .lifeOrb,
+           attacker.activeAbility != "magic-guard" {
+            let chip = max(1, attacker.maxHP / 10)
+            attacker.currentHP = max(0, attacker.currentHP - chip)
+            log.append(BattleLogEntry(text: "\(attacker.displayName) lost some HP from its Life Orb! (-\(chip) HP)"))
+        }
+        _ = defender // silence unused warning; reserved for future per-defender effects
+    }
+
+    /// Phase 5 — Rocky Helmet (1/6 maxHP), Rough Skin / Iron Barbs (1/8 maxHP).
+    /// Fires once per move use after the hit loop completes. Magic Guard exempts
+    /// the attacker. Triggers only on contact moves that dealt damage.
+    private func applyContactRecoil(attacker: BattleParticipant,
+                                    defender: BattleParticipant,
+                                    move: MoveData) {
+        guard !attacker.fainted else { return }
+        guard isContactMove(move) else { return }
+        if attacker.activeAbility == "magic-guard" { return }
+
+        if defender.effectiveHeldItem == .rockyHelmet {
+            let chip = max(1, attacker.maxHP / 6)
+            attacker.currentHP = max(0, attacker.currentHP - chip)
+            log.append(BattleLogEntry(text: "\(attacker.displayName) was hurt by \(defender.displayName)'s Rocky Helmet! (-\(chip) HP)"))
+        }
+        if !attacker.fainted,
+           let ab = defender.activeAbility,
+           ab == "rough-skin" || ab == "iron-barbs" {
+            let chip = max(1, attacker.maxHP / 8)
+            attacker.currentHP = max(0, attacker.currentHP - chip)
+            log.append(BattleLogEntry(text: "\(attacker.displayName) was hurt by \(defender.displayName)'s \(formatAbilityName(ab))! (-\(chip) HP)"))
+        }
+    }
+
+    /// Phase 3 — Always-on self stat changes after a damaging hit landed
+    /// (Close Combat, Draco Meteor, etc.).
+    private func applySelfStatChangesOnHit(attacker: BattleParticipant, move: MoveData) {
+        guard !attacker.fainted else { return }
+        let key = BattleSimSeed.normalize(move.name)
+        guard let drops = BattleMoveEffects.selfStatChangesOnHit[key] else { return }
+        for (stat, delta) in drops {
+            changeStage(attacker, stat: stat, by: delta)
+        }
+        log.append(BattleLogEntry(text: "\(attacker.displayName)'s stats dropped!"))
+        // Defensive drops from Close Combat etc. can fire White Herb on the user.
+        consumeWhiteHerbIfNeeded(attacker)
+    }
+
+    /// Phase 3 — Probabilistic on-hit secondary effects (status, flinch, target
+    /// stat drops). Honors Shield Dust (blocks), Sheer Force (suppresses), and
+    /// Serene Grace (doubles chance).
+    private func applySecondaryEffects(attacker: BattleParticipant,
+                                       defender: BattleParticipant,
+                                       move: MoveData) {
+        guard !defender.fainted else { return }
+        let key = BattleSimSeed.normalize(move.name)
+        guard let sec = BattleMoveEffects.secondaryEffects[key] else { return }
+        if defender.activeAbility == "shield-dust" { return }
+        if attacker.activeAbility == "sheer-force" { return }
+
+        var chance = sec.chance
+        if attacker.activeAbility == "serene-grace" { chance = min(100, chance * 2) }
+        guard Int.random(in: 1...100) <= chance else { return }
+
+        if let st = sec.status { tryInflictStatus(st, on: defender) }
+        if sec.flinch { defender.flinched = true }
+        for (stat, delta) in sec.targetDrops {
+            applyOpposingStatDrop(to: defender, stat: stat, delta: delta)
         }
     }
 
@@ -994,6 +1360,26 @@ final class BattleEngine {
         }
         if let h = BattleMoveEffects.hazardSetters[key] {
             setHazard(h, sideIdx: defenderSideIdx, moveName: move.name)
+            return
+        }
+        // Self-heal status moves: Recover / Roost / Soft-Boiled / Synthesis /
+        // Morning Sun / Moonlight / Slack Off / Milk Drink / Rest. `MoveData.healing`
+        // is positive percent of max HP. Rest also sets sleep for 2 turns.
+        if move.damageClass == "status", move.healing > 0 {
+            if attacker.currentHP < attacker.maxHP {
+                let heal = max(1, attacker.maxHP * move.healing / 100)
+                attacker.currentHP = min(attacker.maxHP, attacker.currentHP + heal)
+                log.append(BattleLogEntry(text: "\(attacker.displayName) restored HP!"))
+            } else {
+                log.append(BattleLogEntry(text: "\(attacker.displayName)'s HP is already full!"))
+            }
+            if key == "rest" {
+                attacker.currentHP = attacker.maxHP
+                attacker.status = .sleep
+                attacker.sleepTurnsRemaining = 2
+                attacker.toxicCounter = 0
+                log.append(BattleLogEntry(text: "\(attacker.displayName) fell asleep and became healthy!"))
+            }
             return
         }
         log.append(BattleLogEntry(text: "(\(move.name) had no simulated effect.)"))
@@ -1068,7 +1454,7 @@ final class BattleEngine {
         case .chestoBerry: cures = p.status == .sleep
         case .pechaBerry:  cures = p.status == .poison || p.status == .toxic
         case .rawstBerry:  cures = p.status == .burn
-        case .aspearBerry: cures = false // no freeze in this engine yet
+        case .aspearBerry: cures = p.status == .freeze
         default:           cures = false
         }
         guard cures else { return }
@@ -1087,6 +1473,7 @@ final class BattleEngine {
         case .paralysis: return !t.contains("Electric")
         case .poison, .toxic: return !t.contains("Poison") && !t.contains("Steel")
         case .sleep:     return true
+        case .freeze:    return !t.contains("Ice")
         case .none:      return false
         }
     }
@@ -1270,6 +1657,15 @@ final class BattleEngine {
         vm.weather = weather
         vm.terrain = terrain
         vm.crit = crit
+        // Crits ignore the attacker's negative offensive stages and the defender's
+        // positive defensive stages. Mutating the proxy sides is safe — they're
+        // throwaway and the participants' real stages stay untouched.
+        if crit {
+            vm.side1.atkStage   = max(0, vm.side1.atkStage)
+            vm.side1.spAtkStage = max(0, vm.side1.spAtkStage)
+            vm.side2.defStage   = min(0, vm.side2.defStage)
+            vm.side2.spDefStage = min(0, vm.side2.spDefStage)
+        }
         guard let r = vm.side1Results.first else { return (0, 0, 1) }
         return (r.damageMin, r.damageMax, r.effectiveness)
     }
@@ -1389,6 +1785,13 @@ final class BattleEngine {
                     }
                 }
 
+                // Speed Boost — +1 Speed at end of turn while alive. `changeStage`
+                // already clamps at +6.
+                if !p.fainted, p.activeAbility == "speed-boost", p.speedStage < 6 {
+                    changeStage(p, stat: .speed, by: 1)
+                    log.append(BattleLogEntry(text: "\(p.displayName)'s Speed Boost raised its Speed!"))
+                }
+
                 if p.fainted {
                     log.append(BattleLogEntry(text: "\(p.displayName) fainted!", emphasis: true))
                 }
@@ -1450,10 +1853,20 @@ struct BattleSimulatorView: View {
     @Query(sort: \PKMNStats.name) private var allPokemon: [PKMNStats]
     @Query(sort: \MoveData.name) private var allMoves: [MoveData]
 
+    @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
+
     @State private var format: BattleFormat = .singles
     @State private var team1ID: PersistentIdentifier?
     @State private var team2ID: PersistentIdentifier?
     @State private var engine: BattleEngine?
+    @State private var championsFormat: Bool = false
+    @State private var didApplyDefaultChampionsToggle: Bool = false
+
+    /// Built lazily on first access — parsing ~600KB of JSON shouldn't block the
+    /// view's initial layout. `nil` means the Champions JSON isn't bundled, in
+    /// which case the toggle is disabled and a note is shown.
+    @State private var championsValidator: ChampionsValidator? = nil
+    @State private var validatorLoadAttempted: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -1482,11 +1895,15 @@ struct BattleSimulatorView: View {
                     TeamPickerCard(label: "Side 1", selectedID: $team1ID,
                                    teams: teams, savedSpreads: savedSpreads,
                                    allPokemon: allPokemon, allMoves: allMoves,
-                                   format: format)
+                                   format: format,
+                                   championsFormat: championsFormat,
+                                   validator: championsValidator)
                     TeamPickerCard(label: "Side 2", selectedID: $team2ID,
                                    teams: teams, savedSpreads: savedSpreads,
                                    allPokemon: allPokemon, allMoves: allMoves,
-                                   format: format)
+                                   format: format,
+                                   championsFormat: championsFormat,
+                                   validator: championsValidator)
 
                     Button {
                         startBattle()
@@ -1501,6 +1918,24 @@ struct BattleSimulatorView: View {
             }
             .padding()
         }
+        .onAppear { loadValidatorIfNeeded() }
+    }
+
+    /// Parses the bundled Champions JSON the first time we need it. If the JSON
+    /// isn't shipped, the toggle gets disabled and a small note appears.
+    private func loadValidatorIfNeeded() {
+        guard !validatorLoadAttempted else { return }
+        validatorLoadAttempted = true
+        championsValidator = ChampionsValidator()
+        if championsValidator == nil {
+            // Force the toggle off if the data isn't available.
+            championsFormat = false
+        } else if !didApplyDefaultChampionsToggle {
+            didApplyDefaultChampionsToggle = true
+            if defaultGeneration == PokedexFilter.champions.rawValue {
+                championsFormat = true
+            }
+        }
     }
 
     private var formatCard: some View {
@@ -1512,6 +1947,19 @@ struct BattleSimulatorView: View {
                 }
             }
             .pickerStyle(.segmented)
+
+            Toggle(isOn: $championsFormat) {
+                Label("Champions Regulation", systemImage: "trophy")
+                    .font(.subheadline)
+            }
+            .disabled(championsValidator == nil)
+            if validatorLoadAttempted && championsValidator == nil {
+                Text("Champions data unavailable — bundle is missing champions-m-a.json.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            } else if championsFormat {
+                Text("Lv 50, 66 stat-point cap (32 per stat), IVs 31. Illegal teams can't battle.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
         }
         .padding()
         .background(.background, in: RoundedRectangle(cornerRadius: 12))
@@ -1545,7 +1993,17 @@ struct BattleSimulatorView: View {
     private var canStart: Bool {
         guard let t1 = team(for: team1ID), let t2 = team(for: team2ID) else { return false }
         let need = format.activeSlots
-        return t1.slots.count >= need && t2.slots.count >= need
+        guard t1.slots.count >= need && t2.slots.count >= need else { return false }
+
+        if championsFormat, let v = championsValidator {
+            let t1Slots = t1.resolvedSlots(allSpreads: savedSpreads,
+                                           allPokemon: allPokemon, allMoves: allMoves)
+            let t2Slots = t2.resolvedSlots(allSpreads: savedSpreads,
+                                           allPokemon: allPokemon, allMoves: allMoves)
+            if ChampionsFormat.hasHardLegalityViolations(slots: t1Slots, validator: v) { return false }
+            if ChampionsFormat.hasHardLegalityViolations(slots: t2Slots, validator: v) { return false }
+        }
+        return true
     }
 
     private func team(for id: PersistentIdentifier?) -> SavedTeam? {
@@ -1557,14 +2015,89 @@ struct BattleSimulatorView: View {
         guard let t1 = team(for: team1ID), let t2 = team(for: team2ID) else { return }
         // Resolve through the live SavedSpread records so edits made in the Sets tab
         // (move swaps, EV tweaks, ability changes) propagate into the battle.
-        let s1Slots = t1.resolvedSlots(allSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
-        let s2Slots = t2.resolvedSlots(allSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+        var s1Slots = t1.resolvedSlots(allSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+        var s2Slots = t2.resolvedSlots(allSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+        if championsFormat {
+            // Lv 50 + Champions stat scaling, regardless of how the spread was saved.
+            s1Slots = s1Slots.map { ChampionsFormat.normalize($0) }
+            s2Slots = s2Slots.map { ChampionsFormat.normalize($0) }
+        }
         let s1 = BattleSide(label: "Side 1", slots: s1Slots, format: format,
                             allPokemon: allPokemon, allMoves: allMoves)
         let s2 = BattleSide(label: "Side 2", slots: s2Slots, format: format,
                             allPokemon: allPokemon, allMoves: allMoves)
         engine = BattleEngine(format: format, side1: s1, side2: s2,
                               allPokemon: allPokemon, allMoves: allMoves)
+    }
+}
+
+// MARK: - Champions Format Helpers
+
+/// Pure helpers for the enforced Champions battle format. Keeping them outside the
+/// view makes them straightforward to unit-test without spinning up SwiftData.
+enum ChampionsFormat {
+
+    /// Forces level 50 and the 0-32 Champions stat-point scale, scaling main-series
+    /// EVs proportionally when the slot wasn't already in Champions mode. Does NOT
+    /// mutate persisted records — returns a copy.
+    static func normalize(_ slot: TeamSlotInfo) -> TeamSlotInfo {
+        var copy = slot
+        copy.level = 50
+        if !copy.championsMode {
+            // Main-series cap is 252; Champions cap is 32 per stat. Floor division
+            // (no rounding) so we never push a slot OVER the 32 cap if the source
+            // was at 252 — 252*32/252 == 32 exactly.
+            copy.evHP    = min(championsMaxEVPerStat, copy.evHP    * championsMaxEVPerStat / maxEVPerStat)
+            copy.evAtk   = min(championsMaxEVPerStat, copy.evAtk   * championsMaxEVPerStat / maxEVPerStat)
+            copy.evDef   = min(championsMaxEVPerStat, copy.evDef   * championsMaxEVPerStat / maxEVPerStat)
+            copy.evSpAtk = min(championsMaxEVPerStat, copy.evSpAtk * championsMaxEVPerStat / maxEVPerStat)
+            copy.evSpDef = min(championsMaxEVPerStat, copy.evSpDef * championsMaxEVPerStat / maxEVPerStat)
+            copy.evSpeed = min(championsMaxEVPerStat, copy.evSpeed * championsMaxEVPerStat / maxEVPerStat)
+            copy.championsMode = true
+        }
+        return copy
+    }
+
+    /// Maps a live slot to the validator's `PokemonSet` representation. Ability ID
+    /// (e.g. "snow-warning") is converted to its display form ("Snow Warning") so
+    /// the legality whitelists match.
+    static func pokemonSet(from slot: TeamSlotInfo) -> PokemonSet {
+        let sp: PokemonSet.StatPoints
+        if slot.championsMode {
+            sp = .init(hp: slot.evHP, atk: slot.evAtk, def: slot.evDef,
+                       spa: slot.evSpAtk, spd: slot.evSpDef, spe: slot.evSpeed)
+        } else {
+            sp = .init(hp: slot.evHP    * championsMaxEVPerStat / maxEVPerStat,
+                       atk: slot.evAtk  * championsMaxEVPerStat / maxEVPerStat,
+                       def: slot.evDef  * championsMaxEVPerStat / maxEVPerStat,
+                       spa: slot.evSpAtk * championsMaxEVPerStat / maxEVPerStat,
+                       spd: slot.evSpDef * championsMaxEVPerStat / maxEVPerStat,
+                       spe: slot.evSpeed * championsMaxEVPerStat / maxEVPerStat)
+        }
+        let abilityDisplay = slot.abilityName.map { formatAbilityName($0) } ?? ""
+        let natureDisplay = allNatures.first(where: { $0.id == slot.natureID })?.name ?? ""
+        return PokemonSet(
+            species: slot.pokemonName,
+            ability: abilityDisplay,
+            item: slot.itemRawValue,
+            nature: natureDisplay,
+            teraType: nil,
+            moves: slot.moveSlots.map { $0.moveName },
+            statPoints: sp,
+            role: nil
+        )
+    }
+
+    /// Validate the full team (all six slots — Champions enforces team size = 6).
+    static func validate(slots: [TeamSlotInfo],
+                         validator: ChampionsValidator) -> [Violation] {
+        let team = slots.map { pokemonSet(from: $0) }
+        return validator.validate(team: team)
+    }
+
+    static func hasHardLegalityViolations(slots: [TeamSlotInfo],
+                                          validator: ChampionsValidator) -> Bool {
+        validate(slots: slots, validator: validator).contains(where: { $0.category.isLegality })
     }
 }
 
@@ -1578,6 +2111,8 @@ private struct TeamPickerCard: View {
     let allPokemon: [PKMNStats]
     let allMoves: [MoveData]
     let format: BattleFormat
+    let championsFormat: Bool
+    let validator: ChampionsValidator?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1602,6 +2137,24 @@ private struct TeamPickerCard: View {
                     Label("Need at least \(format.activeSlots) Pokemon for \(format.label).",
                           systemImage: "exclamationmark.triangle.fill")
                         .font(.caption).foregroundStyle(.red)
+                }
+
+                if championsFormat, let v = validator {
+                    let violations = ChampionsFormat.validate(slots: liveSlots, validator: v)
+                    let hard = violations.filter { $0.category.isLegality }
+                    let soft = violations.filter { !$0.category.isLegality }
+                    if hard.isEmpty && soft.isEmpty {
+                        Label("Champions-legal", systemImage: "checkmark.seal.fill")
+                            .font(.caption).foregroundStyle(.green)
+                    }
+                    ForEach(Array(hard.enumerated()), id: \.offset) { _, vio in
+                        Label(vio.message, systemImage: "xmark.octagon.fill")
+                            .font(.caption2).foregroundStyle(.red)
+                    }
+                    ForEach(Array(soft.enumerated()), id: \.offset) { _, vio in
+                        Label(vio.message, systemImage: "exclamationmark.triangle")
+                            .font(.caption2).foregroundStyle(.orange)
+                    }
                 }
             }
         }
@@ -1908,15 +2461,20 @@ private struct ActorActionCard: View {
             .buttonStyle(.borderedProminent)
             .tint(.gray)
         } else {
+            // Disable every move except the locked one while the Choice item is in
+            // effect. Reads `effectiveHeldItem` indirectly via `isChoiceLocked` so a
+            // knocked-off Choice item correctly frees the holder.
+            let locked = engine.isChoiceLocked(actor) ? actor.choiceLockedMoveIndex : nil
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
                 ForEach(0..<actor.moves.count, id: \.self) { mi in
                     let move = actor.moves[mi]
                     let curPP = actor.pp.indices.contains(mi) ? actor.pp[mi] : 0
                     let maxPP = move.pp
+                    let isLockedOut = locked != nil && locked != mi
                     MoveButton(move: move, currentPP: curPP, maxPP: maxPP) {
                         chooseMove(mi)
                     }
-                    .disabled(curPP <= 0)
+                    .disabled(curPP <= 0 || isLockedOut)
                 }
             }
         }
