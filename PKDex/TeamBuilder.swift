@@ -111,21 +111,6 @@ private struct NewTeamSheet: View {
                 .navigationTitle("New Team")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .principal) {
-                        AIBuilderButton(mode: .fullTeam) { result in
-                            switch result {
-                            case .success(.team(let teamName, _, let members)):
-                                replaceTeamWithGenerated(name: teamName,
-                                                         members: members)
-                            case .success(.set(let generatedSet)):
-                                // Fallback if a single set ever comes back
-                                // through this entry point.
-                                appendGeneratedToTeam(generatedSet)
-                            case .failure:
-                                break
-                            }
-                        }
-                    }
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
                             if hasChanges {

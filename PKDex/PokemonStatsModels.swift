@@ -481,6 +481,7 @@ enum HeldItem: String, CaseIterable, Identifiable {
     case mentalHerb      = "Mental Herb"
     case whiteHerb       = "White Herb"
     case rockyHelmet     = "Rocky Helmet"
+    case lightClay       = "Light Clay"   // extends screens from 5 → 8 turns
 
     // Healing & status berries
     case aspearBerry     = "Aspear Berry"

@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		33178D042FCCF1E700FE0B46 /* name_qual_vocab.json in Resources */ = {isa = PBXBuildFile; fileRef = 33178D002FCCF1E700FE0B46 /* name_qual_vocab.json */; };
+		33178D052FCCF1E700FE0B46 /* stat_nature_model.npz in Resources */ = {isa = PBXBuildFile; fileRef = 33178D022FCCF1E700FE0B46 /* stat_nature_model.npz */; };
+		33178D062FCCF1E700FE0B46 /* name_qual_weights.npz in Resources */ = {isa = PBXBuildFile; fileRef = 33178D012FCCF1E700FE0B46 /* name_qual_weights.npz */; };
+		33178D072FCCF1E700FE0B46 /* stat_nature_vocab.json in Resources */ = {isa = PBXBuildFile; fileRef = 33178D032FCCF1E700FE0B46 /* stat_nature_vocab.json */; };
 		337BE9B72FC9A05A00859F96 /* BenchmarkHelpers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9B62FC9A05A00859F96 /* BenchmarkHelpers */; };
 		337BE9B92FC9A05A00859F96 /* IntegrationTestHelpers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9B82FC9A05A00859F96 /* IntegrationTestHelpers */; };
 		337BE9BB2FC9A05A00859F96 /* MLXEmbedders in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9BA2FC9A05A00859F96 /* MLXEmbedders */; };
@@ -77,6 +81,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		33178D002FCCF1E700FE0B46 /* name_qual_vocab.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = name_qual_vocab.json; sourceTree = "<group>"; };
+		33178D012FCCF1E700FE0B46 /* name_qual_weights.npz */ = {isa = PBXFileReference; lastKnownFileType = file; path = name_qual_weights.npz; sourceTree = "<group>"; };
+		33178D022FCCF1E700FE0B46 /* stat_nature_model.npz */ = {isa = PBXFileReference; lastKnownFileType = file; path = stat_nature_model.npz; sourceTree = "<group>"; };
+		33178D032FCCF1E700FE0B46 /* stat_nature_vocab.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = stat_nature_vocab.json; sourceTree = "<group>"; };
 		332D1F312F9128C500E7D180 /* PKDexTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PKDexTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		337BE9C52FC9A25700859F96 /* champions-m-a-learnsets.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-a-learnsets.json"; sourceTree = "<group>"; };
 		337BE9C62FC9A25700859F96 /* champions-m-a.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-a.json"; sourceTree = "<group>"; };
@@ -8861,6 +8869,10 @@
 		33C6C9972F8D3CFB005FFCCC = {
 			isa = PBXGroup;
 			children = (
+				33178D002FCCF1E700FE0B46 /* name_qual_vocab.json */,
+				33178D012FCCF1E700FE0B46 /* name_qual_weights.npz */,
+				33178D022FCCF1E700FE0B46 /* stat_nature_model.npz */,
+				33178D032FCCF1E700FE0B46 /* stat_nature_vocab.json */,
 				337BE9C92FC9D8EF00859F96 /* move_categories.json */,
 				337BE9C62FC9A25700859F96 /* champions-m-a.json */,
 				337BE9C52FC9A25700859F96 /* champions-m-a-learnsets.json */,
@@ -8997,6 +9009,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				33178D042FCCF1E700FE0B46 /* name_qual_vocab.json in Resources */,
+				33178D052FCCF1E700FE0B46 /* stat_nature_model.npz in Resources */,
+				33178D062FCCF1E700FE0B46 /* name_qual_weights.npz in Resources */,
+				33178D072FCCF1E700FE0B46 /* stat_nature_vocab.json in Resources */,
 				337BE9CA2FC9D8EF00859F96 /* move_categories.json in Resources */,
 				337BE9C72FC9A25700859F96 /* champions-m-a-learnsets.json in Resources */,
 				337BE9C82FC9A25700859F96 /* champions-m-a.json in Resources */,

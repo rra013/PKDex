@@ -139,10 +139,8 @@ struct NewSetSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .principal) {
-                        AIBuilderButton(mode: .singleSet) { result in
-                            if case .success(.set(let generatedSet)) = result {
-                                applyGeneratedSet(generatedSet)
-                            }
+                        SetPredictorButton(initialSpecies: side.pokemon?.name) { generated in
+                            applyGeneratedSet(generated)
                         }
                     }
                     ToolbarItem(placement: .cancellationAction) {
