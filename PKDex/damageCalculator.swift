@@ -333,6 +333,10 @@ class DamageCalcVM {
             moveType: moveType
         )
 
+        // Mold Breaker (and friends — Teravolt, Turboblaze) suppresses the
+        // defender's ability for damage-modifier purposes during the attacker's
+        // move. Tier 6: only the canon "mold-breaker" ID is mapped.
+        let moldBreaker = attacker.selectedAbility == "mold-breaker"
         let abilityMods = computeAbilityModifiers(
             attackerAbility: attacker.selectedAbility,
             defenderAbility: defender.selectedAbility,
@@ -347,7 +351,8 @@ class DamageCalcVM {
             defenderAtFullHP: defender.atFullHP,
             defenderTypes: defender.types,
             terrain: terrain,
-            isSpread: multi
+            isSpread: multi,
+            moldBreaker: moldBreaker
         )
 
         let baseAtk = isPhysical ? attacker.atk : attacker.spAtk

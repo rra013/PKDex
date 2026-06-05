@@ -815,11 +815,15 @@ func computeAbilityModifiers(
     defenderAtFullHP: Bool,
     defenderTypes: [String] = [],
     terrain: TerrainCondition = .none,
-    isSpread: Bool = false
+    isSpread: Bool = false,
+    moldBreaker: Bool = false
 ) -> AbilityModResult {
     var r = AbilityModResult()
     let atk = attackerAbility ?? ""
-    let def = defenderAbility ?? ""
+    // Mold Breaker suppresses the defender's ability for ALL damage-calc
+    // purposes — type immunities (Levitate, Volt Absorb, …) and damage
+    // reducers (Multiscale, Thick Fat, …) both no-op when the attacker has it.
+    let def = moldBreaker ? "" : (defenderAbility ?? "")
 
     // --- Attacker abilities ---
 

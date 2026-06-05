@@ -258,16 +258,16 @@ enum BattleMoveEffects {
         "magmastorm", "clamp",
     ]
 
-    /// Power/stat modifier keys for damage-class moves (Tier 5):
-    /// - Body Press uses the user's Def as the attacking stat
-    /// - Foul Play uses the TARGET's Atk
-    /// - Acrobatics doubles power if the user has no held item
-    /// - Hex doubles on a statused target
-    /// - Venoshock doubles on a poisoned/toxic target
-    /// - Stored Power / Power Trip: power = 20 + 20 × sum positive stages
+    /// Power/stat modifier keys for damage-class moves. Tier 5 additions:
+    /// Body Press / Foul Play swap the attacking stat; Acrobatics, Hex,
+    /// Venoshock, Stored Power, Power Trip apply a conditional power multi.
+    /// Tier 9 additions (weight-based): Heat Crash & Heavy Slam scale power
+    /// by attacker/defender weight ratio; Grass Knot & Low Kick by defender
+    /// weight alone.
     static let damageModifierKeys: Set<String> = [
         "bodypress", "foulplay", "acrobatics", "hex", "venoshock",
         "storedpower", "powertrip",
+        "heatcrash", "heavyslam", "grassknot", "lowkick",
     ]
 
     /// Ballistic-class moves — blocked by Bulletproof.
@@ -277,6 +277,159 @@ enum BattleMoveEffects {
         "mudbomb", "octazooka", "pollenpuff", "pyroball", "rockblast",
         "rockwrecker", "searingshot", "seedbomb", "shadowball", "sludgebomb",
         "weatherball", "zapcannon",
+    ]
+
+    /// Two-turn charge moves. Turn 1 the user charges (no damage); turn 2
+    /// the move releases at full power. Some skip the charge turn under the
+    /// matching weather (Solar Beam in sun, Electro Shot in rain). Some apply
+    /// a self-boost during the charge (Meteor Beam +SpA, Skull Bash +Def,
+    /// Electro Shot +SpA). Geomancy is a status-class charge — the release
+    /// turn applies the +2 SpA/SpD/Spe boost instead of dealing damage.
+    ///
+    /// Tier 8 extension: `invulnerabilityKind` makes the user untargetable
+    /// during the charge turn except by listed exceptions. `bypassesProtect`
+    /// lets Phantom Force / Shadow Force ignore the defender's Protect.
+    enum InvulnerabilityKind {
+        case underground   // Dig
+        case airborne      // Fly / Bounce
+        case underwater    // Dive
+        case vanished      // Phantom Force / Shadow Force
+    }
+    struct ChargeBehavior {
+        var chargeLog: String                 // "{user} absorbed light!"
+        var skipInWeather: WeatherCondition? = nil
+        var selfBoostsOnCharge: [(Nature.StatKey, Int)] = []
+        var statusOnRelease: [(Nature.StatKey, Int)] = []
+        var invulnerabilityKind: InvulnerabilityKind? = nil
+        var bypassesProtect: Bool = false
+    }
+    static let chargeMoves: [String: ChargeBehavior] = [
+        "solarbeam":   .init(chargeLog: "{user} absorbed light!", skipInWeather: .sun),
+        "solarblade":  .init(chargeLog: "{user} absorbed light!", skipInWeather: .sun),
+        "skyattack":   .init(chargeLog: "{user} became cloaked in a harsh light!"),
+        "meteorbeam":  .init(chargeLog: "{user} is overflowing with space power!",
+                              selfBoostsOnCharge: [(.spAtk, 1)]),
+        "electroshot": .init(chargeLog: "{user} absorbed electricity!",
+                              skipInWeather: .rain,
+                              selfBoostsOnCharge: [(.spAtk, 1)]),
+        "skullbash":   .init(chargeLog: "{user} tucked in its head!",
+                              selfBoostsOnCharge: [(.def, 1)]),
+        "geomancy":    .init(chargeLog: "{user} is absorbing power!",
+                              statusOnRelease: [(.spAtk, 2), (.spDef, 2), (.speed, 2)]),
+        // Tier 8 — semi-invulnerable two-turn moves.
+        "dig":          .init(chargeLog: "{user} burrowed underground!",
+                               invulnerabilityKind: .underground),
+        "fly":          .init(chargeLog: "{user} flew up high!",
+                               invulnerabilityKind: .airborne),
+        "dive":         .init(chargeLog: "{user} hid underwater!",
+                               invulnerabilityKind: .underwater),
+        "bounce":       .init(chargeLog: "{user} sprang up!",
+                               invulnerabilityKind: .airborne),
+        "phantomforce": .init(chargeLog: "{user} vanished from sight!",
+                               invulnerabilityKind: .vanished,
+                               bypassesProtect: true),
+        "shadowforce":  .init(chargeLog: "{user} vanished from sight!",
+                               invulnerabilityKind: .vanished,
+                               bypassesProtect: true),
+        // Sky Drop — Tier 9 simplification: airborne charge then Flying-type
+        // strike. Canon also lifts the TARGET into the air (they skip their
+        // turn) but that requires action-queue surgery; we ship the
+        // user-side mechanic only.
+        "skydrop":      .init(chargeLog: "{user} took its target into the sky!",
+                               invulnerabilityKind: .airborne),
+    ]
+
+    /// Approximate species weight (kg) for weight-based moves. Hardcoded for
+    /// common Champions species; falls back to 50 kg for unlisted entries via
+    /// `weightForSpecies`. PokeAPI's canonical weights stored × 10 in the
+    /// original game data — we use whole kg because the move-power thresholds
+    /// have plenty of room.
+    static let weightKg: [String: Int] = [
+        // VGC mainstays
+        "Charizard": 91, "Blastoise": 86, "Venusaur": 100,
+        "Tyranitar": 202, "Garchomp": 95, "Salamence": 102,
+        "Metagross": 550, "Snorlax": 460, "Aegislash": 53,
+        "Aegislash-Shield": 53, "Aegislash-Blade": 53,
+        "Gyarados": 235, "Dragonite": 210, "Gardevoir": 48,
+        "Greninja": 40, "Talonflame": 24, "Sylveon": 23,
+        "Incineroar": 83, "Decidueye": 36, "Primarina": 44,
+        "Mimikyu": 1, "Mimikyu-Disguised": 1, "Mimikyu-Busted": 1,
+        "Kommo-o": 78, "Toxapex": 14, "Mudsdale": 920,
+        "Excadrill": 40, "Conkeldurr": 87, "Hydreigon": 160,
+        "Magnezone": 180, "Heatran": 430, "Zapdos": 52,
+        "Landorus": 68, "Tornadus": 63, "Thundurus": 61,
+        "Kyurem": 325, "Reshiram": 330, "Zekrom": 345,
+        "Palafin": 60, "Palafin-Hero": 97,
+        "Iron Hands": 380, "Iron Bundle": 11, "Roaring Moon": 380,
+        "Flutter Mane": 4, "Iron Valiant": 35,
+        "Annihilape": 56, "Tinkaton": 113, "Ceruledge": 62,
+        "Armarouge": 85, "Maushold": 23, "Basculegion": 110,
+        "Basculegion-Male": 110, "Basculegion-Female": 110,
+        "Farigiraf": 160, "Wo-Chien": 74, "Chien-Pao": 152,
+        "Ting-Lu": 700, "Chi-Yu": 5, "Gholdengo": 30,
+        "Ogerpon": 40, "Pelipper": 28, "Indeedee": 28, "Indeedee-Female": 28,
+        "Rillaboom": 90, "Cinderace": 33, "Inteleon": 46,
+        "Grimmsnarl": 61, "Dragapult": 50, "Toxtricity": 40,
+        "Sableye": 11, "Volcarona": 46, "Whimsicott": 7,
+        "Klefki": 3, "Pachirisu": 4, "Cresselia": 86,
+    ]
+
+    /// Look up a species' weight in kg, defaulting to 50 for unknown entries.
+    /// Used by Heat Crash / Heavy Slam / Grass Knot / Low Kick.
+    static func weightForSpecies(_ name: String) -> Int {
+        weightKg[name] ?? 50
+    }
+
+    /// Heat Crash / Heavy Slam power table: power scales with how much heavier
+    /// the user is than the target. Canon thresholds (Gen V+):
+    ///   target ≤ 1/5 user weight   → 120
+    ///   target ≤ 1/4 user weight   → 100
+    ///   target ≤ 1/3 user weight   →  80
+    ///   target ≤ 1/2 user weight   →  60
+    ///   otherwise                  →  40
+    static func heavySlamPower(attackerWeight: Int, defenderWeight: Int) -> Int {
+        guard defenderWeight > 0 else { return 40 }
+        let ratio = Double(defenderWeight) / Double(max(1, attackerWeight))
+        if ratio <= 0.2 { return 120 }
+        if ratio <= 0.25 { return 100 }
+        if ratio <= 1.0 / 3.0 { return 80 }
+        if ratio <= 0.5 { return 60 }
+        return 40
+    }
+
+    /// Grass Knot / Low Kick power table based on TARGET weight alone:
+    ///   <10 kg  →  20
+    ///   <25 kg  →  40
+    ///   <50 kg  →  60
+    ///   <100 kg →  80
+    ///   <200 kg → 100
+    ///   ≥200 kg → 120
+    static func weightPower(defenderWeight: Int) -> Int {
+        if defenderWeight < 10 { return 20 }
+        if defenderWeight < 25 { return 40 }
+        if defenderWeight < 50 { return 60 }
+        if defenderWeight < 100 { return 80 }
+        if defenderWeight < 200 { return 100 }
+        return 120
+    }
+
+    /// Moves that can hit a semi-invulnerable defender. Each invulnerability
+    /// kind has its own list; anything else misses entirely.
+    static let invulnerabilityExceptions: [InvulnerabilityKind: Set<String>] = [
+        .underground: ["earthquake", "magnitude", "fissure"],
+        .airborne:    ["gust", "twister", "hurricane", "thunder",
+                       "skyuppercut", "smackdown", "thousandarrows"],
+        .underwater:  ["surf", "whirlpool"],
+        .vanished:    [],
+    ]
+
+    /// Of the exception moves above, these deal DOUBLE damage to the
+    /// invulnerable defender (canon: Earthquake on Dig, Surf on Dive, …).
+    static let invulnerabilityDoubleDamage: [InvulnerabilityKind: Set<String>] = [
+        .underground: ["earthquake", "magnitude"],
+        .airborne:    ["gust", "twister"],
+        .underwater:  ["surf", "whirlpool"],
+        .vanished:    [],
     ]
 
     /// Sound-class moves — blocked by Soundproof.
@@ -426,6 +579,7 @@ enum BattleMoveEffects {
         "twister":      .init(chance: 20, flinch: true),
         "snore":        .init(chance: 30, flinch: true),
         "iciclecrash":  .init(chance: 30, flinch: true),
+        "skyattack":    .init(chance: 30, flinch: true),
         // Target stat drops
         "crunch":       .init(chance: 20, targetDrops: [(.def, -1)]),
         "shadowball":   .init(chance: 20, targetDrops: [(.spDef, -1)]),
@@ -637,6 +791,11 @@ final class BattleParticipant: Identifiable {
     /// (the default for Mimikyu), the next damaging hit is reduced to a sliver
     /// of chip and the disguise flips to false (form change is cosmetic).
     var disguiseIntact: Bool = false
+    /// Eiscue's Ice Face. Like Disguise but only blocks the first *physical*
+    /// hit, and is restored when snow/hail weather starts. Flag is reset on
+    /// switch (the holder remembers their Ice form across turns but a fresh
+    /// entry presents Ice Face again).
+    var iceFaceIntact: Bool = false
     /// True if the holder is currently grounded by Smack Down / Thousand Arrows
     /// or while Gravity is active. Levitate / Flying typing is overridden when
     /// this is true.
@@ -702,6 +861,50 @@ final class BattleParticipant: Identifiable {
     var lastPhysicalDamageThisTurn: Int = 0
     var lastSpecialDamageThisTurn: Int = 0
 
+    // MARK: Tier 6 volatiles / persistent flags
+
+    /// Cute Charm infatuation. While true, the holder has a 50% chance to
+    /// fizzle each turn (canon is gender-aware; Tier 6 skips the gender check).
+    /// Cleared on switch.
+    var infatuated: Bool = false
+    /// Battle Bond — set after the holder KOs an opposing Pokemon (Gen 9
+    /// version: +1 SpA on KO). Tracked so the boost only happens once per
+    /// switch-in cycle.
+    var battleBondTriggered: Bool = false
+    /// Zero to Hero / Palafin — the moment the holder switches out for the
+    /// first time, this flag flips on and stays on for the rest of the battle.
+    /// While true the engine treats the holder as the Hero form (higher stats
+    /// + display tag). Survives switches because the canon transform persists.
+    var palafinHeroActive: Bool = false
+    /// Imposter — set when the holder copied an opponent on entry. While true
+    /// the engine pulls stat / move / type / ability data from the snapshot.
+    /// Cleared on switch (the copy doesn't persist).
+    var imposterSnapshot: ImposterSnapshot? = nil
+
+    /// Charge state for two-turn moves (Solar Beam / Sky Attack / Meteor Beam
+    /// / Electro Shot / Skull Bash / Geomancy). When set, the holder is on
+    /// their charge turn — their next action releases the move regardless of
+    /// what was queued. Cleared after release or on switch. The KEY pins the
+    /// canonical move (so swap-attack tricks don't release a different move);
+    /// the INDEX is what gets executed.
+    var chargedMoveKey: String? = nil
+    var chargedMoveIndex: Int? = nil
+
+    /// Snapshot of the copied opponent used by Imposter (and by Transform if
+    /// that ever ships). HP isn't copied — only stats / types / ability /
+    /// move slot names. Stat stages start at 0 and accumulate normally.
+    struct ImposterSnapshot {
+        let displayName: String
+        let type1: String
+        let type2: String?
+        let baseAtk: Int
+        let baseDef: Int
+        let baseSpAtk: Int
+        let baseSpDef: Int
+        let baseSpeed: Int
+        let ability: String?
+    }
+
     init(slot: TeamSlotInfo, allPokemon: [PKMNStats], allMoves: [MoveData]) {
         self.slot = slot
         self.stats = allPokemon.first(where: { $0.id == slot.pokemonID })
@@ -727,6 +930,10 @@ final class BattleParticipant: Identifiable {
         if slot.abilityName == "disguise" {
             self.disguiseIntact = true
         }
+        // Eiscue presents Ice Face on entry — first physical hit gets blocked.
+        if slot.abilityName == "ice-face" {
+            self.iceFaceIntact = true
+        }
     }
 
     var fainted: Bool { currentHP <= 0 }
@@ -736,16 +943,30 @@ final class BattleParticipant: Identifiable {
     // Stance form is consulted after Mega so a hypothetical Mega Aegislash would
     // still win; the current canon has no such conflict but the ordering keeps
     // the priority predictable.
+    //
+    // Imposter snapshot wins over everything (a transformed Ditto is supposed
+    // to behave like its target). Palafin Hero form wins over the base when
+    // the persistent flag is set.
     var displayName: String {
-        megaForm?.displayName ?? stanceForm?.displayName ?? slot.pokemonName
+        if let s = imposterSnapshot { return s.displayName }
+        if palafinHeroActive { return "Palafin-Hero" }
+        return megaForm?.displayName ?? stanceForm?.displayName ?? slot.pokemonName
     }
-    var activeType1: String { megaForm?.type1 ?? slot.type1 }
-    var activeType2: String? { megaForm?.type2 ?? slot.type2 }
-    /// Active ability resolution priority: Mega form > Trace copy > slot. Trace
-    /// only fires on entry and the copied ID lives in `tracedAbility` until the
-    /// holder switches out (when `resetVolatile` clears it). A Mega still wins
-    /// — the new form's ability supersedes any Trace.
-    var activeAbility: String? { megaForm?.ability ?? tracedAbility ?? slot.abilityName }
+    var activeType1: String {
+        imposterSnapshot?.type1 ?? megaForm?.type1 ?? slot.type1
+    }
+    var activeType2: String? {
+        if let s = imposterSnapshot { return s.type2 }
+        return megaForm?.type2 ?? slot.type2
+    }
+    /// Active ability resolution priority: Imposter copy > Mega form > Trace
+    /// copy > slot. Trace only fires on entry and the copied ID lives in
+    /// `tracedAbility` until the holder switches out (when `resetVolatile`
+    /// clears it). A Mega still wins — the new form's ability supersedes any
+    /// Trace. An Imposter wins above all (it stole everything).
+    var activeAbility: String? {
+        imposterSnapshot?.ability ?? megaForm?.ability ?? tracedAbility ?? slot.abilityName
+    }
     /// Set by Trace when the holder enters; cleared on switch.
     var tracedAbility: String? = nil
 
@@ -761,11 +982,26 @@ final class BattleParticipant: Identifiable {
         return t
     }
 
-    var baseAtk: Int   { megaForm?.baseAtk   ?? stanceForm?.baseAtk   ?? stats?.baseAtk   ?? 1 }
-    var baseDef: Int   { megaForm?.baseDef   ?? stanceForm?.baseDef   ?? stats?.baseDef   ?? 1 }
-    var baseSpAtk: Int { megaForm?.baseSpAtk ?? stanceForm?.baseSpAtk ?? stats?.baseSpAtk ?? 1 }
-    var baseSpDef: Int { megaForm?.baseSpDef ?? stanceForm?.baseSpDef ?? stats?.baseSpDef ?? 1 }
-    var baseSpeed: Int { megaForm?.baseSpeed ?? stanceForm?.baseSpeed ?? stats?.baseSpeed ?? 1 }
+    var baseAtk: Int {
+        if let s = imposterSnapshot { return s.baseAtk }
+        let raw = megaForm?.baseAtk ?? stanceForm?.baseAtk ?? stats?.baseAtk ?? 1
+        return palafinHeroActive ? raw + 60 : raw
+    }
+    var baseDef: Int {
+        imposterSnapshot?.baseDef ?? megaForm?.baseDef ?? stanceForm?.baseDef ?? stats?.baseDef ?? 1
+    }
+    var baseSpAtk: Int {
+        imposterSnapshot?.baseSpAtk ?? megaForm?.baseSpAtk ?? stanceForm?.baseSpAtk ?? stats?.baseSpAtk ?? 1
+    }
+    var baseSpDef: Int {
+        imposterSnapshot?.baseSpDef ?? megaForm?.baseSpDef ?? stanceForm?.baseSpDef ?? stats?.baseSpDef ?? 1
+    }
+    var baseSpeed: Int {
+        if let s = imposterSnapshot { return s.baseSpeed }
+        let raw = megaForm?.baseSpeed ?? stanceForm?.baseSpeed ?? stats?.baseSpeed ?? 1
+        // Zero to Hero (Palafin) — the Hero form is significantly faster.
+        return palafinHeroActive ? raw + 60 : raw
+    }
 
     var speed: Int {
         let ev = slot.championsMode ? championsEVToMain(slot.evSpeed) : slot.evSpeed
@@ -824,11 +1060,21 @@ final class BattleParticipant: Identifiable {
         trapMoveName = nil
         lastPhysicalDamageThisTurn = 0
         lastSpecialDamageThisTurn = 0
+        infatuated = false
+        battleBondTriggered = false
+        imposterSnapshot = nil
+        chargedMoveKey = nil
+        chargedMoveIndex = nil
+        // palafinHeroActive persists by design — the Hero form sticks for the
+        // rest of the battle, even across subsequent switches.
         if slot.abilityName == "stance-change" {
             stanceForm = .aegislashShield
         }
         if slot.abilityName == "disguise" {
             disguiseIntact = true
+        }
+        if slot.abilityName == "ice-face" {
+            iceFaceIntact = true
         }
     }
 
@@ -1263,6 +1509,13 @@ final class BattleEngine {
             out.currentHP = min(out.maxHP, out.currentHP + heal)
             log.append(BattleLogEntry(text: "\(out.displayName)'s Regenerator restored some HP."))
         }
+        // Zero to Hero (Palafin) — first switch-out flips the persistent Hero
+        // flag. The boost is then live the next time it walks in.
+        if let out = outgoing, !out.fainted,
+           out.activeAbility == "zero-to-hero", !out.palafinHeroActive {
+            out.palafinHeroActive = true
+            log.append(BattleLogEntry(text: "\(out.displayName) is ready to transform into its Hero form!"))
+        }
         outgoing?.resetVolatile()
         s.activeIndices[slot] = benchIndex
         let incoming = s.participants[benchIndex]
@@ -1386,6 +1639,14 @@ final class BattleEngine {
         if p.status == .paralysis && Double.random(in: 0..<1) < 0.25 {
             log.append(BattleLogEntry(text: "\(p.displayName) is fully paralyzed! It can't move!"))
             return false
+        }
+        if p.infatuated {
+            // 50% chance to fizzle the move ("immobilized by love"). No turn
+            // counter — infatuation lasts until the holder switches.
+            if Double.random(in: 0..<1) < 0.5 {
+                log.append(BattleLogEntry(text: "\(p.displayName) is immobilized by love!"))
+                return false
+            }
         }
         if p.confused {
             // Confusion lasts 1-4 turns and ticks down at the start of every move.
@@ -1557,6 +1818,15 @@ final class BattleEngine {
             move = attacker.moves[resolvedMoveIndex]
         }
 
+        // Two-turn charge override: if the user is mid-charge, force the
+        // queued action to be the charged move regardless of what was picked.
+        // Canon: charging locks the user into the second-turn release.
+        if let chargedIdx = attacker.chargedMoveIndex,
+           attacker.moves.indices.contains(chargedIdx) {
+            resolvedMoveIndex = chargedIdx
+            move = attacker.moves[resolvedMoveIndex]
+        }
+
         // Destiny Bond clears when the user takes their next action.
         attacker.destinyBondActive = false
 
@@ -1635,6 +1905,46 @@ final class BattleEngine {
             return
         }
 
+        // Two-turn charge moves — must run BEFORE the status-class branch so
+        // Geomancy (status-class) charges & releases cleanly. For damaging
+        // charge moves we just charge here and let the next call land in the
+        // damage path on the release turn.
+        let chargeKey = BattleSimSeed.normalize(move.name)
+        if let charge = BattleMoveEffects.chargeMoves[chargeKey] {
+            if attacker.chargedMoveKey == chargeKey {
+                // Release turn — clear the volatile.
+                attacker.chargedMoveKey = nil
+                attacker.chargedMoveIndex = nil
+                // Status-class release (Geomancy): apply boosts and bail.
+                if !charge.statusOnRelease.isEmpty {
+                    for (stat, delta) in charge.statusOnRelease {
+                        changeStage(attacker, stat: stat, by: delta)
+                    }
+                    log.append(BattleLogEntry(text: "\(attacker.displayName) unleashed energy!"))
+                    attacker.consecutiveProtectCount = 0
+                    return
+                }
+                // Fall through to the normal damage path on the release turn.
+            } else {
+                // Charge turn unless weather skip applies (Solar Beam in sun,
+                // Electro Shot in rain).
+                let skip = charge.skipInWeather.map { weather == $0 } ?? false
+                if !skip {
+                    for (stat, delta) in charge.selfBoostsOnCharge {
+                        changeStage(attacker, stat: stat, by: delta)
+                    }
+                    attacker.chargedMoveKey = chargeKey
+                    attacker.chargedMoveIndex = resolvedMoveIndex
+                    let text = charge.chargeLog.replacingOccurrences(
+                        of: "{user}", with: attacker.displayName)
+                    log.append(BattleLogEntry(text: text))
+                    attacker.consecutiveProtectCount = 0
+                    return
+                }
+                // Weather skipped — fall through to one-turn execution.
+            }
+        }
+
         if move.damageClass == "status" {
             // Status moves that target the opponent are stopped by Protect / King's
             // Shield. Self-targeted statuses (Swords Dance, Trick Room, screens,
@@ -1698,7 +2008,10 @@ final class BattleEngine {
         // attacker resets its own protect streak. Contact penalties on the
         // attacker (Spiky Shield chip, Baneful Bunker poison, Burning Bulwark
         // burn, Silk Trap speed drop, King's Shield Atk drop) fire here.
-        if defender.protectedThisTurn {
+        // Phantom Force / Shadow Force bypass Protect — handled via the
+        // chargeBehavior's `bypassesProtect` flag.
+        let bypassesProtect = BattleMoveEffects.chargeMoves[BattleSimSeed.normalize(move.name)]?.bypassesProtect ?? false
+        if defender.protectedThisTurn, !bypassesProtect {
             log.append(BattleLogEntry(text: "\(defender.displayName) protected itself from \(move.name)!"))
             applyProtectContactPenalty(attacker: attacker, defender: defender, move: move)
             attacker.consecutiveProtectCount = 0
@@ -1949,6 +2262,24 @@ final class BattleEngine {
 
         let isKnockOff = BattleSimSeed.normalize(move.name) == "knockoff"
 
+        // Tier 8 — semi-invulnerable defender check. If the defender is
+        // mid-charge of Dig / Fly / Dive / Bounce / Phantom Force / Shadow
+        // Force, the attack misses entirely UNLESS the move is in the
+        // hit-through exception list for that invulnerability kind.
+        let attackKey = BattleSimSeed.normalize(move.name)
+        var invDamageMult: Double = 1.0
+        if let defChargeKey = defender.chargedMoveKey,
+           let defBehavior = BattleMoveEffects.chargeMoves[defChargeKey],
+           let kind = defBehavior.invulnerabilityKind {
+            let exceptions = BattleMoveEffects.invulnerabilityExceptions[kind] ?? []
+            if !exceptions.contains(attackKey) {
+                log.append(BattleLogEntry(text: "\(defender.displayName) avoided the attack!"))
+                return
+            }
+            let doublers = BattleMoveEffects.invulnerabilityDoubleDamage[kind] ?? []
+            if doublers.contains(attackKey) { invDamageMult = 2.0 }
+        }
+
         // Find which side the defender is on so we can read its screen state.
         // Helping Hand reads the attacker's side at the attacker's slot. Both
         // multipliers stack independently of the damage calc.
@@ -1991,6 +2322,11 @@ final class BattleEngine {
             let dMin = Int(result.min)
             let dMax = max(Int(result.max), dMin)
             var damage = dMin == dMax ? dMin : Int.random(in: dMin...dMax)
+            // Tier 8 — Earthquake-on-Dig and friends deal 2x to the
+            // invulnerable defender.
+            if invDamageMult != 1.0 {
+                damage = Int(Double(damage) * invDamageMult)
+            }
             // Knock Off: 1.5x damage when the defender has a removable item.
             if isKnockOff && defenderHadItemBefore && !preBerry.isMegaStone {
                 damage = Int(Double(damage) * 1.5)
@@ -2075,6 +2411,15 @@ final class BattleEngine {
                 defender.disguiseIntact = false
                 damage = max(1, defender.maxHP / 8)
                 log.append(BattleLogEntry(text: "\(defender.displayName)'s disguise was busted!"))
+            }
+            // Ice Face — Eiscue's first incoming PHYSICAL hit is blocked
+            // entirely (zero damage). The Ice form busts to Noice; snow/hail
+            // weather restores it via `setWeather`.
+            if defender.iceFaceIntact, defender.activeAbility == "ice-face",
+               move.damageClass == "physical", hitsLanded == 0 {
+                defender.iceFaceIntact = false
+                damage = 0
+                log.append(BattleLogEntry(text: "\(defender.displayName)'s Ice Face transformed it into Noice Face!"))
             }
             // Endure — clamps post-hit HP at 1 for this turn.
             let preHP = defender.currentHP
@@ -2208,6 +2553,14 @@ final class BattleEngine {
             // Tier 4 — KO retaliation (Innards Out, Aftermath).
             applyKORetaliation(attacker: attacker, defender: defender,
                                move: move, lastHPLoss: preDefenderHP)
+            // Tier 6 — Battle Bond (Gen 9): +1 SpA on every KO the holder
+            // delivers. Fires once per switch-in via the `battleBondTriggered`
+            // gate so it can't stack indefinitely.
+            if attacker.activeAbility == "battle-bond", !attacker.battleBondTriggered {
+                attacker.battleBondTriggered = true
+                changeStage(attacker, stat: .spAtk, by: 1)
+                log.append(BattleLogEntry(text: "\(attacker.displayName)'s Battle Bond raised its Sp. Atk!"))
+            }
             // Destiny Bond — if the fallen defender had it up, the attacker
             // goes with them. Skip when the attacker already fainted (e.g.
             // Brave Bird recoil) and when the attacker is on the same side as
@@ -2880,6 +3233,18 @@ final class BattleEngine {
         weather = w
         weatherTurns = 5
         log.append(BattleLogEntry(text: "\(name): the weather is now \(w.rawValue)."))
+        // Ice Face — Eiscue restores its Ice form when snow weather starts.
+        if w == .snow {
+            for s in 0..<2 {
+                for slot in 0..<format.activeSlots {
+                    if let p = side(at: s).active(at: slot),
+                       p.activeAbility == "ice-face", !p.iceFaceIntact {
+                        p.iceFaceIntact = true
+                        log.append(BattleLogEntry(text: "\(p.displayName)'s Ice Face was restored!"))
+                    }
+                }
+            }
+        }
     }
 
     private func setTerrain(_ t: TerrainCondition, name: String) {
@@ -2923,6 +3288,41 @@ final class BattleEngine {
                 }
             }
         }
+        if ability == "imposter" {
+            applyImposter(from: p, ownSide: ownSide)
+        }
+    }
+
+    /// Imposter — Ditto's signature ability. On entry, copy the slot-0
+    /// opponent's stats, types, ability, and (notionally) moves. HP and item
+    /// stay the user's. Tier 6 doesn't copy move slots (the engine binds
+    /// MoveData to the team slot at build time, which would require deeper
+    /// surgery); the visible "transform" + stat copy covers the main use.
+    private func applyImposter(from p: BattleParticipant, ownSide: Int) {
+        let oppSide = side(at: 1 - ownSide)
+        // Pick slot 0 in canon; if it's fainted, fall through to slot 1.
+        var target: BattleParticipant?
+        for slot in 0..<format.activeSlots {
+            if let t = oppSide.active(at: slot), !t.fainted { target = t; break }
+        }
+        guard let t = target else { return }
+        // Don't recursively copy an Imposter that copied us.
+        if t.imposterSnapshot != nil { return }
+        p.imposterSnapshot = BattleParticipant.ImposterSnapshot(
+            displayName: "\(p.slot.pokemonName) (\(t.displayName))",
+            type1: t.activeType1, type2: t.activeType2,
+            baseAtk: t.baseAtk, baseDef: t.baseDef,
+            baseSpAtk: t.baseSpAtk, baseSpDef: t.baseSpDef,
+            baseSpeed: t.baseSpeed,
+            ability: t.activeAbility
+        )
+        // Imposter also copies the target's current stat stages (canon).
+        p.atkStage = t.atkStage
+        p.defStage = t.defStage
+        p.spAtkStage = t.spAtkStage
+        p.spDefStage = t.spDefStage
+        p.speedStage = t.speedStage
+        log.append(BattleLogEntry(text: "\(p.slot.pokemonName) transformed into \(t.displayName)!"))
     }
 
     /// Trace — copy the ability of a random opposing active Pokemon. The copy
@@ -3744,9 +4144,9 @@ final class BattleEngine {
 
     // MARK: Tier 5 — Contact + trap reactives
 
-    /// Cursed Body (30% disable on contact) and Pickpocket (steal attacker's
-    /// item on contact when holder has none). Both fire post-damage if the
-    /// defender survived.
+    /// Cursed Body (30% disable on contact), Pickpocket (steal attacker's
+    /// item on contact when holder has none), and Cute Charm (30% infatuate
+    /// the contact attacker). All fire post-damage if the defender survived.
     private func applyTier5ContactReactives(attacker: BattleParticipant,
                                             defender: BattleParticipant,
                                             move: MoveData) {
@@ -3770,6 +4170,13 @@ final class BattleEngine {
                 defender.heldItem = attacker.heldItem
                 attacker.heldItem = .none
                 log.append(BattleLogEntry(text: "\(defender.displayName) lifted \(attacker.displayName)'s item via Pickpocket!"))
+            }
+        case "cute-charm":
+            // Canon: 30% chance; only fires on opposite-gender contact. We don't
+            // track gender, so the gender check is skipped (always eligible).
+            if !attacker.infatuated, Int.random(in: 1...100) <= 30 {
+                attacker.infatuated = true
+                log.append(BattleLogEntry(text: "\(attacker.displayName) became infatuated with \(defender.displayName)!"))
             }
         default: break
         }
@@ -3903,6 +4310,16 @@ final class BattleEngine {
             let target = 20 + 20 * stages
             let base = max(baseMovePower, 1)
             return Double(target) / Double(base)
+        case "heatcrash", "heavyslam":
+            let aW = BattleMoveEffects.weightForSpecies(attacker.displayName)
+            let dW = BattleMoveEffects.weightForSpecies(defender.displayName)
+            let target = BattleMoveEffects.heavySlamPower(attackerWeight: aW,
+                                                         defenderWeight: dW)
+            return Double(target) / Double(max(baseMovePower, 1))
+        case "grassknot", "lowkick":
+            let dW = BattleMoveEffects.weightForSpecies(defender.displayName)
+            let target = BattleMoveEffects.weightPower(defenderWeight: dW)
+            return Double(target) / Double(max(baseMovePower, 1))
         default:
             return 1.0
         }
@@ -3931,6 +4348,18 @@ final class BattleEngine {
             vm.side1.spAtkStage = max(0, vm.side1.spAtkStage)
             vm.side2.defStage   = min(0, vm.side2.defStage)
             vm.side2.spDefStage = min(0, vm.side2.spDefStage)
+        }
+        // Unaware (Tier 6) — ignores opposing stat stages during the calc.
+        // Attacker side ignores the defender's defensive stages; defender
+        // side ignores the attacker's offensive stages. Mutating the proxy
+        // is safe because it's throwaway.
+        if attacker.activeAbility == "unaware" {
+            vm.side2.defStage   = 0
+            vm.side2.spDefStage = 0
+        }
+        if defender.activeAbility == "unaware" {
+            vm.side1.atkStage   = 0
+            vm.side1.spAtkStage = 0
         }
         guard let r = vm.side1Results.first else { return (0, 0, 1) }
         return (r.damageMin, r.damageMax, r.effectiveness)
@@ -4144,6 +4573,19 @@ final class BattleEngine {
                         log.append(BattleLogEntry(text: "\(p.displayName) was freed from the trap."))
                         p.trapMoveName = nil
                     }
+                }
+
+                // Moody (Tier 6) — pick one stat to raise by 2 and a
+                // different stat to lower by 1. Skip accuracy/evasion (not
+                // tracked). Tier 6 ignores boost-cap edge cases.
+                if !p.fainted, p.activeAbility == "moody" {
+                    let stats: [Nature.StatKey] = [.atk, .def, .spAtk, .spDef, .speed]
+                    let up = stats.randomElement()!
+                    let downs = stats.filter { $0 != up }
+                    let down = downs.randomElement()!
+                    changeStage(p, stat: up, by: 2)
+                    changeStage(p, stat: down, by: -1)
+                    log.append(BattleLogEntry(text: "\(p.displayName)'s Moody shifted its stats!"))
                 }
 
                 // Encore / Disable — both tick at EOT. When the timer hits 0
@@ -4598,6 +5040,75 @@ enum ChampionsFormat {
     }
 }
 
+// MARK: - Engine Coverage
+
+/// Catalog of moves and abilities the battle engine doesn't fully model.
+/// Surfaced on the team-select screen so the user knows their pick will
+/// behave differently from canon. Categories:
+///   - `unimplementedMoves` / `unimplementedAbilities`: not simulated at all.
+///     A move here falls through to either no effect (status) or generic
+///     damage with no secondary (damaging).
+///   - `partialMoves` / `partialAbilities`: works for the main case but with a
+///     documented caveat (Sky Drop doesn't lift the target, etc.).
+///
+/// Keys are `BattleSimSeed.normalize`-form for moves and the PokeAPI slug for
+/// abilities. Match the names the slots actually carry.
+enum BattleEngineCoverage {
+    static let unimplementedMoves: Set<String> = [
+        "transform", "mimic", "sketch", "copycat", "imprison",
+        "razorwind", "freezeshock", "iceburn", "bide",
+        "skillswap", "roleplay", "instruct",
+        "metalburst", "comeuppance",
+    ]
+
+    static let partialMoves: [String: String] = [
+        "skydrop":     "Sky Drop: user goes airborne; the target isn't lifted.",
+        "afteryou":    "After You: logs only — turn order isn't changed.",
+        "curse":       "Curse (Ghost): HP cost applies; end-of-turn chip on the target isn't modeled.",
+        "shedtail":    "Shed Tail: pivot works; the Substitute donation isn't modeled.",
+        "substitute":  "Substitute: sound moves don't bypass it.",
+        "throatchop":  "Throat Chop: damage lands; sound-move disable isn't modeled.",
+        "stoneaxe":    "Stone Axe / Ceaseless Edge sets Spikes on the foe's side (Spikes, not Stealth Rock).",
+    ]
+
+    static let unimplementedAbilities: Set<String> = [
+        "forecast", "schooling", "power-construct", "hunger-switch",
+        "mimicry", "stench", "neutralizing-gas", "shields-down",
+        "ball-fetch", "rks-system", "multitype", "zen-mode",
+    ]
+
+    static let partialAbilities: [String: String] = [
+        "imposter": "Imposter: stats/types/ability/stages copy; move-slot copy isn't modeled.",
+        "battle-bond": "Battle Bond: Gen 9 stat boost on KO; older form-change variant not modeled.",
+        "zero-to-hero": "Zero to Hero: simplified stat boost (canon transform is more involved).",
+        "cute-charm": "Cute Charm: 30% infatuation on contact (gender check skipped).",
+    ]
+
+    /// Return human-readable warnings for the given team slot. Empty if every
+    /// move and the ability are fully modeled.
+    static func warnings(for slot: TeamSlotInfo) -> [String] {
+        var out: [String] = []
+        if let ab = slot.abilityName?.lowercased() {
+            if unimplementedAbilities.contains(ab) {
+                out.append("Ability \(formatAbilityName(ab)): not yet simulated.")
+            }
+            if let partial = partialAbilities[ab] {
+                out.append(partial)
+            }
+        }
+        for moveSlot in slot.moveSlots {
+            let key = BattleSimSeed.normalize(moveSlot.moveName)
+            if unimplementedMoves.contains(key) {
+                out.append("Move \(moveSlot.moveName): not yet simulated.")
+            }
+            if let partial = partialMoves[key] {
+                out.append(partial)
+            }
+        }
+        return out
+    }
+}
+
 // MARK: - Team Picker
 
 private struct TeamPickerCard: View {
@@ -4652,6 +5163,33 @@ private struct TeamPickerCard: View {
                         Label(vio.message, systemImage: "exclamationmark.triangle")
                             .font(.caption2).foregroundStyle(.orange)
                     }
+                }
+
+                // Engine-coverage warnings — surface anything the simulator
+                // doesn't fully model so the user isn't surprised mid-battle.
+                let coverageNotes: [(slot: String, lines: [String])] = liveSlots.compactMap { slot in
+                    let lines = BattleEngineCoverage.warnings(for: slot)
+                    return lines.isEmpty ? nil : (slot.pokemonName, lines)
+                }
+                if !coverageNotes.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Engine coverage notes", systemImage: "info.circle")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.blue)
+                        ForEach(Array(coverageNotes.enumerated()), id: \.offset) { _, note in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(note.slot).font(.caption2.bold())
+                                ForEach(note.lines, id: \.self) { line in
+                                    Text("• \(line)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                    }
+                    .padding(8)
+                    .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                 }
             }
         }
