@@ -338,10 +338,20 @@ public final class ChampionsValidator {
     private func validateMegaConsistency(_ s: PokemonSet, into v: inout [Violation]) {
         guard let item = s.item, !item.isEmpty else { return }
         guard let megaTarget = megaStoneToSpecies[item] else { return }
-        // Item is a mega stone. Species must match the stone's owner.
-        if megaTarget != s.species {
+        // Item is a mega stone — must be held by the BASE species. The mega-form
+        // name (e.g. "Charizard-Y") is what the mon transforms into mid-battle,
+        // not what it's built as. Accept either the recorded mega-form species
+        // OR any base species that's listed in MegaForms.all as the stone's owner.
+        let normSpecies = BattleSimSeed.normalize(s.species)
+        let allowedBaseKeys = Set(MegaForms.all
+            .filter { $0.stone?.rawValue == item }
+            .map { $0.speciesKey })
+        let matchesBase = allowedBaseKeys.contains(normSpecies)
+        let matchesMegaForm = (megaTarget == s.species)
+        if !matchesBase && !matchesMegaForm {
+            let baseDisplay = allowedBaseKeys.sorted().joined(separator: ", ")
             v.append(.init(category: .wrongMegaStone,
-                message: "\(item) only works on \(megaTarget), not \(s.species)"))
+                message: "\(item) only works on \(baseDisplay), not \(s.species)"))
         }
     }
 

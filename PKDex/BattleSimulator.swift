@@ -15,6 +15,8 @@ enum BattleFormat: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String { self == .singles ? "Singles" : "Doubles" }
     var activeSlots: Int { self == .singles ? 1 : 2 }
+    /// Official VGC-style "bring 6 pick N": singles brings 3, doubles brings 4.
+    var bringCount: Int { self == .singles ? 3 : 4 }
 }
 
 // MARK: - Status & Move Effects
@@ -4775,6 +4777,8 @@ struct BattleSimulatorView: View {
     @State private var format: BattleFormat = .singles
     @State private var team1ID: PersistentIdentifier?
     @State private var team2ID: PersistentIdentifier?
+    @State private var team1Order: [Int] = []
+    @State private var team2Order: [Int] = []
     @State private var engine: BattleEngine?
     @State private var championsFormat: Bool = false
     @State private var didApplyDefaultChampionsToggle: Bool = false
@@ -4815,12 +4819,34 @@ struct BattleSimulatorView: View {
                                    format: format,
                                    championsFormat: championsFormat,
                                    validator: championsValidator)
+                    if let t1 = team(for: team1ID) {
+                        LeadOrderCard(
+                            label: "Side 1 — Lead Order",
+                            slots: t1.resolvedSlots(allSpreads: savedSpreads,
+                                                    allPokemon: allPokemon,
+                                                    allMoves: allMoves),
+                            bringCount: format.bringCount,
+                            activeSlots: format.activeSlots,
+                            order: $team1Order
+                        )
+                    }
                     TeamPickerCard(label: "Side 2", selectedID: $team2ID,
                                    teams: teams, savedSpreads: savedSpreads,
                                    allPokemon: allPokemon, allMoves: allMoves,
                                    format: format,
                                    championsFormat: championsFormat,
                                    validator: championsValidator)
+                    if let t2 = team(for: team2ID) {
+                        LeadOrderCard(
+                            label: "Side 2 — Lead Order",
+                            slots: t2.resolvedSlots(allSpreads: savedSpreads,
+                                                    allPokemon: allPokemon,
+                                                    allMoves: allMoves),
+                            bringCount: format.bringCount,
+                            activeSlots: format.activeSlots,
+                            order: $team2Order
+                        )
+                    }
 
                     Button {
                         startBattle()
@@ -4836,6 +4862,12 @@ struct BattleSimulatorView: View {
             .padding()
         }
         .onAppear { loadValidatorIfNeeded() }
+        .onChange(of: team1ID) { _, _ in team1Order.removeAll() }
+        .onChange(of: team2ID) { _, _ in team2Order.removeAll() }
+        .onChange(of: format) { _, _ in
+            team1Order.removeAll()
+            team2Order.removeAll()
+        }
     }
 
     /// Parses the bundled Champions JSON the first time we need it. If the JSON
@@ -4909,8 +4941,9 @@ struct BattleSimulatorView: View {
 
     private var canStart: Bool {
         guard let t1 = team(for: team1ID), let t2 = team(for: team2ID) else { return false }
-        let need = format.activeSlots
+        let need = format.bringCount
         guard t1.slots.count >= need && t2.slots.count >= need else { return false }
+        guard team1Order.count == need && team2Order.count == need else { return false }
 
         if championsFormat, let v = championsValidator {
             let t1Slots = t1.resolvedSlots(allSpreads: savedSpreads,
@@ -4932,8 +4965,12 @@ struct BattleSimulatorView: View {
         guard let t1 = team(for: team1ID), let t2 = team(for: team2ID) else { return }
         // Resolve through the live SavedSpread records so edits made in the Sets tab
         // (move swaps, EV tweaks, ability changes) propagate into the battle.
-        var s1Slots = t1.resolvedSlots(allSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
-        var s2Slots = t2.resolvedSlots(allSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+        let t1Resolved = t1.resolvedSlots(allSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+        let t2Resolved = t2.resolvedSlots(allSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+        // Apply the player's lead order — the first `activeSlots` are sent out,
+        // the rest sit on the bench.
+        var s1Slots = team1Order.compactMap { t1Resolved.indices.contains($0) ? t1Resolved[$0] : nil }
+        var s2Slots = team2Order.compactMap { t2Resolved.indices.contains($0) ? t2Resolved[$0] : nil }
         if championsFormat {
             // Lv 50 + Champions stat scaling, regardless of how the spread was saved.
             s1Slots = s1Slots.map { ChampionsFormat.normalize($0) }
@@ -5141,8 +5178,8 @@ private struct TeamPickerCard: View {
                 if !names.isEmpty {
                     Text(names).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                 }
-                if t.slots.count < format.activeSlots {
-                    Label("Need at least \(format.activeSlots) Pokemon for \(format.label).",
+                if t.slots.count < format.bringCount {
+                    Label("Need at least \(format.bringCount) Pokemon for \(format.label).",
                           systemImage: "exclamationmark.triangle.fill")
                         .font(.caption).foregroundStyle(.red)
                 }
@@ -5195,6 +5232,108 @@ private struct TeamPickerCard: View {
         }
         .padding()
         .background(.background, in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+// MARK: - Lead Order Picker
+
+/// VGC-style "bring 6 pick N" selector. The user taps slots in the order they
+/// want them sent out; the first `activeSlots` become the field leads and the
+/// remainder fill the bench.
+private struct LeadOrderCard: View {
+    let label: String
+    let slots: [TeamSlotInfo]
+    let bringCount: Int
+    let activeSlots: Int
+    @Binding var order: [Int]
+
+    private let columns = [GridItem(.adaptive(minimum: 96), spacing: 8)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(label).font(.headline)
+                Spacer()
+                Text("\(order.count)/\(bringCount)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Text("Tap to pick your lead order. First \(activeSlots) go to the field, the rest start on the bench.")
+                .font(.caption2).foregroundStyle(.secondary)
+
+            LazyVGrid(columns: columns, spacing: 8) {
+                ForEach(Array(slots.enumerated()), id: \.offset) { idx, slot in
+                    slotTile(index: idx, slot: slot)
+                }
+            }
+
+            if !order.isEmpty {
+                Button("Clear") { order.removeAll() }
+                    .font(.caption)
+                    .buttonStyle(.bordered)
+            }
+        }
+        .padding()
+        .background(.background, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    @ViewBuilder
+    private func slotTile(index: Int, slot: TeamSlotInfo) -> some View {
+        let position = order.firstIndex(of: index)
+        let isLead = position.map { $0 < activeSlots } ?? false
+        let isBench = position.map { $0 >= activeSlots } ?? false
+        Button {
+            toggle(index)
+        } label: {
+            VStack(spacing: 4) {
+                ZStack(alignment: .topTrailing) {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(tileFill(isLead: isLead, isBench: isBench))
+                        .frame(height: 44)
+                        .overlay(
+                            Text(slot.pokemonName)
+                                .font(.caption.bold())
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.7)
+                                .padding(.horizontal, 6)
+                        )
+                    if let p = position {
+                        Text("\(p + 1)")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.white)
+                            .padding(4)
+                            .background(Circle().fill(isLead ? Color.green : Color.gray))
+                            .offset(x: 4, y: -4)
+                    }
+                }
+                Text(roleLabel(isLead: isLead, isBench: isBench))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(position == nil && order.count >= bringCount)
+    }
+
+    private func tileFill(isLead: Bool, isBench: Bool) -> Color {
+        if isLead { return Color.green.opacity(0.18) }
+        if isBench { return Color.gray.opacity(0.18) }
+        return Color.secondary.opacity(0.08)
+    }
+
+    private func roleLabel(isLead: Bool, isBench: Bool) -> String {
+        if isLead { return "Lead" }
+        if isBench { return "Bench" }
+        return "—"
+    }
+
+    private func toggle(_ index: Int) {
+        if let existing = order.firstIndex(of: index) {
+            order.remove(at: existing)
+        } else if order.count < bringCount {
+            order.append(index)
+        }
     }
 }
 

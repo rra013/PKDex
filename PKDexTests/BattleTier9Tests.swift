@@ -128,9 +128,11 @@ struct BattleTier9WeightedDamageTests {
     }
 
     @Test func lowKickScalesWithDefenderWeight() {
-        let atk = T9.pkmn("Atk", id: 100, atk: 200)
-        let tiny = T9.pkmn("Wisp", id: 50, hp: 300)      // unknown → 50 kg → 60 BP
-        let huge = T9.pkmn("Snorlax", id: 143, hp: 300)  // 460 kg → 120 BP
+        let atk = T9.pkmn("Atk", id: 100, atk: 100)
+        // Both targets carry huge HP / matching Def so the damage formula
+        // doesn't saturate — what we're checking is that 120 BP > 60 BP.
+        let tiny = T9.pkmn("Wisp", id: 50, hp: 600, def: 100)     // unknown → 50 kg → 60 BP
+        let huge = T9.pkmn("Snorlax", id: 143, hp: 600, def: 100) // 460 kg → 120 BP
         let lk = T9.mv("Low Kick", id: 1, type: "Fighting", dmg: "physical",
                         power: 1, makesContact: true)
         let e1 = T9.engine((atk, "blaze", [lk]), (tiny, "blaze", [lk]))
