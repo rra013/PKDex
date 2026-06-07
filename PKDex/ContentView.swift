@@ -246,16 +246,29 @@ struct FilteredList: View {
             case .gen7:      return #Predicate<PKMN> { $0.genSevenLink != nil }
             case .gen8:      return #Predicate<PKMN> { $0.genEightLink != nil }
             case .gen9:      return #Predicate<PKMN> { $0.genNineLink != nil }
-            case .champions: return #Predicate<PKMN> { $0.champsLink != nil }
+            // Champions is filtered AT RUNTIME against the live regulation
+            // roster (`championsRoster` -> `ChampionsRegulation.current`) so
+            // edits to the bundled JSON take effect without requiring users
+            // to re-sync the Pokedex. The `@Query` returns every species;
+            // the actual whitelist filter happens in `visiblePokemon`.
+            case .champions: return #Predicate<PKMN> { _ in true }
             }
         }()
         _filteredPokemon = Query(filter: predicate, sort: \.nationalPokedexNumber)
     }
 
     private var visiblePokemon: [PKMN] {
+        // Apply the regulation roster filter live for Champions so changes to
+        // the bundled JSON appear without a Pokedex re-sync. The other filters
+        // are already scoped at the @Query layer via their gen-link predicates.
+        let baseList: [PKMN] = {
+            guard filter == .champions else { return filteredPokemon }
+            let roster = championsRoster
+            return filteredPokemon.filter { roster.contains($0.name) }
+        }()
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return filteredPokemon }
-        return filteredPokemon.filter {
+        guard !trimmed.isEmpty else { return baseList }
+        return baseList.filter {
             $0.name.localizedStandardContains(trimmed) ||
             String($0.nationalPokedexNumber).contains(trimmed)
         }
@@ -367,9 +380,31 @@ private extension PokemonWebView {
 // MARK: - URL Helper
 
 private extension PKMN {
+    /// Champions Serebii URL with live fallback. Prefers the stored
+    /// `champsLink` (populated at Pokedex sync time) but computes the URL
+    /// on the fly for species that were added to the regulation roster
+    /// after the last sync — so a newly-included species like Scovillain
+    /// gets a working tap-through without forcing the user to re-sync.
+    /// Returns nil for species that aren't in the current regulation
+    /// roster, so the `.all` fall-through path correctly skips ahead to
+    /// gen links instead of building broken champions URLs.
+    var resolvedChampsLink: String? {
+        if let stored = champsLink { return stored }
+        guard championsRoster.contains(name) else { return nil }
+        // Match the slug `pokedbPopulator` produced from PokeAPI's
+        // lowercase-hyphenated `pokemon_species.name` (e.g. "mr-rime",
+        // "kommo-o"). Apostrophes and dots get stripped, spaces become
+        // hyphens; existing hyphens are preserved.
+        let slug = name.lowercased()
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: "'", with: "")
+            .replacingOccurrences(of: " ", with: "-")
+        return "https://serebii.net/pokedex-champions/\(slug)/"
+    }
+
     func detailURL(for filter: PokedexFilter) -> URL? {
         let link: String? = switch filter {
-        case .all:       champsLink ?? genNineLink ?? genEightLink ?? genSevenLink ?? genSixLink ?? genFiveLink ?? genFourLink ?? genThreeLink ?? genTwoLink ?? genOneLink
+        case .all:       resolvedChampsLink ?? genNineLink ?? genEightLink ?? genSevenLink ?? genSixLink ?? genFiveLink ?? genFourLink ?? genThreeLink ?? genTwoLink ?? genOneLink
         case .gen1:      genOneLink
         case .gen2:      genTwoLink
         case .gen3:      genThreeLink
@@ -379,7 +414,7 @@ private extension PKMN {
         case .gen7:      genSevenLink
         case .gen8:      genEightLink
         case .gen9:      genNineLink
-        case .champions: champsLink
+        case .champions: resolvedChampsLink
         }
         guard let link else { return nil }
         return URL(string: link)
