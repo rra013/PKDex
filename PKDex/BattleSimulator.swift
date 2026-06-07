@@ -211,6 +211,57 @@ enum BattleMoveEffects {
     /// Side-tailwind setter. 4 turns of doubled Speed for the user's side.
     static let tailwindKey = "tailwind"
 
+    /// Status moves whose "target" is fixed (the user, the user's side, or the
+    /// field) and therefore should never pop a target picker. The action chooser
+    /// records these with the actor's own (side, slot) as the target — the
+    /// engine ignores the target field for moves whose effect doesn't depend
+    /// on it (Protect, Calm Mind, Tailwind, Trick Room, Sunny Day, Spikes…).
+    /// Built once from the categorical tables above so any new entry in those
+    /// dictionaries automatically participates.
+    static let fixedSelfOrFieldTarget: Set<String> = {
+        var s = Set<String>()
+        // Protect family — every variant is self-target.
+        s.formUnion(protectFamily)
+        // Self stat boosts: anything in statChanges with a `.selfMod` is self-target.
+        for (k, v) in statChanges {
+            if case .selfMod = v { s.insert(k) }
+        }
+        // Side / field-wide toggles.
+        s.formUnion(screenSetters.keys)
+        s.formUnion(roomSetters.keys)
+        s.formUnion(weatherSetters.keys)
+        s.formUnion(terrainSetters.keys)
+        s.formUnion(hazardSetters.keys)
+        s.insert(tailwindKey)
+        // Pivot moves that switch the USER out (Teleport, Baton Pass, Shed Tail,
+        // Chilly Reception). Parting Shot debuffs the opponent, so it stays a
+        // single-target enemy move.
+        for (k, kind) in pivotMoves where kind == .force {
+            if k == "partingshot" { continue }
+            s.insert(k)
+        }
+        // Heals, recovery, and self-volatile moves that don't have a clean
+        // categorical home above. Each entry is the BattleSimSeed.normalize'd
+        // form (lowercase, alphanumerics only).
+        let curated: Set<String> = [
+            "substitute", "recover", "roost", "softboiled", "milkdrink",
+            "moonlight", "morningsun", "synthesis", "slackoff", "rest",
+            "wish", "aquaring", "ingrain", "bellydrum", "destinybond",
+            "endure", "minimize", "withdraw", "harden", "splash",
+            "stockpile", "swallow", "spitup", "focusenergy",
+            "haze", "courtchange", "magneticflux", "powertrick",
+            "purify", "refresh", "healbell", "aromatherapy",
+        ]
+        s.formUnion(curated)
+        return s
+    }()
+
+    /// True if `moveName` is one of the fixed-target status moves above. Helper
+    /// for the action chooser so it can skip the target picker.
+    static func isFixedSelfOrFieldTarget(_ moveName: String) -> Bool {
+        fixedSelfOrFieldTarget.contains(BattleSimSeed.normalize(moveName))
+    }
+
     /// Hazard-removal moves. `removeFromOwn` = user-side hazards (Rapid Spin,
     /// Tidy Up, Mortal Spin); Defog removes from BOTH sides; Tidy Up additionally
     /// removes all screens. Mortal Spin also poisons every opposing active mon.
@@ -4780,6 +4831,11 @@ struct BattleSimulatorView: View {
     @State private var team1Order: [Int] = []
     @State private var team2Order: [Int] = []
     @State private var engine: BattleEngine?
+    @State private var ai: PokiiBattleAI?
+    /// Doubles-only AI toggles. Disabled (and visually hidden) in singles
+    /// because the trained policy expects two active slots per side.
+    @State private var side1AI: Bool = false
+    @State private var side2AI: Bool = false
     @State private var championsFormat: Bool = false
     @State private var didApplyDefaultChampionsToggle: Bool = false
 
@@ -4793,8 +4849,11 @@ struct BattleSimulatorView: View {
         NavigationStack {
             Group {
                 if let engine {
-                    BattleView(engine: engine) { self.engine = nil }
-                        .navigationTitle("Turn \(engine.turn)")
+                    BattleView(engine: engine, ai: ai) {
+                        self.engine = nil
+                        self.ai = nil
+                    }
+                    .navigationTitle("Turn \(engine.turn)")
                 } else {
                     setupView
                         .navigationTitle("Battle Simulator")
@@ -4848,6 +4907,10 @@ struct BattleSimulatorView: View {
                         )
                     }
 
+                    if format == .doubles {
+                        aiControlCard
+                    }
+
                     Button {
                         startBattle()
                     } label: {
@@ -4885,6 +4948,25 @@ struct BattleSimulatorView: View {
                 championsFormat = true
             }
         }
+    }
+
+    /// Doubles-only AI opt-in. Each side toggles independently so the user
+    /// can play vs. AI, AI vs. AI (simulation mode), or two-human as before.
+    private var aiControlCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("AI Opponent", systemImage: "brain")
+                .font(.headline)
+            Text("Let the Pokii doubles policy pick actions for one or both sides.")
+                .font(.caption2).foregroundStyle(.secondary)
+            Toggle(isOn: $side1AI) {
+                Text("Side 1 controlled by AI").font(.subheadline)
+            }
+            Toggle(isOn: $side2AI) {
+                Text("Side 2 controlled by AI").font(.subheadline)
+            }
+        }
+        .padding()
+        .background(.background, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var formatCard: some View {
@@ -4980,8 +5062,15 @@ struct BattleSimulatorView: View {
                             allPokemon: allPokemon, allMoves: allMoves)
         let s2 = BattleSide(label: "Side 2", slots: s2Slots, format: format,
                             allPokemon: allPokemon, allMoves: allMoves)
-        engine = BattleEngine(format: format, side1: s1, side2: s2,
-                              allPokemon: allPokemon, allMoves: allMoves)
+        let newEngine = BattleEngine(format: format, side1: s1, side2: s2,
+                                     allPokemon: allPokemon, allMoves: allMoves)
+        engine = newEngine
+        // AI is only available in doubles — singles model lands later.
+        if format == .doubles && (side1AI || side2AI) {
+            ai = PokiiBattleAI(engine: newEngine, side1AI: side1AI, side2AI: side2AI)
+        } else {
+            ai = nil
+        }
     }
 }
 
@@ -5341,7 +5430,23 @@ private struct LeadOrderCard: View {
 
 private struct BattleView: View {
     @Bindable var engine: BattleEngine
+    let ai: PokiiBattleAI?
     let onExit: () -> Void
+
+    /// Combined signal that ticks any time the AI may need to act: new turn,
+    /// new force switch, or a partner side just committed an action.
+    private var aiTriggerKey: String {
+        let pending = engine.pendingActions.flatMap { $0 }.map { $0 == nil ? "0" : "1" }.joined()
+        let force = engine.pendingForceSwitches.map { "\($0.side)-\($0.slot)" }.joined()
+        return "\(engine.turn)|\(pending)|\(force)|\(engine.winner ?? -1)"
+    }
+
+    /// True when both sides are AI-driven; we then auto-run executeTurn once
+    /// the model has filled in all the action slots, so the user can just
+    /// watch a self-play game unfold.
+    private var bothSidesAI: Bool {
+        ai?.sideControlled == [true, true]
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -5361,6 +5466,17 @@ private struct BattleView: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Exit") { onExit() }
+            }
+        }
+        .task(id: aiTriggerKey) {
+            // Let SwiftUI commit the previous turn's state changes before
+            // the AI peeks at the engine; otherwise it might read stale HP
+            // / fainted flags from the just-resolved turn.
+            try? await Task.sleep(nanoseconds: 30_000_000)
+            ai?.fill()
+            if bothSidesAI, engine.allActionsChosen {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                engine.executeTurn()
             }
         }
     }
@@ -5667,6 +5783,16 @@ private struct ActorActionCard: View {
             return
         }
 
+        // Self / side / field-wide moves (Protect, Tailwind, Calm Mind, Trick
+        // Room, hazards…) never need an enemy picker — record the actor as the
+        // "target" so the action goes straight into the queue.
+        if BattleMoveEffects.isFixedSelfOrFieldTarget(move.name) {
+            engine.setAction(side: sideIndex, slot: slotIndex,
+                             action: .move(moveIndex: moveIndex,
+                                           targetSide: sideIndex, targetSlot: slotIndex))
+            return
+        }
+
         let targets = enemyTargets()
         if targets.count <= 1 {
             if let t = targets.first {
@@ -5807,7 +5933,12 @@ private struct SwitchSheet: View {
     var body: some View {
         NavigationStack {
             List {
+                // Skip bench mons that this side's *other* active slot has
+                // already queued a switch into — two pokemon can't tag onto
+                // the same teammate on the same turn.
+                let claimed = claimedBenchIndices()
                 let bench = engine.side(at: sideIndex).benchIndices()
+                    .filter { !claimed.contains($0) }
                 if bench.isEmpty {
                     Text("No available Pokemon to switch in.")
                         .foregroundStyle(.secondary)
@@ -5851,6 +5982,19 @@ private struct SwitchSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    /// Bench indices that another active slot on this side has already
+    /// committed to switching into. They're hidden from the picker so two
+    /// pokemon can't tag onto the same teammate.
+    private func claimedBenchIndices() -> Set<Int> {
+        var set = Set<Int>()
+        for slot in 0..<engine.format.activeSlots where slot != slotIndex {
+            if case .switchTo(let bi) = engine.pendingActions[sideIndex][slot] {
+                set.insert(bi)
+            }
+        }
+        return set
     }
 }
 

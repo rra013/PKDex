@@ -11,6 +11,9 @@
 		33178D052FCCF1E700FE0B46 /* stat_nature_model.npz in Resources */ = {isa = PBXBuildFile; fileRef = 33178D022FCCF1E700FE0B46 /* stat_nature_model.npz */; };
 		33178D062FCCF1E700FE0B46 /* name_qual_weights.npz in Resources */ = {isa = PBXBuildFile; fileRef = 33178D012FCCF1E700FE0B46 /* name_qual_weights.npz */; };
 		33178D072FCCF1E700FE0B46 /* stat_nature_vocab.json in Resources */ = {isa = PBXBuildFile; fileRef = 33178D032FCCF1E700FE0B46 /* stat_nature_vocab.json */; };
+		337BCB0D2FD4851A003BDFE8 /* feature_config.json in Resources */ = {isa = PBXBuildFile; fileRef = 337BCB0B2FD4851A003BDFE8 /* feature_config.json */; };
+		337BCB0E2FD4851A003BDFE8 /* pokii_battler.safetensors in Resources */ = {isa = PBXBuildFile; fileRef = 337BCB0C2FD4851A003BDFE8 /* pokii_battler.safetensors */; };
+		337BCB142FD510F9003BDFE8 /* pokii_parity_samples.json in Resources */ = {isa = PBXBuildFile; fileRef = 337BCB132FD510F9003BDFE8 /* pokii_parity_samples.json */; };
 		337BE9B72FC9A05A00859F96 /* BenchmarkHelpers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9B62FC9A05A00859F96 /* BenchmarkHelpers */; };
 		337BE9B92FC9A05A00859F96 /* IntegrationTestHelpers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9B82FC9A05A00859F96 /* IntegrationTestHelpers */; };
 		337BE9BB2FC9A05A00859F96 /* MLXEmbedders in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9BA2FC9A05A00859F96 /* MLXEmbedders */; };
@@ -86,6 +89,9 @@
 		33178D022FCCF1E700FE0B46 /* stat_nature_model.npz */ = {isa = PBXFileReference; lastKnownFileType = file; path = stat_nature_model.npz; sourceTree = "<group>"; };
 		33178D032FCCF1E700FE0B46 /* stat_nature_vocab.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = stat_nature_vocab.json; sourceTree = "<group>"; };
 		332D1F312F9128C500E7D180 /* PKDexTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PKDexTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		337BCB0B2FD4851A003BDFE8 /* feature_config.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = feature_config.json; sourceTree = "<group>"; };
+		337BCB0C2FD4851A003BDFE8 /* pokii_battler.safetensors */ = {isa = PBXFileReference; lastKnownFileType = file; path = pokii_battler.safetensors; sourceTree = "<group>"; };
+		337BCB132FD510F9003BDFE8 /* pokii_parity_samples.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = pokii_parity_samples.json; sourceTree = "<group>"; };
 		337BE9C52FC9A25700859F96 /* champions-m-a-learnsets.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-a-learnsets.json"; sourceTree = "<group>"; };
 		337BE9C62FC9A25700859F96 /* champions-m-a.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-a.json"; sourceTree = "<group>"; };
 		337BE9C92FC9D8EF00859F96 /* move_categories.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = move_categories.json; sourceTree = "<group>"; };
@@ -8869,7 +8875,10 @@
 		33C6C9972F8D3CFB005FFCCC = {
 			isa = PBXGroup;
 			children = (
+				337BCB132FD510F9003BDFE8 /* pokii_parity_samples.json */,
 				33178D002FCCF1E700FE0B46 /* name_qual_vocab.json */,
+				337BCB0B2FD4851A003BDFE8 /* feature_config.json */,
+				337BCB0C2FD4851A003BDFE8 /* pokii_battler.safetensors */,
 				33178D012FCCF1E700FE0B46 /* name_qual_weights.npz */,
 				33178D022FCCF1E700FE0B46 /* stat_nature_model.npz */,
 				33178D032FCCF1E700FE0B46 /* stat_nature_vocab.json */,
@@ -9009,6 +9018,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				337BCB0D2FD4851A003BDFE8 /* feature_config.json in Resources */,
+				337BCB0E2FD4851A003BDFE8 /* pokii_battler.safetensors in Resources */,
+				337BCB142FD510F9003BDFE8 /* pokii_parity_samples.json in Resources */,
 				33178D042FCCF1E700FE0B46 /* name_qual_vocab.json in Resources */,
 				33178D052FCCF1E700FE0B46 /* stat_nature_model.npz in Resources */,
 				33178D062FCCF1E700FE0B46 /* name_qual_weights.npz in Resources */,
