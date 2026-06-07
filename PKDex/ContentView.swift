@@ -12,18 +12,19 @@ import WebKit
 // MARK: - App Tab Definition
 
 enum AppTab: String, CaseIterable, Identifiable {
-    case monIndex, moveIndex, damageCalc, sets, teams, speedTiers, battleSim, rngTools, tournaments, settings
+    case monIndex, moveIndex, abilityIndex, damageCalc, sets, teams, speedTiers, battleSim, rngTools, tournaments, settings
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .monIndex:   return "Mon Index"
-        case .moveIndex:  return "Move Index"
-        case .damageCalc: return "Damage Calc"
-        case .sets:       return "Sets"
-        case .teams:      return "Teams"
-        case .speedTiers: return "Speed Tiers"
+        case .monIndex:     return "Mon Index"
+        case .moveIndex:    return "Move Index"
+        case .abilityIndex: return "Ability Index"
+        case .damageCalc:   return "Damage Calc"
+        case .sets:         return "Sets"
+        case .teams:        return "Teams"
+        case .speedTiers:   return "Speed Tiers"
         case .battleSim:    return "Battle Sim"
         case .rngTools:     return "RNG Tools"
         case .tournaments:  return "Tournaments"
@@ -33,12 +34,13 @@ enum AppTab: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
-        case .monIndex:   return "list.bullet"
-        case .moveIndex:  return "text.book.closed"
-        case .damageCalc: return "bolt.fill"
-        case .sets:       return "square.and.pencil"
-        case .teams:      return "person.3"
-        case .speedTiers: return "hare"
+        case .monIndex:     return "list.bullet"
+        case .moveIndex:    return "text.book.closed"
+        case .abilityIndex: return "sparkles"
+        case .damageCalc:   return "bolt.fill"
+        case .sets:         return "square.and.pencil"
+        case .teams:        return "person.3"
+        case .speedTiers:   return "hare"
         case .battleSim:    return "gamecontroller.fill"
         case .rngTools:     return "dice"
         case .tournaments:  return "trophy"
@@ -46,7 +48,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         }
     }
 
-    static let allUserTabs: [AppTab] = [.monIndex, .moveIndex, .damageCalc, .sets, .teams, .speedTiers, .battleSim, .rngTools, .tournaments]
+    static let allUserTabs: [AppTab] = [.monIndex, .moveIndex, .abilityIndex, .damageCalc, .sets, .teams, .speedTiers, .battleSim, .rngTools, .tournaments]
     static let defaultEnabledRaw = allUserTabs.map(\.rawValue).joined(separator: ",")
 }
 
@@ -144,9 +146,10 @@ struct ContentView: View {
     @ViewBuilder
     private func tabContent(for tab: AppTab) -> some View {
         switch tab {
-        case .monIndex:   PokedexTab()
-        case .moveIndex:  MoveIndexTab()
-        case .damageCalc: DamageCalculatorView()
+        case .monIndex:     PokedexTab()
+        case .moveIndex:    MoveIndexTab()
+        case .abilityIndex: AbilityIndexTab()
+        case .damageCalc:   DamageCalculatorView()
         case .sets:       SetListView()
         case .teams:      TeamListView()
         case .speedTiers: SpeedTierView()

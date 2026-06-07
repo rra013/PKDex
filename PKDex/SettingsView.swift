@@ -229,7 +229,7 @@ struct SettingsView: View {
             redownloadStatus = "Downloading stats & moves…"
             let calcSync = CalcDataSyncManager(modelContainer: container)
             try await calcSync.syncCalcData()
-            UserDefaults.standard.set(true, forKey: "hasCompletedCalcSyncV3")
+            UserDefaults.standard.set(true, forKey: "hasCompletedCalcSyncV4")
 
             redownloadStatus = "Data updated successfully."
         } catch {

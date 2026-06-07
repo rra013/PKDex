@@ -9,7 +9,14 @@ import SwiftData
 // MARK: - GraphQL Fetcher
 
 actor PokeGraphQLFetcher {
-    private let endpoint = URL(string: "https://beta.pokeapi.co/graphql/v1beta")!
+    // The legacy `beta.pokeapi.co/graphql/v1beta` endpoint is stale and is
+    // missing Legends Z-A content (e.g. Mega Scovillain / Spicy Spray). The
+    // current production endpoint at `graphql.pokeapi.co/v1beta2` mirrors
+    // the up-to-date REST data at `pokeapi.co/api/v2/`. The v1beta2 schema
+    // drops the `pokemon_v2_` prefix on every table/relationship name but
+    // keeps scalar field names (`is_default`, `is_hidden`, `base_stat`, etc.)
+    // unchanged.
+    private let endpoint = URL(string: "https://graphql.pokeapi.co/v1beta2")!
 
     private func execute<T: Decodable>(query: String, type: T.Type) async throws -> T {
         var request = URLRequest(url: endpoint)
@@ -31,32 +38,32 @@ actor PokeGraphQLFetcher {
     func fetchAllPokemon() async throws -> [GQLPokemon] {
         let query = """
         {
-          pokemon_v2_pokemon(where: {is_default: {_eq: true}}, order_by: {id: asc}) {
+          pokemon(where: {is_default: {_eq: true}}, order_by: {id: asc}) {
             id
             name
             pokemon_species_id
-            pokemon_v2_pokemontypes {
-              pokemon_v2_type { name }
+            pokemontypes {
+              type { name }
             }
-            pokemon_v2_pokemonstats {
+            pokemonstats {
               base_stat
-              pokemon_v2_stat { name }
+              stat { name }
             }
-            pokemon_v2_pokemonabilities {
-              pokemon_v2_ability { name }
+            pokemonabilities {
+              ability { name }
               is_hidden
             }
-            pokemon_v2_pokemonmoves(distinct_on: move_id) {
+            pokemonmoves(distinct_on: move_id) {
               move_id
             }
-            pokemon_v2_pokemonspecy {
+            pokemonspecy {
               evolves_from_species_id
             }
           }
         }
         """
         let result = try await execute(query: query, type: GQLPokemonResponse.self)
-        return result.data.pokemon_v2_pokemon
+        return result.data.pokemon
     }
 
     // MARK: - Fetch Alternate Forms (Megas, Regionals, etc.)
@@ -64,29 +71,29 @@ actor PokeGraphQLFetcher {
     func fetchAllForms() async throws -> [GQLPokemon] {
         let query = """
         {
-          pokemon_v2_pokemon(where: {is_default: {_eq: false}}, order_by: {id: asc}) {
+          pokemon(where: {is_default: {_eq: false}}, order_by: {id: asc}) {
             id
             name
             pokemon_species_id
-            pokemon_v2_pokemontypes {
-              pokemon_v2_type { name }
+            pokemontypes {
+              type { name }
             }
-            pokemon_v2_pokemonstats {
+            pokemonstats {
               base_stat
-              pokemon_v2_stat { name }
+              stat { name }
             }
-            pokemon_v2_pokemonabilities {
-              pokemon_v2_ability { name }
+            pokemonabilities {
+              ability { name }
               is_hidden
             }
-            pokemon_v2_pokemonforms {
+            pokemonforms {
               form_name
             }
           }
         }
         """
         let result = try await execute(query: query, type: GQLPokemonResponse.self)
-        return result.data.pokemon_v2_pokemon
+        return result.data.pokemon
     }
 
     // MARK: - Fetch Moves
@@ -94,7 +101,7 @@ actor PokeGraphQLFetcher {
     func fetchAllMoves() async throws -> [GQLMove] {
         let query = """
         {
-          pokemon_v2_move {
+          move {
             id
             name
             generation_id
@@ -102,9 +109,9 @@ actor PokeGraphQLFetcher {
             accuracy
             pp
             priority
-            pokemon_v2_type { name }
-            pokemon_v2_movedamageclass { name }
-            pokemon_v2_movemeta {
+            type { name }
+            movedamageclass { name }
+            movemeta {
               min_hits
               max_hits
               drain
@@ -115,7 +122,7 @@ actor PokeGraphQLFetcher {
         }
         """
         let result = try await execute(query: query, type: GQLMoveResponse.self)
-        return result.data.pokemon_v2_move
+        return result.data.move
     }
 
     enum GraphQLError: Error {
@@ -128,7 +135,7 @@ actor PokeGraphQLFetcher {
 nonisolated struct GQLPokemonResponse: Decodable, Sendable {
     let data: PokemonData
     nonisolated struct PokemonData: Decodable, Sendable {
-        let pokemon_v2_pokemon: [GQLPokemon]
+        let pokemon: [GQLPokemon]
     }
 }
 
@@ -136,24 +143,24 @@ nonisolated struct GQLPokemon: Decodable, Sendable {
     let id: Int
     let name: String
     let pokemon_species_id: Int?
-    let pokemon_v2_pokemontypes: [GQLPokemonType]
-    let pokemon_v2_pokemonstats: [GQLPokemonStat]
-    let pokemon_v2_pokemonabilities: [GQLPokemonAbility]
-    let pokemon_v2_pokemonmoves: [GQLPokemonMove]?
-    let pokemon_v2_pokemonforms: [GQLPokemonForm]?
-    let pokemon_v2_pokemonspecy: GQLPokemonSpecies?
+    let pokemontypes: [GQLPokemonType]
+    let pokemonstats: [GQLPokemonStat]
+    let pokemonabilities: [GQLPokemonAbility]
+    let pokemonmoves: [GQLPokemonMove]?
+    let pokemonforms: [GQLPokemonForm]?
+    let pokemonspecy: GQLPokemonSpecies?
 
     nonisolated struct GQLPokemonType: Decodable, Sendable {
-        let pokemon_v2_type: TypeName
+        let type: TypeName
         nonisolated struct TypeName: Decodable, Sendable { let name: String }
     }
     nonisolated struct GQLPokemonStat: Decodable, Sendable {
         let base_stat: Int
-        let pokemon_v2_stat: StatName
+        let stat: StatName
         nonisolated struct StatName: Decodable, Sendable { let name: String }
     }
     nonisolated struct GQLPokemonAbility: Decodable, Sendable {
-        let pokemon_v2_ability: AbilityName
+        let ability: AbilityName
         let is_hidden: Bool
         nonisolated struct AbilityName: Decodable, Sendable { let name: String }
     }
@@ -171,7 +178,7 @@ nonisolated struct GQLPokemon: Decodable, Sendable {
 nonisolated struct GQLMoveResponse: Decodable, Sendable {
     let data: MoveDataContainer
     nonisolated struct MoveDataContainer: Decodable, Sendable {
-        let pokemon_v2_move: [GQLMove]
+        let move: [GQLMove]
     }
 }
 
@@ -183,9 +190,9 @@ nonisolated struct GQLMove: Decodable, Sendable {
     let accuracy: Int?
     let pp: Int?
     let priority: Int?
-    let pokemon_v2_type: TypeRef
-    let pokemon_v2_movedamageclass: DamageClassRef
-    let pokemon_v2_movemeta: [GQLMoveMeta]
+    let type: TypeRef
+    let movedamageclass: DamageClassRef
+    let movemeta: [GQLMoveMeta]
 
     nonisolated struct TypeRef: Decodable, Sendable { let name: String }
     nonisolated struct DamageClassRef: Decodable, Sendable { let name: String }
@@ -207,21 +214,21 @@ nonisolated private func formatPokemonName(_ raw: String) -> String {
 
 nonisolated private func parseStats(_ gqlStats: [GQLPokemon.GQLPokemonStat]) -> [String: Int] {
     var stats: [String: Int] = [:]
-    for s in gqlStats { stats[s.pokemon_v2_stat.name] = s.base_stat }
+    for s in gqlStats { stats[s.stat.name] = s.base_stat }
     return stats
 }
 
 nonisolated private func parseTypes(_ gqlTypes: [GQLPokemon.GQLPokemonType]) -> [String] {
-    gqlTypes.map { $0.pokemon_v2_type.name.capitalized }
+    gqlTypes.map { $0.type.name.capitalized }
 }
 
 nonisolated private func parseAbilities(_ gqlAbilities: [GQLPokemon.GQLPokemonAbility]) -> (a1: String?, a2: String?, ha: String?) {
     let normal = gqlAbilities.filter { !$0.is_hidden }
     let hidden = gqlAbilities.filter { $0.is_hidden }
     return (
-        normal.first?.pokemon_v2_ability.name,
-        normal.count > 1 ? normal[1].pokemon_v2_ability.name : nil,
-        hidden.first?.pokemon_v2_ability.name
+        normal.first?.ability.name,
+        normal.count > 1 ? normal[1].ability.name : nil,
+        hidden.first?.ability.name
     )
 }
 
@@ -291,11 +298,11 @@ actor CalcDataSyncManager {
         // Build learnset entries and inherit pre-evo moves
         var learnsetEntries: [SpeciesLearnsetEntry] = []
         for p in pokemon {
-            let types = parseTypes(p.pokemon_v2_pokemontypes)
-            let stats = parseStats(p.pokemon_v2_pokemonstats)
-            let moveIDs = (p.pokemon_v2_pokemonmoves ?? []).map { $0.move_id }
+            let types = parseTypes(p.pokemontypes)
+            let stats = parseStats(p.pokemonstats)
+            let moveIDs = (p.pokemonmoves ?? []).map { $0.move_id }
             let speciesID = p.pokemon_species_id ?? p.id
-            let evolvesFrom = p.pokemon_v2_pokemonspecy?.evolves_from_species_id
+            let evolvesFrom = p.pokemonspecy?.evolves_from_species_id
 
             speciesInfoMap[speciesID] = SpeciesInfo(stats: stats, types: types)
             learnsetEntries.append(SpeciesLearnsetEntry(speciesID: speciesID, moveIDs: moveIDs, evolvesFromSpeciesID: evolvesFrom))
@@ -305,9 +312,9 @@ actor CalcDataSyncManager {
 
         // Insert default Pokemon with inherited learnsets
         for p in pokemon {
-            let types = parseTypes(p.pokemon_v2_pokemontypes)
-            let stats = parseStats(p.pokemon_v2_pokemonstats)
-            let abilities = parseAbilities(p.pokemon_v2_pokemonabilities)
+            let types = parseTypes(p.pokemontypes)
+            let stats = parseStats(p.pokemonstats)
+            let abilities = parseAbilities(p.pokemonabilities)
             let speciesID = p.pokemon_species_id ?? p.id
             let moveIDs = Array(inheritedLearnsets[speciesID] ?? [])
 
@@ -335,16 +342,16 @@ actor CalcDataSyncManager {
         var formsInserted = 0
         for f in forms {
             let speciesID = f.pokemon_species_id ?? f.id
-            let types = parseTypes(f.pokemon_v2_pokemontypes)
-            let stats = parseStats(f.pokemon_v2_pokemonstats)
+            let types = parseTypes(f.pokemontypes)
+            let stats = parseStats(f.pokemonstats)
 
             // Skip cosmetic forms (identical stats and types to base species)
             if let base = speciesInfoMap[speciesID] {
                 if stats == base.stats && types == base.types { continue }
             }
 
-            let abilities = parseAbilities(f.pokemon_v2_pokemonabilities)
-            let formName = f.pokemon_v2_pokemonforms?.first?.form_name
+            let abilities = parseAbilities(f.pokemonabilities)
+            let formName = f.pokemonforms?.first?.form_name
             // Inherit learnset from base species (with egg move inheritance)
             let moveIDs = Array(inheritedLearnsets[speciesID] ?? [])
 
@@ -372,7 +379,7 @@ actor CalcDataSyncManager {
 
         // Insert Moves
         for m in moves {
-            let meta = m.pokemon_v2_movemeta.first
+            let meta = m.movemeta.first
 
             let displayName = m.name
                 .split(separator: "-")
@@ -382,8 +389,8 @@ actor CalcDataSyncManager {
             let entry = MoveData(
                 id: m.id,
                 name: displayName,
-                type: m.pokemon_v2_type.name.capitalized,
-                damageClass: m.pokemon_v2_movedamageclass.name,
+                type: m.type.name.capitalized,
+                damageClass: m.movedamageclass.name,
                 power: m.power,
                 accuracy: m.accuracy,
                 pp: m.pp ?? 0,

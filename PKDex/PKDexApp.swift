@@ -30,6 +30,7 @@ struct PokedexApp: App {
             // Clear sync flags so data re-downloads
             UserDefaults.standard.removeObject(forKey: "hasCompletedInitialSync")
             UserDefaults.standard.removeObject(forKey: "hasCompletedCalcSyncV3")
+            UserDefaults.standard.removeObject(forKey: "hasCompletedCalcSyncV4")
 
             do {
                 return try ModelContainer(for: schema, configurations: [config])
@@ -64,13 +65,16 @@ struct PokedexApp: App {
             }
         }
 
-        let hasCalcData = UserDefaults.standard.bool(forKey: "hasCompletedCalcSyncV3")
+        // Bumped to V4 when migrating off the stale `beta.pokeapi.co/graphql/v1beta`
+        // endpoint to `graphql.pokeapi.co/v1beta2`, so existing installs
+        // auto-resync and pick up Legends Z-A content (e.g. Mega Scovillain).
+        let hasCalcData = UserDefaults.standard.bool(forKey: "hasCompletedCalcSyncV4")
         if !hasCalcData {
             let calcSync = CalcDataSyncManager(modelContainer: container)
             do {
                 print("Starting calc data sync...")
                 try await calcSync.syncCalcData()
-                UserDefaults.standard.set(true, forKey: "hasCompletedCalcSyncV3")
+                UserDefaults.standard.set(true, forKey: "hasCompletedCalcSyncV4")
                 print("Calc data sync completed")
             } catch {
                 print("Calc data sync failed: \(error)")

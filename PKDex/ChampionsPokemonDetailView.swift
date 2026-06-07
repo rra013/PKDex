@@ -426,8 +426,14 @@ struct ChampionsPokemonDetailView: View {
     }
 
     private func moveLookup(_ name: String) -> MoveData? {
-        let normalized = name.lowercased()
-        return allMoves.first { $0.name.lowercased() == normalized }
+        // The Champions JSON uses Showdown-style names with hyphens and
+        // apostrophes (e.g. "Will-O-Wisp", "Forest's Curse", "U-turn"), while
+        // `MoveData.name` is the PokeAPI slug rebuilt with spaces
+        // ("Will O Wisp", "Forests Curse", "U Turn"). Compare under the same
+        // alphanumeric-only normalization used everywhere else in the app.
+        let normalized = BattleSimSeed.normalize(name)
+        guard !normalized.isEmpty else { return nil }
+        return allMoves.first { BattleSimSeed.normalize($0.name) == normalized }
     }
 
     private func isHiddenAbility(_ name: String, base: PKMNStats?, displayName: String) -> Bool {
