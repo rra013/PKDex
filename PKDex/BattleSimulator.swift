@@ -69,6 +69,14 @@ enum BattleMoveEffects {
         "sludgewave", "bulldoze", "explosion", "selfdestruct",
     ]
 
+    /// Moves that only succeed on the user's first action since switching in.
+    /// Mirrors Showdown's `onTry { if (source.activeMoveActions > 1) return false }`
+    /// — Fake Out and First Impression both fail outright on every attempt after
+    /// the first move the holder dispatches per switch-in cycle.
+    static let firstTurnOnlyMoves: Set<String> = [
+        "fakeout", "firstimpression",
+    ]
+
     static let statChanges: [String: BattleStatChange] = [
         // Self boosts
         "swordsdance":   .selfMod([(.atk, 2)]),
@@ -807,6 +815,13 @@ final class BattleParticipant: Identifiable {
     /// turn so it never carries across turns.
     var flinched: Bool = false
 
+    /// Number of moves the holder has successfully dispatched since they were
+    /// last sent in (initial send-out or switch). Bumped at move-dispatch
+    /// time after PP is consumed — both successful and failed/missed moves
+    /// count, so first-turn-only moves (Fake Out, First Impression) reject
+    /// even when turn 1's attempt missed. Reset to 0 on switch-in.
+    var movesUsedSinceSwitchIn: Int = 0
+
     /// While holding a Choice item (Band/Specs/Scarf), the holder is locked into
     /// the first move they successfully execute until they switch out. The index
     /// is into `moves`; switching clears it via `resetVolatile()`.
@@ -1086,6 +1101,7 @@ final class BattleParticipant: Identifiable {
         atkStage = 0; defStage = 0; spAtkStage = 0; spDefStage = 0; speedStage = 0
         toxicCounter = 0
         choiceLockedMoveIndex = nil
+        movesUsedSinceSwitchIn = 0
         confused = false
         confusionTurnsRemaining = 0
         tauntTurnsRemaining = 0
@@ -1145,6 +1161,19 @@ final class BattleParticipant: Identifiable {
     /// Move names that show up in this participant's move slots — used by Rayquaza's
     /// Mega Evolution eligibility check (needs Dragon Ascent).
     var moveNames: [String] { moves.map { $0.name } }
+
+    /// True when the move at `moveIndex` is a first-turn-only move (Fake Out
+    /// / First Impression) AND the holder has already dispatched at least one
+    /// move since switching in. Both the UI (to gray out the button so the
+    /// user can't click an illegal move) and the engine (to redirect Encore-
+    /// locked attempts to Struggle) consult this predicate, so the contract
+    /// stays in one place.
+    func isFirstTurnOnlyMoveLockedOut(at moveIndex: Int) -> Bool {
+        guard moves.indices.contains(moveIndex) else { return false }
+        let key = BattleSimSeed.normalize(moves[moveIndex].name)
+        return BattleMoveEffects.firstTurnOnlyMoves.contains(key)
+            && movesUsedSinceSwitchIn > 0
+    }
 }
 
 // MARK: - Side
@@ -1572,6 +1601,10 @@ final class BattleEngine {
         outgoing?.resetVolatile()
         s.activeIndices[slot] = benchIndex
         let incoming = s.participants[benchIndex]
+        // Reset the first-turn-only counter on the way in. `resetVolatile`
+        // already does this for the outgoing side, but the explicit set
+        // covers force-switch paths where the outgoing was bypassed.
+        incoming.movesUsedSinceSwitchIn = 0
         if let outName = outgoing?.displayName {
             log.append(BattleLogEntry(text: "\(s.label) withdrew \(outName)."))
         }
@@ -1599,6 +1632,9 @@ final class BattleEngine {
               !s.activeIndices.contains(benchIndex) else { return }
         s.activeIndices[slot] = benchIndex
         let p = s.participants[benchIndex]
+        // Force-switch paths skip the outgoing `resetVolatile`, so reset the
+        // first-turn-only counter on the incoming side directly.
+        p.movesUsedSinceSwitchIn = 0
         log.append(BattleLogEntry(text: "\(s.label) sent out \(p.displayName)!"))
         applyHazardsOnSwitchIn(p: p, side: s)
         // Healing Wish / Lunar Dance landing on the replacement.
@@ -1885,6 +1921,20 @@ final class BattleEngine {
 
         if !preMoveStatusCheck(attacker) { return }
 
+        // First-turn-only legality (Fake Out, First Impression). The UI
+        // disables the button outright when this predicate is true, so the
+        // only path that reaches here is a forced action — typically Encore
+        // having locked the holder into Fake Out from a previous switch-in.
+        // Per canon, the holder Struggles instead of failing the move; PP
+        // is NOT charged on the original move since it never executes.
+        if attacker.isFirstTurnOnlyMoveLockedOut(at: resolvedMoveIndex) {
+            log.append(BattleLogEntry(text: "\(attacker.displayName) can't use \(move.name) right now!"))
+            // `performStruggle` increments the counter itself — don't double-bump.
+            performStruggle(attackerSide: attackerSide, attackerSlot: attackerSlot,
+                            defenderSide: defenderSide, defenderSlot: defenderSlot)
+            return
+        }
+
         if attacker.pp.indices.contains(resolvedMoveIndex), attacker.pp[resolvedMoveIndex] <= 0 {
             log.append(BattleLogEntry(text: "\(attacker.displayName) has no PP left for \(move.name)!"))
             return
@@ -1907,6 +1957,12 @@ final class BattleEngine {
         }
         // Track the move for Encore / Disable lookup on the NEXT use.
         attacker.lastMoveIndex = resolvedMoveIndex
+
+        // Bump the first-turn-only counter — any successful dispatch counts
+        // as "this Pokemon has acted since switching in", which locks out
+        // future Fake Out / First Impression attempts. The legality check
+        // above already short-circuited illegal attempts to Struggle.
+        attacker.movesUsedSinceSwitchIn += 1
 
         // Leppa Berry — restores 10 PP if the move just hit zero.
         maybeTriggerLeppaBerry(for: attacker, moveIndex: resolvedMoveIndex)
@@ -2157,6 +2213,10 @@ final class BattleEngine {
         log.append(BattleLogEntry(text: "\(attacker.displayName) used \(move.name)!"))
         if attacker.pp.indices.contains(resolvedMoveIndex) { attacker.pp[resolvedMoveIndex] -= 1 }
 
+        // Bump the first-turn-only counter so a Pokemon that used a spread
+        // move on turn 1 can't then Fake Out on turn 2.
+        attacker.movesUsedSinceSwitchIn += 1
+
         maybeTriggerLeppaBerry(for: attacker, moveIndex: resolvedMoveIndex)
 
         // Stance Change — same flip rule applies on a spread move (Earthquake,
@@ -2223,6 +2283,11 @@ final class BattleEngine {
         guard let attacker = aSide.active(at: attackerSlot), !attacker.fainted else { return }
 
         if !preMoveStatusCheck(attacker) { return }
+
+        // Struggle also counts as "this Pokemon has moved" for the
+        // first-turn-only check, even when dispatched directly via the
+        // Struggle button rather than the legality redirect above.
+        attacker.movesUsedSinceSwitchIn += 1
 
         log.append(BattleLogEntry(text: "\(attacker.displayName) used Struggle!"))
 
@@ -5761,10 +5826,14 @@ private struct ActorActionCard: View {
                     let curPP = actor.pp.indices.contains(mi) ? actor.pp[mi] : 0
                     let maxPP = move.pp
                     let isLockedOut = locked != nil && locked != mi
+                    // Fake Out / First Impression are unselectable once the
+                    // holder has dispatched a move since switching in. The
+                    // engine treats forced attempts (Encore) as Struggle.
+                    let isFirstTurnOnlyBlocked = actor.isFirstTurnOnlyMoveLockedOut(at: mi)
                     MoveButton(move: move, currentPP: curPP, maxPP: maxPP) {
                         chooseMove(mi)
                     }
-                    .disabled(curPP <= 0 || isLockedOut)
+                    .disabled(curPP <= 0 || isLockedOut || isFirstTurnOnlyBlocked)
                 }
             }
         }

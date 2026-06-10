@@ -103,6 +103,15 @@ class CalcSide {
     var atFullHP: Bool = true
     var loadedSpreadName: String?
 
+    /// User intent to Mega Evolve. Effective only while `availableMegaForm`
+    /// is non-nil (right species + right Mega Stone, or Rayquaza knowing
+    /// Dragon Ascent). When the prerequisites are removed the flag remains
+    /// set but `activeMegaForm` returns nil, so toggling the item back on
+    /// re-enables the Mega without forcing the user to flip the switch
+    /// again — and the user's set (EVs, IVs, moves, nature, ability pick)
+    /// never resets when entering or leaving Mega Evolution.
+    var megaActive: Bool = false
+
     // Moves (4 slots)
     var moves: [MoveData?] = [nil, nil, nil, nil]
     var moveSearchTexts: [String] = ["", "", "", ""]
@@ -231,36 +240,154 @@ class CalcSide {
         }
     }
 
-    var types: [String] {
+    // MARK: - Mega Evolution Gating
+
+    /// Names of moves the held Pokemon currently has slotted, used to
+    /// detect Dragon Ascent on Rayquaza. We only consult this for the
+    /// Rayquaza branch — every other Mega is keyed off the held stone.
+    private var slottedMoveNames: [String] {
+        moves.compactMap { $0?.name }
+    }
+
+    /// The Mega form the currently-selected Pokemon *could* transform into,
+    /// given its held item (or, for Rayquaza, the move slots). Returns nil
+    /// when there's no eligible form — that's the source of truth for the
+    /// UI toggle's enabled state.
+    var availableMegaForm: MegaForm? {
+        guard let p = pokemon else { return nil }
+        return MegaForms.form(forSpecies: p.name,
+                              heldItem: heldItem,
+                              moveNames: slottedMoveNames)
+    }
+
+    /// True when the Mega toggle should be enabled. Pure pass-through over
+    /// `availableMegaForm` — kept as a separate name so SwiftUI bindings
+    /// read cleanly.
+    var canMegaEvolve: Bool { availableMegaForm != nil }
+
+    /// True when the currently-selected Pokemon has *any* registered Mega
+    /// form in the table — regardless of whether the held item / move slots
+    /// currently satisfy the trigger. Used by the UI to decide whether to
+    /// surface the Mega toggle at all: an Eevee shouldn't have a disabled
+    /// "Mega Evolve" row taking up space, but a Charizard with no stone
+    /// equipped should still see the row (disabled, with hint text) so the
+    /// player can discover the feature exists.
+    var hasAnyMegaForm: Bool {
+        guard let p = pokemon else { return false }
+        let s = BattleSimSeed.normalize(p.name)
+        if s == "rayquaza" { return true }
+        return MegaForms.all.contains(where: { $0.speciesKey == s })
+    }
+
+    /// User-facing reason the toggle is disabled. nil when the toggle is
+    /// enabled, otherwise a short hint like "Hold Charizardite Y" or
+    /// "Must know Dragon Ascent". Drives the caption under the row so the
+    /// player knows what to change.
+    var megaDisabledReason: String? {
+        guard hasAnyMegaForm, availableMegaForm == nil, let p = pokemon else { return nil }
+        let s = BattleSimSeed.normalize(p.name)
+        if s == "rayquaza" {
+            return "Must know Dragon Ascent"
+        }
+        // Find which stones can trigger a Mega for this species; list them.
+        let stones = MegaForms.all
+            .filter { $0.speciesKey == s }
+            .compactMap { $0.stone?.rawValue }
+        switch stones.count {
+        case 0:  return nil
+        case 1:  return "Hold \(stones[0])"
+        default: return "Hold \(stones.joined(separator: " or "))"
+        }
+    }
+
+    /// The Mega form currently in effect for damage calc / stat display.
+    /// Returns nil unless the user has toggled `megaActive` on AND the
+    /// prerequisites still hold. Acts as the single gate read by every
+    /// `effective*` accessor below.
+    var activeMegaForm: MegaForm? {
+        megaActive ? availableMegaForm : nil
+    }
+
+    // MARK: - Effective State (Mega-aware)
+
+    /// Mega's ability when active, the user's pick otherwise. Damage calc
+    /// reads this — never `selectedAbility` directly — so a Mega
+    /// transforming into Tough Claws / Mega Launcher applies its ability
+    /// without overwriting the user's saved-spread choice.
+    var effectiveAbility: String? {
+        activeMegaForm?.ability ?? selectedAbility
+    }
+
+    /// Same idea for typing — Mega Charizard X switches to Fire/Dragon
+    /// while the user's pre-Mega "Fire/Flying" selection stays untouched
+    /// on the base species record.
+    var effectiveTypes: [String] {
+        if let m = activeMegaForm {
+            var t = [m.type1]
+            if let t2 = m.type2 { t.append(t2) }
+            return t
+        }
         guard let p = pokemon else { return ["Normal"] }
         var t = [p.type1]
         if let t2 = p.type2 { t.append(t2) }
         return t
     }
 
+    /// Effective base stats — Mega's stat block when active, base otherwise.
+    /// HP is intentionally always the base value: no canonical Mega
+    /// Evolution alters HP.
+    var effectiveBaseAtk: Int    { activeMegaForm?.baseAtk    ?? pokemon?.baseAtk    ?? 1 }
+    var effectiveBaseDef: Int    { activeMegaForm?.baseDef    ?? pokemon?.baseDef    ?? 1 }
+    var effectiveBaseSpAtk: Int  { activeMegaForm?.baseSpAtk  ?? pokemon?.baseSpAtk  ?? 1 }
+    var effectiveBaseSpDef: Int  { activeMegaForm?.baseSpDef  ?? pokemon?.baseSpDef  ?? 1 }
+    var effectiveBaseSpeed: Int  { activeMegaForm?.baseSpeed  ?? pokemon?.baseSpeed  ?? 1 }
+
+    /// Display name accounting for Mega — `"Mega Charizard Y"` when active,
+    /// base species name otherwise. Used by the side card header and the
+    /// damage summary line.
+    var effectiveDisplayName: String {
+        activeMegaForm?.displayName ?? pokemon?.name ?? "???"
+    }
+
+    /// Held item that the damage formula should see. Stone-based Megas
+    /// consume the stone on transformation, so the calc treats them as
+    /// item-less while Mega is active. Rayquaza's `MegaForm.stone` is nil
+    /// (Dragon Ascent triggers the form change instead), so a Mega Rayquaza
+    /// holding Life Orb still gets the boost.
+    var effectiveHeldItem: HeldItem {
+        if let m = activeMegaForm, m.stone != nil { return .none }
+        return heldItem
+    }
+
+    // MARK: - Public computed types / stats
+
+    /// Kept under the old name so existing call sites (type chart, etc.) pick
+    /// up the Mega switch automatically.
+    var types: [String] { effectiveTypes }
+
     var hp: Int {
         guard let p = pokemon else { return 1 }
         return calcHP(base: p.baseHP, iv: formulaIV(ivHP), ev: formulaEV(evHP), level: level)
     }
     var atk: Int {
-        guard let p = pokemon else { return 1 }
-        return Int(Double(calcStat(base: p.baseAtk, iv: formulaIV(ivAtk), ev: formulaEV(evAtk), level: level, natureMod: nature.modifier(for: .atk))) * statStageMultiplier(stage: atkStage))
+        guard pokemon != nil else { return 1 }
+        return Int(Double(calcStat(base: effectiveBaseAtk, iv: formulaIV(ivAtk), ev: formulaEV(evAtk), level: level, natureMod: nature.modifier(for: .atk))) * statStageMultiplier(stage: atkStage))
     }
     var def: Int {
-        guard let p = pokemon else { return 1 }
-        return Int(Double(calcStat(base: p.baseDef, iv: formulaIV(ivDef), ev: formulaEV(evDef), level: level, natureMod: nature.modifier(for: .def))) * statStageMultiplier(stage: defStage))
+        guard pokemon != nil else { return 1 }
+        return Int(Double(calcStat(base: effectiveBaseDef, iv: formulaIV(ivDef), ev: formulaEV(evDef), level: level, natureMod: nature.modifier(for: .def))) * statStageMultiplier(stage: defStage))
     }
     var spAtk: Int {
-        guard let p = pokemon else { return 1 }
-        return Int(Double(calcStat(base: p.baseSpAtk, iv: formulaIV(ivSpAtk), ev: formulaEV(evSpAtk), level: level, natureMod: nature.modifier(for: .spAtk))) * statStageMultiplier(stage: spAtkStage))
+        guard pokemon != nil else { return 1 }
+        return Int(Double(calcStat(base: effectiveBaseSpAtk, iv: formulaIV(ivSpAtk), ev: formulaEV(evSpAtk), level: level, natureMod: nature.modifier(for: .spAtk))) * statStageMultiplier(stage: spAtkStage))
     }
     var spDef: Int {
-        guard let p = pokemon else { return 1 }
-        return Int(Double(calcStat(base: p.baseSpDef, iv: formulaIV(ivSpDef), ev: formulaEV(evSpDef), level: level, natureMod: nature.modifier(for: .spDef))) * statStageMultiplier(stage: spDefStage))
+        guard pokemon != nil else { return 1 }
+        return Int(Double(calcStat(base: effectiveBaseSpDef, iv: formulaIV(ivSpDef), ev: formulaEV(evSpDef), level: level, natureMod: nature.modifier(for: .spDef))) * statStageMultiplier(stage: spDefStage))
     }
     var speed: Int {
-        guard let p = pokemon else { return 1 }
-        return Int(Double(calcStat(base: p.baseSpeed, iv: formulaIV(ivSpeed), ev: formulaEV(evSpeed), level: level, natureMod: nature.modifier(for: .speed))) * statStageMultiplier(stage: speedStage))
+        guard pokemon != nil else { return 1 }
+        return Int(Double(calcStat(base: effectiveBaseSpeed, iv: formulaIV(ivSpeed), ev: formulaEV(evSpeed), level: level, natureMod: nature.modifier(for: .speed))) * statStageMultiplier(stage: speedStage))
     }
 }
 
@@ -326,8 +453,8 @@ class DamageCalcVM {
         let weatherMult = weather.moveDamageMultiplier(moveType: moveType)
 
         let itemMods = computeItemModifiers(
-            attackerItem: attacker.heldItem,
-            defenderItem: defender.heldItem,
+            attackerItem: attacker.effectiveHeldItem,
+            defenderItem: defender.effectiveHeldItem,
             isPhysical: isPhysical,
             typeEffectiveness: typeEff,
             moveType: moveType
@@ -336,10 +463,10 @@ class DamageCalcVM {
         // Mold Breaker (and friends — Teravolt, Turboblaze) suppresses the
         // defender's ability for damage-modifier purposes during the attacker's
         // move. Tier 6: only the canon "mold-breaker" ID is mapped.
-        let moldBreaker = attacker.selectedAbility == "mold-breaker"
+        let moldBreaker = attacker.effectiveAbility == "mold-breaker"
         let abilityMods = computeAbilityModifiers(
-            attackerAbility: attacker.selectedAbility,
-            defenderAbility: defender.selectedAbility,
+            attackerAbility: attacker.effectiveAbility,
+            defenderAbility: defender.effectiveAbility,
             moveType: moveType,
             movePower: movePower,
             isPhysical: isPhysical,
@@ -540,17 +667,17 @@ private struct ResultCard: View {
                 }
                 if vm.crit { InfoBadge(text: "Crit", color: .orange) }
                 if vm.burn { InfoBadge(text: "Burn", color: .red) }
-                if let a1 = vm.side1.selectedAbility, !a1.isEmpty {
+                if let a1 = vm.side1.effectiveAbility, !a1.isEmpty {
                     InfoBadge(text: formatAbilityName(a1), color: .orange)
                 }
-                if let a2 = vm.side2.selectedAbility, !a2.isEmpty {
+                if let a2 = vm.side2.effectiveAbility, !a2.isEmpty {
                     InfoBadge(text: formatAbilityName(a2), color: .purple)
                 }
-                if vm.side1.heldItem != .none {
-                    InfoBadge(text: vm.side1.heldItem.rawValue, color: .green)
+                if vm.side1.effectiveHeldItem != .none {
+                    InfoBadge(text: vm.side1.effectiveHeldItem.rawValue, color: .green)
                 }
-                if vm.side2.heldItem != .none {
-                    InfoBadge(text: vm.side2.heldItem.rawValue, color: .mint)
+                if vm.side2.effectiveHeldItem != .none {
+                    InfoBadge(text: vm.side2.effectiveHeldItem.rawValue, color: .mint)
                 }
                 Spacer()
             }
@@ -733,27 +860,72 @@ private struct SideCard: View {
                 if let p = side.pokemon {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(p.name).font(.title3.bold())
-                            if p.isForm, let form = p.formName {
+                            Text(side.effectiveDisplayName).font(.title3.bold())
+                            if side.activeMegaForm != nil {
+                                Text("Mega Evolved")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.purple)
+                            } else if p.isForm, let form = p.formName {
                                 Text(form.split(separator: "-").map { $0.capitalized }.joined(separator: " "))
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }
                         Spacer()
-                        TypeBadge(type: p.type1)
-                        if let t2 = p.type2 { TypeBadge(type: t2) }
-                        Button { side.pokemon = nil; side.searchText = ""; side.selectedAbility = nil } label: {
+                        ForEach(side.effectiveTypes, id: \.self) { TypeBadge(type: $0) }
+                        Button {
+                            side.pokemon = nil
+                            side.searchText = ""
+                            side.selectedAbility = nil
+                            // Clear Mega state too — the toggle isn't meaningful
+                            // without a species, and we don't want it to silently
+                            // re-arm when the next Pokemon is picked.
+                            side.megaActive = false
+                        } label: {
                             Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                         }
                     }
 
+                    // Mega Evolve toggle — surfaces for any species with a
+                    // registered Mega form, even when the prerequisites
+                    // (stone or Dragon Ascent) aren't met. Disabling instead
+                    // of hiding makes the feature discoverable while still
+                    // enforcing the canonical trigger. Flipping it never
+                    // resets any other field on the set.
+                    if side.hasAnyMegaForm {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Toggle(isOn: $side.megaActive) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "sparkles")
+                                        .foregroundStyle(side.canMegaEvolve ? .purple : .secondary)
+                                    Text("Mega Evolve")
+                                        .font(.subheadline.bold())
+                                    if let form = side.availableMegaForm {
+                                        Text("(\(form.displayName))")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                    }
+                                }
+                            }
+                            .tint(.purple)
+                            .disabled(!side.canMegaEvolve)
+
+                            if let hint = side.megaDisabledReason {
+                                Text(hint)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
                     HStack(spacing: 12) {
-                        StatMini(label: "HP", value: p.baseHP)
-                        StatMini(label: "Atk", value: p.baseAtk)
-                        StatMini(label: "Def", value: p.baseDef)
-                        StatMini(label: "SpA", value: p.baseSpAtk)
-                        StatMini(label: "SpD", value: p.baseSpDef)
-                        StatMini(label: "Spe", value: p.baseSpeed)
+                        StatMini(label: "HP",  value: p.baseHP)
+                        StatMini(label: "Atk", value: side.effectiveBaseAtk)
+                        StatMini(label: "Def", value: side.effectiveBaseDef)
+                        StatMini(label: "SpA", value: side.effectiveBaseSpAtk)
+                        StatMini(label: "SpD", value: side.effectiveBaseSpDef)
+                        StatMini(label: "Spe", value: side.effectiveBaseSpeed)
                     }
                     .font(.caption2)
                 } else {
