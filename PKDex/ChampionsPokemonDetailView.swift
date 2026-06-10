@@ -231,7 +231,16 @@ struct ChampionsPokemonDetailView: View {
                 FlowLayout(spacing: 8) {
                     ForEach(display.abilities, id: \.self) { ability in
                         let isHidden = isHiddenAbility(ability, base: basePKMNStats, displayName: display.name)
-                        AbilityChip(name: ability, isHidden: isHidden)
+                        // Tap-through to the Ability Dex web view. The detail
+                        // view slugifies the *display* name, so format the
+                        // hyphenated slug ("flash-fire") into the Serebii-
+                        // expected display form ("Flash Fire") before passing.
+                        NavigationLink {
+                            AbilityDetailView(ability: formatAbilityName(ability))
+                        } label: {
+                            AbilityChip(name: ability, isHidden: isHidden)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }

@@ -168,9 +168,18 @@ private struct PokedexTab: View {
     @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
     @State private var selectedFilter: PokedexFilter?
     @State private var searchText = ""
+    @State private var championsFilters: ChampionsFilters = .none
+    @State private var showFilterSheet: Bool = false
 
     private var activeFilter: PokedexFilter {
         selectedFilter ?? PokedexFilter(rawValue: defaultGeneration) ?? .champions
+    }
+
+    /// Champions filters only apply to the Champions list — when the user
+    /// switches to a generation view, hand the empty value down so
+    /// `FilteredList` skips its match pass entirely.
+    private var effectiveChampionsFilters: ChampionsFilters {
+        activeFilter == .champions ? championsFilters : .none
     }
 
     var body: some View {
@@ -183,7 +192,15 @@ private struct PokedexTab: View {
                         Text("Syncing with PokeAPI... please wait.")
                     }
                 } else {
-                    FilteredList(filter: activeFilter, searchText: searchText)
+                    VStack(spacing: 0) {
+                        if activeFilter == .champions && championsFilters.isActive {
+                            ChampionsFilterChipStrip(filters: $championsFilters)
+                                .background(.bar)
+                        }
+                        FilteredList(filter: activeFilter,
+                                     searchText: searchText,
+                                     championsFilters: effectiveChampionsFilters)
+                    }
                 }
             }
             .navigationTitle("Mon Index")
@@ -198,6 +215,26 @@ private struct PokedexTab: View {
                         Label(activeFilter.title, systemImage: "line.3.horizontal.decrease.circle")
                     }
                 }
+                if activeFilter == .champions {
+                    ToolbarItem(placement: .automatic) {
+                        Button {
+                            showFilterSheet = true
+                        } label: {
+                            Label("Filters",
+                                  systemImage: championsFilters.isActive
+                                    ? "slider.horizontal.3"
+                                    : "slider.horizontal.below.rectangle")
+                                .symbolVariant(championsFilters.isActive ? .fill : .none)
+                        }
+                    }
+                }
+            }
+            .sheet(isPresented: $showFilterSheet) {
+                ChampionsFilterSheet(
+                    filters: $championsFilters,
+                    availableAbilities: ChampionsFilterOptions.availableAbilities(),
+                    availableMoves: ChampionsFilterOptions.availableMoves()
+                )
             }
         }
     }
@@ -231,12 +268,17 @@ enum PokedexFilter: String, CaseIterable, Identifiable {
 
 struct FilteredList: View {
     @Query private var filteredPokemon: [PKMN]
+    @Query(sort: \PKMNStats.id) private var allStats: [PKMNStats]
     private let filter: PokedexFilter
     private let searchText: String
+    private let championsFilters: ChampionsFilters
 
-    init(filter: PokedexFilter, searchText: String) {
+    init(filter: PokedexFilter,
+         searchText: String,
+         championsFilters: ChampionsFilters = .none) {
         self.filter = filter
         self.searchText = searchText
+        self.championsFilters = championsFilters
         let predicate: Predicate<PKMN> = {
             switch filter {
             case .all:       return #Predicate<PKMN> { _ in true }
@@ -269,9 +311,37 @@ struct FilteredList: View {
             let roster = championsRoster
             return filteredPokemon.filter { roster.contains($0.name) }
         }()
+
+        // Type / ability / move filters. The match needs every form belonging
+        // to a species (base + mega + regional) so a "Dragon" filter still
+        // surfaces Charizard because of Mega-Y. Build the lookup once per
+        // body evaluation rather than per row.
+        let filteredByChampions: [PKMN]
+        if championsFilters.isActive {
+            var formsBySpeciesID: [Int: [PKMNStats]] = [:]
+            var speciesIDByName: [String: Int] = [:]
+            for stats in allStats {
+                formsBySpeciesID[stats.speciesID, default: []].append(stats)
+                if !stats.isForm {
+                    speciesIDByName[stats.name] = stats.speciesID
+                } else if speciesIDByName[stats.name] == nil {
+                    // Fall back when the base entry isn't loaded yet — this
+                    // way Mega-only species still get a species-ID hit.
+                    speciesIDByName[stats.name] = stats.speciesID
+                }
+            }
+            filteredByChampions = baseList.filter { pkmn in
+                let speciesID = speciesIDByName[pkmn.name]
+                let forms = speciesID.flatMap { formsBySpeciesID[$0] } ?? []
+                return championsFilters.matches(speciesName: pkmn.name, formStats: forms)
+            }
+        } else {
+            filteredByChampions = baseList
+        }
+
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return baseList }
-        return baseList.filter {
+        guard !trimmed.isEmpty else { return filteredByChampions }
+        return filteredByChampions.filter {
             $0.name.localizedStandardContains(trimmed) ||
             String($0.nationalPokedexNumber).contains(trimmed)
         }
