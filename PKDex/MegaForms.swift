@@ -339,5 +339,59 @@ enum MegaForms {
                  displayName: "Mega Victreebel", type1: "Grass", type2: "Poison",
                  baseAtk: 125, baseDef: 85, baseSpAtk: 135, baseSpDef: 95, baseSpeed: 70,
                  ability: "innards-out"),
+
+        // MARK: - Pokemon Champions Regulation M-B Mega Evolutions
+        //
+        // Stats and abilities sourced from Serebii's pokedex-champions pages;
+        // stone names sourced from game8.co's M-B item list. These are
+        // Champions-original Megas with no mainline-game equivalent — the
+        // ability identifiers (e.g. "eelevate", "fire-mane", "spicy-spray"
+        // style) won't have entries in `computeAbilityModifiers` until the
+        // battle engine ports them in.
+
+        MegaForm(speciesKey: "raichu",       stone: .raichuniteX,     requiresMove: nil,
+                 displayName: "Mega Raichu X", type1: "Electric", type2: nil,
+                 baseAtk: 135, baseDef: 95, baseSpAtk: 90, baseSpDef: 95, baseSpeed: 110,
+                 ability: "electric-surge"),
+        MegaForm(speciesKey: "raichu",       stone: .raichuniteY,     requiresMove: nil,
+                 displayName: "Mega Raichu Y", type1: "Electric", type2: nil,
+                 baseAtk: 100, baseDef: 55, baseSpAtk: 160, baseSpDef: 80, baseSpeed: 130,
+                 ability: "no-guard"),
+        MegaForm(speciesKey: "staraptor",    stone: .staraptite,      requiresMove: nil,
+                 displayName: "Mega Staraptor", type1: "Normal", type2: "Flying",
+                 baseAtk: 140, baseDef: 100, baseSpAtk: 60, baseSpDef: 90, baseSpeed: 110,
+                 ability: "contrary"),
+        MegaForm(speciesKey: "scolipede",    stone: .scolipite,       requiresMove: nil,
+                 displayName: "Mega Scolipede", type1: "Bug", type2: "Poison",
+                 baseAtk: 140, baseDef: 149, baseSpAtk: 75, baseSpDef: 99, baseSpeed: 62,
+                 ability: "shell-armor"),
+        MegaForm(speciesKey: "scrafty",      stone: .scraftinite,     requiresMove: nil,
+                 displayName: "Mega Scrafty", type1: "Dark", type2: "Fighting",
+                 baseAtk: 130, baseDef: 135, baseSpAtk: 55, baseSpDef: 135, baseSpeed: 68,
+                 ability: "intimidate"),
+        MegaForm(speciesKey: "eelektross",   stone: .eelektrossite,   requiresMove: nil,
+                 displayName: "Mega Eelektross", type1: "Electric", type2: nil,
+                 baseAtk: 145, baseDef: 80, baseSpAtk: 135, baseSpDef: 90, baseSpeed: 80,
+                 ability: "eelevate"),
+        MegaForm(speciesKey: "pyroar",       stone: .pyroarite,       requiresMove: nil,
+                 displayName: "Mega Pyroar", type1: "Normal", type2: "Fire",
+                 baseAtk: 88, baseDef: 92, baseSpAtk: 129, baseSpDef: 86, baseSpeed: 126,
+                 ability: "fire-mane"),
+        MegaForm(speciesKey: "malamar",      stone: .malamarite,      requiresMove: nil,
+                 displayName: "Mega Malamar", type1: "Dark", type2: "Psychic",
+                 baseAtk: 102, baseDef: 88, baseSpAtk: 98, baseSpDef: 120, baseSpeed: 88,
+                 ability: "contrary"),
+        MegaForm(speciesKey: "barbaracle",   stone: .barbaracite,     requiresMove: nil,
+                 displayName: "Mega Barbaracle", type1: "Rock", type2: "Water",
+                 baseAtk: 140, baseDef: 130, baseSpAtk: 64, baseSpDef: 106, baseSpeed: 88,
+                 ability: "tough-claws"),
+        MegaForm(speciesKey: "dragalge",     stone: .dragalgite,      requiresMove: nil,
+                 displayName: "Mega Dragalge", type1: "Poison", type2: "Dragon",
+                 baseAtk: 85, baseDef: 105, baseSpAtk: 132, baseSpDef: 163, baseSpeed: 44,
+                 ability: "regenerator"),
+        MegaForm(speciesKey: "falinks",      stone: .falinksite,      requiresMove: nil,
+                 displayName: "Mega Falinks", type1: "Fighting", type2: nil,
+                 baseAtk: 135, baseDef: 135, baseSpAtk: 70, baseSpDef: 65, baseSpeed: 100,
+                 ability: "defiant"),
     ]
 }

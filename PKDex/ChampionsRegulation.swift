@@ -26,7 +26,7 @@ import Foundation
 
 enum ChampionsRegulation: String, CaseIterable, Identifiable, Sendable {
     case mA = "m-a"
-    // case mB = "m-b"   // add here when the next regulation drops
+    case mB = "m-b"
 
     var id: String { rawValue }
 
@@ -44,16 +44,107 @@ enum ChampionsRegulation: String, CaseIterable, Identifiable, Sendable {
     var displayName: String {
         switch self {
         case .mA: return "Regulation M-A"
+        case .mB: return "Regulation M-B"
         }
     }
 
+    /// UserDefaults key the user-facing regulation picker writes to.
+    nonisolated static let userDefaultsKey = "championsRegulationRaw"
+
     /// The "currently active" regulation, used wherever code reads from the
-    /// regulation without an explicit override. Bump this when a new format
-    /// goes live (and keep the old case around so legacy validators / saved
-    /// teams can still reference it). `nonisolated` so it's reachable from
-    /// `@ModelActor` contexts (the Pokedex sync) without an `await` hop —
-    /// the enum value itself is immutable.
-    nonisolated static let current: ChampionsRegulation = .mA
+    /// regulation without an explicit override. Backed by `UserDefaults` so
+    /// the user can switch between formats from Settings without re-launching
+    /// the app — every read of `.current` returns whatever's stored. Defaults
+    /// to `.latest` (whichever regulation has the most recent `valid_from`),
+    /// so a fresh install always opens on the newest format and ships of M-C
+    /// + future regulations get picked up automatically once their JSON lands.
+    /// `nonisolated` because `UserDefaults.standard` is thread-safe and
+    /// reachable from `@ModelActor` contexts (the Pokedex sync) without an
+    /// `await` hop.
+    nonisolated static var current: ChampionsRegulation {
+        let raw = UserDefaults.standard.string(forKey: userDefaultsKey)
+            ?? latest.rawValue
+        return ChampionsRegulation(rawValue: raw) ?? latest
+    }
+
+    // MARK: Legal-period registry
+
+    /// Window during which this regulation was/will be legal in
+    /// Pokemon Champions ranked battle. Both bounds come from the bundled
+    /// JSON (`valid_from`, `valid_until`). `nil` means the bound isn't
+    /// recorded (e.g. a future regulation that's been data-mined but hasn't
+    /// shipped — `valid_until` would be `nil` until the next regulation
+    /// supersedes it).
+    nonisolated struct LegalPeriod: Hashable, Sendable {
+        let from: Date?
+        let until: Date?
+
+        func contains(_ date: Date) -> Bool {
+            if let f = from, date < f { return false }
+            if let u = until, date > u { return false }
+            return true
+        }
+    }
+
+    nonisolated var legalPeriod: LegalPeriod { Self.legalPeriods[self] ?? .init(from: nil, until: nil) }
+    nonisolated var validFrom:  Date? { legalPeriod.from }
+    nonisolated var validUntil: Date? { legalPeriod.until }
+
+    /// The most recent regulation — the one with the latest `valid_from`.
+    /// Cases without a `valid_from` are treated as oldest. Stable when ties
+    /// exist (falls back to `allCases` order).
+    nonisolated static var latest: ChampionsRegulation {
+        allCases.max { (lhs, rhs) in
+            let l = lhs.validFrom ?? .distantPast
+            let r = rhs.validFrom ?? .distantPast
+            return l < r
+        } ?? .mA
+    }
+
+    /// Returns the regulation whose legal window contains `date`, or `nil`
+    /// if `date` predates / postdates every shipped regulation. When two
+    /// regulations' windows touch (e.g. M-A's last day == M-B's first day),
+    /// the *newer* regulation wins — the changeover is always considered
+    /// to have already happened by end-of-day.
+    nonisolated static func legal(on date: Date) -> ChampionsRegulation? {
+        // Search newest-first so changeover-day ties resolve to the new format.
+        let sorted = allCases.sorted { ($0.validFrom ?? .distantPast) > ($1.validFrom ?? .distantPast) }
+        return sorted.first { $0.legalPeriod.contains(date) }
+    }
+
+    /// Eagerly built dictionary of `regulation -> LegalPeriod`, populated
+    /// once at first access by scanning the bundle for each case's JSON.
+    /// Swift guarantees thread-safe initialization of `static let`.
+    nonisolated private static let legalPeriods: [ChampionsRegulation: LegalPeriod] = {
+        var out: [ChampionsRegulation: LegalPeriod] = [:]
+        for reg in ChampionsRegulation.allCases {
+            out[reg] = loadLegalPeriodFromBundle(reg) ?? .init(from: nil, until: nil)
+        }
+        return out
+    }()
+
+    nonisolated private static let legalPeriodDateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.calendar = Calendar(identifier: .gregorian)
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = TimeZone(secondsFromGMT: 0)
+        df.dateFormat = "yyyy-MM-dd"
+        return df
+    }()
+
+    nonisolated private static func loadLegalPeriodFromBundle(_ reg: ChampionsRegulation) -> LegalPeriod? {
+        guard let url = Bundle.main.url(forResource: reg.bundleResourceName,
+                                        withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let envelope = try? JSONDecoder().decode(ChampionsLegalPeriodEnvelope.self, from: data)
+        else {
+            return nil
+        }
+        return LegalPeriod(
+            from:  envelope.valid_from.flatMap { legalPeriodDateFormatter.date(from: $0) },
+            until: envelope.valid_until.flatMap { legalPeriodDateFormatter.date(from: $0) }
+        )
+    }
 
     // MARK: Species whitelist (cached)
 
@@ -125,4 +216,11 @@ enum ChampionsRegulation: String, CaseIterable, Identifiable, Sendable {
 /// actor context.
 nonisolated private struct ChampionsWhitelistEnvelope: Decodable, Sendable {
     let species_whitelist: [String]
+}
+
+/// Minimal envelope just for the legal-period fields. Both bounds are
+/// optional so older JSONs without the field still parse.
+nonisolated private struct ChampionsLegalPeriodEnvelope: Decodable, Sendable {
+    let valid_from:  String?
+    let valid_until: String?
 }

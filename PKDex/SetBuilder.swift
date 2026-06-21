@@ -481,7 +481,7 @@ private struct SetFormContent: View {
                         }
                     }
                     Picker("Item", selection: $side.heldItem) {
-                        ForEach(HeldItem.allCases) { item in
+                        ForEach(HeldItem.pickerOptions(forSpeciesNamed: pkmn.name)) { item in
                             Text(item.rawValue).tag(item)
                         }
                     }

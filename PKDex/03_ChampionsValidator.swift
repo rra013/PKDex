@@ -179,12 +179,22 @@ public final class ChampionsValidator {
         ]
     }
 
-    /// Convenience initializer that loads from the app bundle.
+    /// Convenience initializer that loads from the app bundle for the
+    /// currently-active regulation (`ChampionsRegulation.current`).
     public convenience init?() {
+        self.init(regulation: ChampionsRegulation.current)
+    }
+
+    /// Convenience initializer that loads the JSON pair for an explicit
+    /// regulation. Use this when validating against a non-current format
+    /// (e.g. saved teams that were built under M-A while M-B is now active).
+    /// Internal access: `ChampionsRegulation` is module-internal, so this
+    /// initializer matches.
+    convenience init?(regulation: ChampionsRegulation) {
         guard let lURL = Bundle.main.url(
-                forResource: "champions-m-a", withExtension: "json"),
+                forResource: regulation.bundleResourceName, withExtension: "json"),
               let mURL = Bundle.main.url(
-                forResource: "champions-m-a-learnsets", withExtension: "json")
+                forResource: regulation.learnsetBundleResourceName, withExtension: "json")
         else { return nil }
         self.init(legalityURL: lURL, learnsetsURL: mURL)
     }

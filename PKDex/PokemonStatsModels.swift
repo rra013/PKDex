@@ -448,6 +448,23 @@ enum HeldItem: String, CaseIterable, Identifiable {
     case starminite      = "Starminite"
     case victreebelite   = "Victreebelite"
 
+    // Pokemon Champions Regulation M-B Mega Stones. Stones introduced for
+    // M-B's Champions-original Mega forms (Raichu X/Y, Staraptor, Scolipede,
+    // Scrafty, Eelektross, Pyroar, Malamar, Barbaracle, Dragalge, Falinks).
+    // Names sourced from game8.co's M-B item list. The corresponding
+    // `MegaForm` entries live in `MegaForms.all`.
+    case raichuniteX     = "Raichunite X"
+    case raichuniteY     = "Raichunite Y"
+    case staraptite      = "Staraptite"
+    case scolipite       = "Scolipite"
+    case scraftinite     = "Scraftinite"
+    case eelektrossite   = "Eelektrossite"
+    case pyroarite       = "Pyroarite"
+    case malamarite      = "Malamarite"
+    case barbaracite     = "Barbaracite"
+    case dragalgite      = "Dragalgite"
+    case falinksite      = "Falinksite"
+
     // Type-boosting items (1.2x to moves of the listed type).
     case silkScarf       = "Silk Scarf"        // Normal
     case charcoal        = "Charcoal"          // Fire
@@ -527,6 +544,33 @@ enum HeldItem: String, CaseIterable, Identifiable {
     /// Occa, ...). Used by Harvest to know which consumed items can be regrown.
     var isBerry: Bool {
         rawValue.hasSuffix("Berry")
+    }
+
+    /// The held-item list to show in an item picker for a given species.
+    ///
+    /// Behavior:
+    /// - With a `speciesName`, the species' own Mega Stone(s) are surfaced at
+    ///   the top of the list and *every other* Mega Stone is hidden, so the
+    ///   picker doesn't drown the user in 70+ irrelevant stones.
+    /// - With `nil` (no species selected), returns the full `allCases` —
+    ///   matches the pre-filter behavior so item-browsing screens still work.
+    /// - Rayquaza (and any other Mega trigger that's not stone-gated) shows
+    ///   zero Mega Stones, which is correct: it Mega-evolves via Dragon
+    ///   Ascent, not a held item.
+    static func pickerOptions(forSpeciesNamed speciesName: String?) -> [HeldItem] {
+        guard let name = speciesName else { return Array(HeldItem.allCases) }
+        let key = BattleSimSeed.normalize(name)
+        let relevantStones: [HeldItem] = MegaForms.all
+            .filter { $0.speciesKey == key }
+            .compactMap { $0.stone }
+        let relevantSet = Set(relevantStones)
+        var result: [HeldItem] = relevantStones
+        for item in HeldItem.allCases {
+            if relevantSet.contains(item) { continue }
+            if item.isMegaStone { continue }
+            result.append(item)
+        }
+        return result
     }
 }
 
@@ -784,6 +828,10 @@ enum DamageAbility: String, CaseIterable, Identifiable {
     case vesselOfRuin = "vessel-of-ruin"
     case friendGuard = "friend-guard"
 
+    // Pokemon Champions Regulation M-B abilities
+    case fireMane = "fire-mane"    // Mega Pyroar — +50% Fire move power
+    case eelevate = "eelevate"     // Mega Eelektross — Ground/hazard immunity
+
     var id: String { rawValue }
 
     var displayName: String {
@@ -856,6 +904,11 @@ func computeAbilityModifiers(
 
     case "dragons-maw":
         if moveType == "Dragon" { r.powerMultiplier *= 1.5 }
+
+    case "fire-mane":
+        // Pokemon Champions ability (Mega Pyroar): +50% to the holder's
+        // Fire-type moves.
+        if moveType == "Fire" { r.powerMultiplier *= 1.5 }
 
     case "steelworker":
         if moveType == "Steel" { r.powerMultiplier *= 1.5 }
@@ -1045,6 +1098,15 @@ func computeAbilityModifiers(
         if moveType == "Fire"  { r.finalMultiplier *= 1.25 }
 
     case "levitate":
+        if moveType == "Ground" { r.typeEffOverride = 0.0 }
+
+    case "eelevate":
+        // Pokemon Champions ability (Mega Eelektross): identical Ground
+        // immunity to Levitate. The "boost highest stat on KO" half of the
+        // ability runs in the battle engine, not the damage calc — not
+        // yet implemented (no Moxie/Beast Boost infrastructure exists).
+        // Spikes / Toxic Spikes / Sticky Web immunity is handled in
+        // `applyHazardsOnSwitchIn` via the grounded check.
         if moveType == "Ground" { r.typeEffOverride = 0.0 }
 
     case "flash-fire":

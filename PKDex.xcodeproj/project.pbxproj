@@ -11,6 +11,8 @@
 		33178D052FCCF1E700FE0B46 /* stat_nature_model.npz in Resources */ = {isa = PBXBuildFile; fileRef = 33178D022FCCF1E700FE0B46 /* stat_nature_model.npz */; };
 		33178D062FCCF1E700FE0B46 /* name_qual_weights.npz in Resources */ = {isa = PBXBuildFile; fileRef = 33178D012FCCF1E700FE0B46 /* name_qual_weights.npz */; };
 		33178D072FCCF1E700FE0B46 /* stat_nature_vocab.json in Resources */ = {isa = PBXBuildFile; fileRef = 33178D032FCCF1E700FE0B46 /* stat_nature_vocab.json */; };
+		3366A45D2FE2D49B00DB0528 /* champions-m-b.json in Resources */ = {isa = PBXBuildFile; fileRef = 3366A45C2FE2D49B00DB0528 /* champions-m-b.json */; };
+		3366A45F2FE2D49D00DB0528 /* champions-m-b-learnsets.json in Resources */ = {isa = PBXBuildFile; fileRef = 3366A45E2FE2D49D00DB0528 /* champions-m-b-learnsets.json */; };
 		337BCB0D2FD4851A003BDFE8 /* feature_config.json in Resources */ = {isa = PBXBuildFile; fileRef = 337BCB0B2FD4851A003BDFE8 /* feature_config.json */; };
 		337BCB0E2FD4851A003BDFE8 /* pokii_battler.safetensors in Resources */ = {isa = PBXBuildFile; fileRef = 337BCB0C2FD4851A003BDFE8 /* pokii_battler.safetensors */; };
 		337BCB142FD510F9003BDFE8 /* pokii_parity_samples.json in Resources */ = {isa = PBXBuildFile; fileRef = 337BCB132FD510F9003BDFE8 /* pokii_parity_samples.json */; };
@@ -89,6 +91,8 @@
 		33178D022FCCF1E700FE0B46 /* stat_nature_model.npz */ = {isa = PBXFileReference; lastKnownFileType = file; path = stat_nature_model.npz; sourceTree = "<group>"; };
 		33178D032FCCF1E700FE0B46 /* stat_nature_vocab.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = stat_nature_vocab.json; sourceTree = "<group>"; };
 		332D1F312F9128C500E7D180 /* PKDexTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PKDexTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3366A45C2FE2D49B00DB0528 /* champions-m-b.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-b.json"; sourceTree = "<group>"; };
+		3366A45E2FE2D49D00DB0528 /* champions-m-b-learnsets.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-b-learnsets.json"; sourceTree = "<group>"; };
 		337BCB0B2FD4851A003BDFE8 /* feature_config.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = feature_config.json; sourceTree = "<group>"; };
 		337BCB0C2FD4851A003BDFE8 /* pokii_battler.safetensors */ = {isa = PBXFileReference; lastKnownFileType = file; path = pokii_battler.safetensors; sourceTree = "<group>"; };
 		337BCB132FD510F9003BDFE8 /* pokii_parity_samples.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = pokii_parity_samples.json; sourceTree = "<group>"; };
@@ -8890,6 +8894,8 @@
 				332D1F322F9128C500E7D180 /* PKDexTests */,
 				33C3DE282F946A84004BB026 /* Frameworks */,
 				33C6C9A12F8D3CFB005FFCCC /* Products */,
+				3366A45C2FE2D49B00DB0528 /* champions-m-b.json */,
+				3366A45E2FE2D49D00DB0528 /* champions-m-b-learnsets.json */,
 			);
 			sourceTree = "<group>";
 		};
@@ -9020,7 +9026,9 @@
 			files = (
 				337BCB0D2FD4851A003BDFE8 /* feature_config.json in Resources */,
 				337BCB0E2FD4851A003BDFE8 /* pokii_battler.safetensors in Resources */,
+				3366A45F2FE2D49D00DB0528 /* champions-m-b-learnsets.json in Resources */,
 				337BCB142FD510F9003BDFE8 /* pokii_parity_samples.json in Resources */,
+				3366A45D2FE2D49B00DB0528 /* champions-m-b.json in Resources */,
 				33178D042FCCF1E700FE0B46 /* name_qual_vocab.json in Resources */,
 				33178D052FCCF1E700FE0B46 /* stat_nature_model.npz in Resources */,
 				33178D062FCCF1E700FE0B46 /* name_qual_weights.npz in Resources */,

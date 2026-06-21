@@ -190,9 +190,14 @@ struct ChampionsFilterSheet: View {
     @State private var abilitySearch: String = ""
     @State private var moveSearch: String = ""
 
+    /// Type-ahead: empty query → empty list. Dumping ~hundreds of abilities
+    /// by default made the sheet impossible to skim; users now narrow the
+    /// list as they type (matching the Types section's two-tap dropdown UX
+    /// in spirit). The currently-selected ability still appears as a chip
+    /// outside the sheet and as the "Clear ability filter" row inside it.
     private var filteredAbilities: [String] {
         let q = abilitySearch.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { return availableAbilities }
+        guard !q.isEmpty else { return [] }
         return availableAbilities.filter {
             formatAbilityName($0).localizedStandardContains(q)
         }
@@ -200,13 +205,26 @@ struct ChampionsFilterSheet: View {
 
     private var filteredMoves: [String] {
         let q = moveSearch.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { return availableMoves }
+        guard !q.isEmpty else { return [] }
         return availableMoves.filter { $0.localizedStandardContains(q) }
     }
 
     var body: some View {
         NavigationStack {
             Form {
+                // Active-filter recap. Mirrors the chip strip on the Mon Index
+                // so users can see (and remove) what's set without scrolling
+                // through the type-ahead search lists below.
+                if filters.isActive {
+                    Section {
+                        ChampionsFilterChipStrip(filters: $filters)
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                    } header: {
+                        Text("Active Filters")
+                    }
+                }
+
                 Section {
                     Picker("Type", selection: $filters.type1) {
                         Text("Any").tag(String?.none)
@@ -223,9 +241,10 @@ struct ChampionsFilterSheet: View {
                 } header: {
                     Text("Type")
                 } footer: {
-                    // Make the dual-typing contract explicit so users don't
-                    // have to discover it empirically.
-                    Text("When both slots are set, only Pokémon with both types on the same form match. Order doesn't matter.")
+                    // Make the dual-typing contract AND the cross-section
+                    // AND-combination explicit so users don't have to discover
+                    // either rule empirically.
+                    Text("When both slots are set, only Pokémon with both types on the same form match. Order doesn't matter. Type, Ability, and Move filters combine with AND — e.g. Ability = Contrary + Move = Skill Swap returns Contrary Pokémon that learn Skill Swap.")
                         .font(.caption)
                 }
 
@@ -251,6 +270,15 @@ struct ChampionsFilterSheet: View {
                         } label: {
                             Label("Clear ability filter", systemImage: "xmark.circle")
                         }
+                    }
+                    if abilitySearch.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("Start typing to search abilities")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if filteredAbilities.isEmpty {
+                        Text("No abilities match “\(abilitySearch)”")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     ForEach(filteredAbilities, id: \.self) { ability in
                         Button {
@@ -291,6 +319,15 @@ struct ChampionsFilterSheet: View {
                         } label: {
                             Label("Clear move filter", systemImage: "xmark.circle")
                         }
+                    }
+                    if moveSearch.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("Start typing to search moves")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if filteredMoves.isEmpty {
+                        Text("No moves match “\(moveSearch)”")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     ForEach(filteredMoves, id: \.self) { move in
                         Button {

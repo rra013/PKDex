@@ -2,10 +2,16 @@
 //  ChampionsLearnsetStore.swift
 //  PKDex
 //
-//  Loads `champions-m-a-learnsets.json` once and exposes per-species data
-//  (abilities, base stats, learnset, megas, alternate forms) for use by the
-//  Champions detail view. The JSON keys are base species names; regional and
-//  Hisuian variants live nested under their base species' `alternate_forms`.
+//  Loads `champions-<id>-learnsets.json` for the active regulation and
+//  exposes per-species data (abilities, base stats, learnset, megas,
+//  alternate forms) for use by the Champions detail view. The JSON keys are
+//  base species names; regional and Hisuian variants live nested under their
+//  base species' `alternate_forms`.
+//
+//  One store is loaded per regulation, cached forever once parsed.
+//  `.shared` always returns the store for `ChampionsRegulation.current`, so
+//  flipping the regulation in Settings causes the next `.shared` access to
+//  serve M-B (or whichever format is now active) with no callsite changes.
 //
 
 import Foundation
@@ -43,20 +49,37 @@ struct ChampionsSpecies: Hashable {
 }
 
 final class ChampionsLearnsetStore {
-    static let shared = ChampionsLearnsetStore()
+    /// Store for the active regulation. Recomputed on each access — the
+    /// underlying cache makes this an `O(1)` dictionary lookup once warm.
+    static var shared: ChampionsLearnsetStore {
+        store(for: ChampionsRegulation.current)
+    }
+
+    /// Returns the cached store for `regulation`, parsing the bundled
+    /// learnsets JSON on first access. Thread-safe via `cacheLock`.
+    static func store(for regulation: ChampionsRegulation) -> ChampionsLearnsetStore {
+        cacheLock.lock(); defer { cacheLock.unlock() }
+        if let hit = cache[regulation] { return hit }
+        let store = ChampionsLearnsetStore(regulation: regulation)
+        cache[regulation] = store
+        return store
+    }
+
+    private static let cacheLock = NSLock()
+    nonisolated(unsafe) private static var cache: [ChampionsRegulation: ChampionsLearnsetStore] = [:]
 
     private let bySpecies: [String: ChampionsSpecies]
 
-    private init() {
-        self.bySpecies = Self.loadBundledData()
+    private init(regulation: ChampionsRegulation) {
+        self.bySpecies = Self.loadBundledData(regulation: regulation)
     }
 
     func data(for speciesName: String) -> ChampionsSpecies? {
         bySpecies[speciesName]
     }
 
-    private static func loadBundledData() -> [String: ChampionsSpecies] {
-        guard let url = Bundle.main.url(forResource: "champions-m-a-learnsets",
+    private static func loadBundledData(regulation: ChampionsRegulation) -> [String: ChampionsSpecies] {
+        guard let url = Bundle.main.url(forResource: regulation.learnsetBundleResourceName,
                                         withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

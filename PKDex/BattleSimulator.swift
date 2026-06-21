@@ -1659,7 +1659,12 @@ final class BattleEngine {
     }
 
     private func applyHazardsOnSwitchIn(p: BattleParticipant, side: BattleSide) {
-        let grounded = !p.types.contains("Flying")
+        // Hazards only affect grounded Pokemon. Flying-types and ability
+        // holders that float (Levitate, Pokemon Champions' Eelevate) skip
+        // Spikes / Sticky Web / Toxic Spikes. Stealth Rock is type-based,
+        // not ground-based, and is handled separately below.
+        let floats = p.activeAbility == "levitate" || p.activeAbility == "eelevate"
+        let grounded = !p.types.contains("Flying") && !floats
         let magicGuard = p.activeAbility == "magic-guard"
 
         if side.stealthRock, !magicGuard {
@@ -5050,7 +5055,7 @@ struct BattleSimulatorView: View {
             }
             .disabled(championsValidator == nil)
             if validatorLoadAttempted && championsValidator == nil {
-                Text("Champions data unavailable — bundle is missing champions-m-a.json.")
+                Text("Champions data unavailable — bundle is missing champions-\(ChampionsRegulation.current.rawValue).json.")
                     .font(.caption2).foregroundStyle(.secondary)
             } else if championsFormat {
                 Text("Lv 50, 66 stat-point cap (32 per stat), IVs 31. Illegal teams can't battle.")

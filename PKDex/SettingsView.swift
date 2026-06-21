@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage("defaultTab") private var defaultTabRaw: String = AppTab.monIndex.rawValue
     @AppStorage("appAccentColor") private var accentColorRaw: String = AppAccentColor.blue.rawValue
     @AppStorage("appAppearance") private var appearanceRaw: String = AppAppearance.system.rawValue
+    @AppStorage(ChampionsRegulation.userDefaultsKey) private var championsRegulationRaw: String = ChampionsRegulation.mA.rawValue
     @Environment(\.modelContext) private var modelContext
 
     @State private var showResetConfirmation = false
@@ -127,6 +128,28 @@ struct SettingsView: View {
                     Text("Sets the default filter for the Mon Index. When Champions is selected, the Damage Calculator will also default to Champions Mode.")
                 }
 
+                // MARK: - Champions Regulation
+                Section {
+                    Picker("Active Regulation", selection: $championsRegulationRaw) {
+                        ForEach(ChampionsRegulation.allCases) { reg in
+                            HStack {
+                                Text(reg.displayName)
+                                Spacer()
+                                if let window = Self.legalWindowString(for: reg) {
+                                    Text(window)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .tag(reg.rawValue)
+                        }
+                    }
+                } header: {
+                    Text("Champions Regulation")
+                } footer: {
+                    Text("Switches the roster, learnsets, and validation rules used by the Mon Index, Set Builder, and Battle Simulator. New installs default to the latest regulation (by start date). Reopen any Champions screen after switching to pick up the new format.")
+                }
+
                 // MARK: - Data Management
                 Section("Data Management") {
                     Button {
@@ -238,6 +261,24 @@ struct SettingsView: View {
 
         isRedownloading = false
     }
+
+    /// "Apr 8 – Jun 16, 2026" style window for a regulation, or `nil` when
+    /// neither bound is recorded in its JSON. Used by the regulation picker
+    /// so users can see at-a-glance which format covers which dates.
+    private static func legalWindowString(for reg: ChampionsRegulation) -> String? {
+        let period = reg.legalPeriod
+        if period.from == nil && period.until == nil { return nil }
+        let fmt = legalWindowDateFormatter
+        let from = period.from.map { fmt.string(from: $0) } ?? "?"
+        let until = period.until.map { fmt.string(from: $0) } ?? "TBD"
+        return "\(from) – \(until)"
+    }
+
+    private static let legalWindowDateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "MMM d, yyyy"
+        return df
+    }()
 
     private func performReset() {
         if let bundleID = Bundle.main.bundleIdentifier {

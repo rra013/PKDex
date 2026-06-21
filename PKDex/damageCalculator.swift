@@ -1005,23 +1005,38 @@ private struct SideCard: View {
             if let pkmn = side.pokemon {
                 Divider()
 
-                // Ability Picker
+                // Ability Picker — when Mega is active, lock the row to the
+                // Mega's canonical ability so the UI reflects what the damage
+                // calc is actually using (`effectiveAbility`). The underlying
+                // `selectedAbility` storage is intentionally NOT mutated so
+                // toggling Mega off restores the user's pre-Mega pick.
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Ability").font(.caption).foregroundStyle(.secondary)
-                        Picker("Ability", selection: $side.selectedAbility) {
-                            Text("None").tag(String?.none)
-                            ForEach(pkmn.allAbilities, id: \.self) { a in
-                                Text(formatAbilityName(a)).tag(Optional(a))
+                        if let mega = side.activeMegaForm {
+                            HStack(spacing: 4) {
+                                Text(formatAbilityName(mega.ability))
+                                    .font(.body)
+                                Text("· Mega")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            Picker("Ability", selection: $side.selectedAbility) {
+                                Text("None").tag(String?.none)
+                                ForEach(pkmn.allAbilities, id: \.self) { a in
+                                    Text(formatAbilityName(a)).tag(Optional(a))
+                                }
+                            }
+                            .labelsHidden()
                         }
-                        .labelsHidden()
                     }
                     Spacer()
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Item").font(.caption).foregroundStyle(.secondary)
                         Picker("Item", selection: $side.heldItem) {
-                            ForEach(HeldItem.allCases) { item in
+                            ForEach(HeldItem.pickerOptions(forSpeciesNamed: pkmn.name)) { item in
                                 Text(item.rawValue).tag(item)
                             }
                         }
