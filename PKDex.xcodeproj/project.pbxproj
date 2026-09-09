@@ -11,6 +11,8 @@
 		33178D052FCCF1E700FE0B46 /* stat_nature_model.npz in Resources */ = {isa = PBXBuildFile; fileRef = 33178D022FCCF1E700FE0B46 /* stat_nature_model.npz */; };
 		33178D062FCCF1E700FE0B46 /* name_qual_weights.npz in Resources */ = {isa = PBXBuildFile; fileRef = 33178D012FCCF1E700FE0B46 /* name_qual_weights.npz */; };
 		33178D072FCCF1E700FE0B46 /* stat_nature_vocab.json in Resources */ = {isa = PBXBuildFile; fileRef = 33178D032FCCF1E700FE0B46 /* stat_nature_vocab.json */; };
+		333AE8E8305203ED00E83488 /* champions-m-c-learnsets.json in Resources */ = {isa = PBXBuildFile; fileRef = 333AE8E7305203ED00E83488 /* champions-m-c-learnsets.json */; };
+		333AE8E9305203ED00E83488 /* champions-m-c.json in Resources */ = {isa = PBXBuildFile; fileRef = 333AE8E6305203ED00E83488 /* champions-m-c.json */; };
 		3366A45D2FE2D49B00DB0528 /* champions-m-b.json in Resources */ = {isa = PBXBuildFile; fileRef = 3366A45C2FE2D49B00DB0528 /* champions-m-b.json */; };
 		3366A45F2FE2D49D00DB0528 /* champions-m-b-learnsets.json in Resources */ = {isa = PBXBuildFile; fileRef = 3366A45E2FE2D49D00DB0528 /* champions-m-b-learnsets.json */; };
 		337BCB0D2FD4851A003BDFE8 /* feature_config.json in Resources */ = {isa = PBXBuildFile; fileRef = 337BCB0B2FD4851A003BDFE8 /* feature_config.json */; };
@@ -91,6 +93,8 @@
 		33178D022FCCF1E700FE0B46 /* stat_nature_model.npz */ = {isa = PBXFileReference; lastKnownFileType = file; path = stat_nature_model.npz; sourceTree = "<group>"; };
 		33178D032FCCF1E700FE0B46 /* stat_nature_vocab.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = stat_nature_vocab.json; sourceTree = "<group>"; };
 		332D1F312F9128C500E7D180 /* PKDexTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PKDexTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		333AE8E6305203ED00E83488 /* champions-m-c.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-c.json"; sourceTree = "<group>"; };
+		333AE8E7305203ED00E83488 /* champions-m-c-learnsets.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-c-learnsets.json"; sourceTree = "<group>"; };
 		3366A45C2FE2D49B00DB0528 /* champions-m-b.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-b.json"; sourceTree = "<group>"; };
 		3366A45E2FE2D49D00DB0528 /* champions-m-b-learnsets.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-b-learnsets.json"; sourceTree = "<group>"; };
 		337BCB0B2FD4851A003BDFE8 /* feature_config.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = feature_config.json; sourceTree = "<group>"; };
@@ -8879,6 +8883,8 @@
 		33C6C9972F8D3CFB005FFCCC = {
 			isa = PBXGroup;
 			children = (
+				333AE8E6305203ED00E83488 /* champions-m-c.json */,
+				333AE8E7305203ED00E83488 /* champions-m-c-learnsets.json */,
 				337BCB132FD510F9003BDFE8 /* pokii_parity_samples.json */,
 				33178D002FCCF1E700FE0B46 /* name_qual_vocab.json */,
 				337BCB0B2FD4851A003BDFE8 /* feature_config.json */,
@@ -9032,6 +9038,8 @@
 				33178D042FCCF1E700FE0B46 /* name_qual_vocab.json in Resources */,
 				33178D052FCCF1E700FE0B46 /* stat_nature_model.npz in Resources */,
 				33178D062FCCF1E700FE0B46 /* name_qual_weights.npz in Resources */,
+				333AE8E8305203ED00E83488 /* champions-m-c-learnsets.json in Resources */,
+				333AE8E9305203ED00E83488 /* champions-m-c.json in Resources */,
 				33178D072FCCF1E700FE0B46 /* stat_nature_vocab.json in Resources */,
 				337BE9CA2FC9D8EF00859F96 /* move_categories.json in Resources */,
 				337BE9C72FC9A25700859F96 /* champions-m-a-learnsets.json in Resources */,

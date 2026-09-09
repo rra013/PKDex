@@ -315,7 +315,9 @@ struct FilteredList: View {
         // Type / ability / move filters. The match needs every form belonging
         // to a species (base + mega + regional) so a "Dragon" filter still
         // surfaces Charizard because of Mega-Y. Build the lookup once per
-        // body evaluation rather than per row.
+        // body evaluation rather than per row, and hoist the learnset store
+        // out of the per-row predicate so it isn't re-resolved (UserDefaults
+        // read + NSLock acquire) ~250 times per render.
         let filteredByChampions: [PKMN]
         if championsFilters.isActive {
             var formsBySpeciesID: [Int: [PKMNStats]] = [:]
@@ -330,10 +332,13 @@ struct FilteredList: View {
                     speciesIDByName[stats.name] = stats.speciesID
                 }
             }
+            let store = ChampionsLearnsetStore.shared
             filteredByChampions = baseList.filter { pkmn in
                 let speciesID = speciesIDByName[pkmn.name]
                 let forms = speciesID.flatMap { formsBySpeciesID[$0] } ?? []
-                return championsFilters.matches(speciesName: pkmn.name, formStats: forms)
+                return championsFilters.matches(speciesName: pkmn.name,
+                                                formStats: forms,
+                                                store: store)
             }
         } else {
             filteredByChampions = baseList

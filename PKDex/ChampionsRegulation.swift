@@ -27,6 +27,7 @@ import Foundation
 enum ChampionsRegulation: String, CaseIterable, Identifiable, Sendable {
     case mA = "m-a"
     case mB = "m-b"
+    case mC = "m-c"
 
     var id: String { rawValue }
 
@@ -45,6 +46,7 @@ enum ChampionsRegulation: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .mA: return "Regulation M-A"
         case .mB: return "Regulation M-B"
+        case .mC: return "Regulation M-C"
         }
     }
 

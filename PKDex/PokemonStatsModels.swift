@@ -465,6 +465,17 @@ enum HeldItem: String, CaseIterable, Identifiable {
     case dragalgite      = "Dragalgite"
     case falinksite      = "Falinksite"
 
+    // Pokemon Champions Regulation M-C Mega Stones. Adds the M-C-original
+    // Megas (Golisopod, Baxcalibur) plus the three second "Z" Megas layered
+    // onto species that already had a Mega in M-B (Garchomp, Lucario, Absol).
+    // Salamencite already exists above. The corresponding `MegaForm` entries
+    // live in `MegaForms.all`.
+    case golisopodite    = "Golisopodite"
+    case baxcaliburite   = "Baxcaliburite"
+    case garchompiteZ    = "Garchompite Z"
+    case lucarioniteZ    = "Lucarionite Z"
+    case absoliteZ       = "Absolite Z"
+
     // Type-boosting items (1.2x to moves of the listed type).
     case silkScarf       = "Silk Scarf"        // Normal
     case charcoal        = "Charcoal"          // Fire

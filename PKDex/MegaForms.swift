@@ -393,5 +393,37 @@ enum MegaForms {
                  displayName: "Mega Falinks", type1: "Fighting", type2: nil,
                  baseAtk: 135, baseDef: 135, baseSpAtk: 70, baseSpDef: 65, baseSpeed: 100,
                  ability: "defiant"),
+
+        // MARK: - Pokemon Champions Regulation M-C Mega Evolutions
+        //
+        // Stats, types, and abilities sourced from Serebii's pokedex-champions
+        // pages. Golisopod and Baxcalibur are new M-C-original Megas; Garchomp,
+        // Lucario, and Absol gain a *second* "Z" Mega (modeled like Charizard's
+        // X/Y — the base Mega entries above are unchanged). Mega Salamence is
+        // already defined higher up, so Salamence's newly-legal base species
+        // simply makes it reachable. Novel abilities (e.g. "aura-guard") carry
+        // an identifier but have no engine effect until `computeAbilityModifiers`
+        // ports them — the same caveat the M-B block above already documents.
+
+        MegaForm(speciesKey: "golisopod",    stone: .golisopodite,    requiresMove: nil,
+                 displayName: "Mega Golisopod", type1: "Bug", type2: "Steel",
+                 baseAtk: 150, baseDef: 175, baseSpAtk: 70, baseSpDef: 120, baseSpeed: 40,
+                 ability: "tough-claws"),
+        MegaForm(speciesKey: "baxcalibur",   stone: .baxcaliburite,   requiresMove: nil,
+                 displayName: "Mega Baxcalibur", type1: "Dragon", type2: "Ice",
+                 baseAtk: 175, baseDef: 117, baseSpAtk: 105, baseSpDef: 101, baseSpeed: 87,
+                 ability: "thermal-exchange"),
+        MegaForm(speciesKey: "garchomp",     stone: .garchompiteZ,    requiresMove: nil,
+                 displayName: "Mega Garchomp Z", type1: "Dragon", type2: nil,
+                 baseAtk: 130, baseDef: 85, baseSpAtk: 141, baseSpDef: 85, baseSpeed: 151,
+                 ability: "levitate"),
+        MegaForm(speciesKey: "lucario",      stone: .lucarioniteZ,    requiresMove: nil,
+                 displayName: "Mega Lucario Z", type1: "Fighting", type2: "Steel",
+                 baseAtk: 100, baseDef: 70, baseSpAtk: 164, baseSpDef: 70, baseSpeed: 151,
+                 ability: "aura-guard"),
+        MegaForm(speciesKey: "absol",        stone: .absoliteZ,       requiresMove: nil,
+                 displayName: "Mega Absol Z", type1: "Dark", type2: "Ghost",
+                 baseAtk: 154, baseDef: 60, baseSpAtk: 75, baseSpDef: 60, baseSpeed: 151,
+                 ability: "sharpness"),
     ]
 }

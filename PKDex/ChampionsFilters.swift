@@ -41,49 +41,47 @@ struct ChampionsFilters: Equatable {
 // MARK: - Available Filter Values
 
 enum ChampionsFilterOptions {
-    /// All ability slugs that appear on any base / mega / alternate form across
-    /// the live regulation roster. Sorted by display name so the picker reads
-    /// alphabetically to the user, not by raw slug.
+    /// All ability slugs that appear on any base / mega / alternate form
+    /// across the live regulation roster. Precomputed once per regulation
+    /// inside `ChampionsLearnsetStore` — this used to scan the roster on
+    /// every call and was the dominant cost of every search-bar keystroke
+    /// (the `.sheet` content closure re-evaluated this argument every
+    /// time `PokedexTab.body` ran).
     static func availableAbilities() -> [String] {
-        var set: Set<String> = []
-        let roster = championsRoster
-        for name in roster {
-            guard let species = ChampionsLearnsetStore.shared.data(for: name) else { continue }
-            set.formUnion(species.abilities)
-            for mega in species.megas { set.formUnion(mega.abilities) }
-            for alt in species.alternateForms { set.formUnion(alt.abilities) }
-        }
-        return set.sorted {
-            formatAbilityName($0).localizedCaseInsensitiveCompare(formatAbilityName($1)) == .orderedAscending
-        }
+        ChampionsLearnsetStore.shared.allAbilities
     }
 
-    /// All move display names usable by any Champions species (base + alternate
-    /// forms; megas inherit base learnsets so they're already covered).
+    /// All move display names usable by any Champions species (base + alt
+    /// forms; megas inherit base learnsets). Same precomputation as
+    /// `availableAbilities()`.
     static func availableMoves() -> [String] {
-        var set: Set<String> = []
-        let roster = championsRoster
-        for name in roster {
-            guard let species = ChampionsLearnsetStore.shared.data(for: name) else { continue }
-            set.formUnion(species.moves)
-            for alt in species.alternateForms {
-                if let moves = alt.moves { set.formUnion(moves) }
-            }
-        }
-        return set.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        ChampionsLearnsetStore.shared.allMoves
     }
 }
 
 // MARK: - Predicate
 
 extension ChampionsFilters {
-    /// Returns true when `species` (looked up via `ChampionsLearnsetStore`)
-    /// satisfies every active filter. Types are evaluated against the matching
-    /// `PKMNStats` form set because Champions JSON doesn't carry typing.
+    /// Convenience that resolves `ChampionsLearnsetStore.shared` on the
+    /// caller's behalf. Use the `store:`-taking overload from tight loops
+    /// — resolving `.shared` per row was burning a `UserDefaults` read and
+    /// an `NSLock` acquire per visible species (~250 round-trips per Mon
+    /// Index render before this).
     func matches(speciesName: String, formStats: [PKMNStats]) -> Bool {
+        matches(speciesName: speciesName, formStats: formStats, store: .shared)
+    }
+
+    /// Returns true when `species` (looked up via the provided `store`)
+    /// satisfies every active filter. Types are evaluated against the
+    /// matching `PKMNStats` form set because Champions JSON doesn't carry
+    /// typing. Hoist `store = ChampionsLearnsetStore.shared` outside the
+    /// per-row loop and pass it in.
+    func matches(speciesName: String,
+                 formStats: [PKMNStats],
+                 store: ChampionsLearnsetStore) -> Bool {
         if !isActive { return true }
 
-        let species = ChampionsLearnsetStore.shared.data(for: speciesName)
+        let species = store.data(for: speciesName)
 
         // Type — when both slots are set, some form must carry both types
         // (dual-typing match, order-independent). When one slot is set, any

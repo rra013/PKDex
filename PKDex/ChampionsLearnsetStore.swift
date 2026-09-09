@@ -70,8 +70,43 @@ final class ChampionsLearnsetStore {
 
     private let bySpecies: [String: ChampionsSpecies]
 
+    /// Every ability slug used by any base / mega / alt form in this
+    /// regulation, sorted by display name. Precomputed at init so the
+    /// filter sheet doesn't pay the roster-scan + 250x cache-lookup cost
+    /// per `.body` evaluation of `PokedexTab` (every keystroke in the
+    /// search bar was burning ~5–10ms here).
+    let allAbilities: [String]
+
+    /// Every move name reachable by any species in this regulation
+    /// (base + alt-form learnsets; megas inherit base), sorted
+    /// case-insensitively. Same one-shot precomputation as `allAbilities`.
+    let allMoves: [String]
+
     private init(regulation: ChampionsRegulation) {
-        self.bySpecies = Self.loadBundledData(regulation: regulation)
+        let bySpecies = Self.loadBundledData(regulation: regulation)
+        self.bySpecies = bySpecies
+
+        var abilitySet: Set<String> = []
+        var moveSet: Set<String> = []
+        for species in bySpecies.values {
+            abilitySet.formUnion(species.abilities)
+            moveSet.formUnion(species.moves)
+            for mega in species.megas {
+                abilitySet.formUnion(mega.abilities)
+            }
+            for alt in species.alternateForms {
+                abilitySet.formUnion(alt.abilities)
+                if let moves = alt.moves {
+                    moveSet.formUnion(moves)
+                }
+            }
+        }
+        self.allAbilities = abilitySet.sorted {
+            formatAbilityName($0).localizedCaseInsensitiveCompare(formatAbilityName($1)) == .orderedAscending
+        }
+        self.allMoves = moveSet.sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
     }
 
     func data(for speciesName: String) -> ChampionsSpecies? {
