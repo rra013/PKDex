@@ -12,6 +12,52 @@
 import SwiftUI
 import SwiftData
 
+/// Which form of a Champions species is being shown — base species, a named
+/// Mega, or a named alternate form. File-scope so the detail view and the
+/// comparison view share it.
+enum FormChoice: Hashable {
+    case base
+    case mega(String)
+    case alternate(String)
+}
+
+/// The concrete data displayed for a resolved `FormChoice`.
+struct DisplayedForm {
+    let name: String
+    let abilities: [String]
+    let stats: ChampionsBaseStats?
+    let moves: [String]
+
+    /// Pure mapping from a `FormChoice` to the concrete data to display.
+    /// Megas inherit the base learnset; alternate forms use their own move
+    /// list when present, else fall back to base. Shared by the detail view
+    /// and the comparison view so form handling stays identical.
+    static func resolve(species: ChampionsSpecies, form: FormChoice) -> DisplayedForm {
+        switch form {
+        case .base:
+            break
+        case .mega(let name):
+            if let mega = species.megas.first(where: { $0.name == name }) {
+                return DisplayedForm(name: mega.name,
+                                     abilities: mega.abilities,
+                                     stats: mega.stats,
+                                     moves: species.moves) // megas inherit base moves
+            }
+        case .alternate(let name):
+            if let alt = species.alternateForms.first(where: { $0.name == name }) {
+                return DisplayedForm(name: alt.name,
+                                     abilities: alt.abilities,
+                                     stats: alt.stats,
+                                     moves: alt.moves ?? species.moves)
+            }
+        }
+        return DisplayedForm(name: species.name,
+                             abilities: species.abilities,
+                             stats: species.stats,
+                             moves: species.moves)
+    }
+}
+
 struct ChampionsPokemonDetailView: View {
     let pokemon: PKMN
     let detailURL: URL?
@@ -22,6 +68,7 @@ struct ChampionsPokemonDetailView: View {
     @State private var selectedForm: FormChoice = .base
     @State private var moveSearch: String = ""
     @State private var showSetSheet: Bool = false
+    @State private var showCompare: Bool = false
 
     private var species: ChampionsSpecies? {
         ChampionsLearnsetStore.shared.data(for: pokemon.name)
@@ -54,6 +101,11 @@ struct ChampionsPokemonDetailView: View {
             NewSetSheet(allPokemon: allPokemonStats,
                         allMoves: allMoves,
                         initialPokemon: basePKMNStats)
+        }
+        .sheet(isPresented: $showCompare) {
+            ChampionsComparisonSheet(originName: pokemon.name,
+                                     originForm: selectedForm,
+                                     allMoves: allMoves)
         }
     }
 
@@ -214,6 +266,23 @@ struct ChampionsPokemonDetailView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
+
+            Divider().padding(.vertical, 2)
+
+            Button {
+                showCompare = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.left.arrow.right")
+                    Text("Compare with…").font(.subheadline.bold())
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption2.bold())
+                }
+                .foregroundStyle(Color.accentColor)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
         .cardStyle()
     }
@@ -397,35 +466,7 @@ struct ChampionsPokemonDetailView: View {
     }
 
     private func displayedForm(for species: ChampionsSpecies) -> DisplayedForm {
-        switch selectedForm {
-        case .base:
-            return DisplayedForm(name: species.name,
-                                 abilities: species.abilities,
-                                 stats: species.stats,
-                                 moves: species.moves)
-        case .mega(let name):
-            if let mega = species.megas.first(where: { $0.name == name }) {
-                return DisplayedForm(name: mega.name,
-                                     abilities: mega.abilities,
-                                     stats: mega.stats,
-                                     moves: species.moves) // megas inherit base moves
-            }
-            return DisplayedForm(name: species.name,
-                                 abilities: species.abilities,
-                                 stats: species.stats,
-                                 moves: species.moves)
-        case .alternate(let name):
-            if let alt = species.alternateForms.first(where: { $0.name == name }) {
-                return DisplayedForm(name: alt.name,
-                                     abilities: alt.abilities,
-                                     stats: alt.stats,
-                                     moves: alt.moves ?? species.moves)
-            }
-            return DisplayedForm(name: species.name,
-                                 abilities: species.abilities,
-                                 stats: species.stats,
-                                 moves: species.moves)
-        }
+        DisplayedForm.resolve(species: species, form: selectedForm)
     }
 
     private func filteredMoves(from moves: [String]) -> [String] {
@@ -523,19 +564,6 @@ struct ChampionsPokemonDetailView: View {
     }
 
     // MARK: - Inner Types
-
-    enum FormChoice: Hashable {
-        case base
-        case mega(String)
-        case alternate(String)
-    }
-
-    struct DisplayedForm {
-        let name: String
-        let abilities: [String]
-        let stats: ChampionsBaseStats?
-        let moves: [String]
-    }
 
     enum SectionID: String, CaseIterable, Hashable {
         case top, stats, abilities, typeChart, moves
@@ -709,4 +737,429 @@ private struct CardStyle: ViewModifier {
 
 private extension View {
     func cardStyle() -> some View { modifier(CardStyle()) }
+}
+
+// MARK: - Comparison: shared helpers
+
+/// Display name for a form choice, given its species (mirrors the detail
+/// view's `currentFormDisplayName`).
+private func formDisplayName(_ form: FormChoice, species: ChampionsSpecies) -> String {
+    switch form {
+    case .base: return species.name
+    case .mega(let name): return name
+    case .alternate(let name): return name
+    }
+}
+
+/// Resolve a Champions move name to its `MoveData` under the same
+/// alphanumeric-only normalization the detail view uses (JSON uses
+/// Showdown-style names, `MoveData.name` is the PokeAPI slug rebuilt).
+private func championsMoveData(_ name: String, in allMoves: [MoveData]) -> MoveData? {
+    let normalized = BattleSimSeed.normalize(name)
+    guard !normalized.isEmpty else { return nil }
+    return allMoves.first { BattleSimSeed.normalize($0.name) == normalized }
+}
+
+// MARK: - Comparison: search sheet
+
+/// Presented from the Base Stats card. Lets the user pick a second Champions
+/// species from the active regulation roster, then pushes the side-by-side
+/// comparison view.
+struct ChampionsComparisonSheet: View {
+    let originName: String
+    let originForm: FormChoice
+    let allMoves: [MoveData]
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var search: String = ""
+
+    /// Roster species (active regulation), excluding the origin, sorted.
+    private var rosterNames: [String] {
+        championsRoster.subtracting([originName]).sorted()
+    }
+
+    private var filtered: [String] {
+        let q = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return rosterNames }
+        return rosterNames.filter { $0.lowercased().contains(q) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(filtered, id: \.self) { name in
+                        NavigationLink {
+                            ChampionsComparisonView(originName: originName,
+                                                    originForm: originForm,
+                                                    targetName: name,
+                                                    allMoves: allMoves)
+                        } label: {
+                            Text(name)
+                        }
+                    }
+                } header: {
+                    Text("Compare \(originName) with")
+                } footer: {
+                    if filtered.isEmpty {
+                        Text("No Pokémon in this regulation match “\(search)”.")
+                    }
+                }
+            }
+            #if os(iOS)
+            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always),
+                        prompt: "Search the Mon Index")
+            #else
+            .searchable(text: $search, prompt: "Search the Mon Index")
+            #endif
+            .navigationTitle("Compare With…")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Comparison: side-by-side view
+
+struct ChampionsComparisonView: View {
+    let originName: String
+    let targetName: String
+    let allMoves: [MoveData]
+
+    @State private var leftForm: FormChoice
+    @State private var rightForm: FormChoice = .base
+    @State private var moveSearch: String = ""
+
+    init(originName: String, originForm: FormChoice, targetName: String, allMoves: [MoveData]) {
+        self.originName = originName
+        self.targetName = targetName
+        self.allMoves = allMoves
+        _leftForm = State(initialValue: originForm)
+    }
+
+    private var leftSpecies: ChampionsSpecies? { ChampionsLearnsetStore.shared.data(for: originName) }
+    private var rightSpecies: ChampionsSpecies? { ChampionsLearnsetStore.shared.data(for: targetName) }
+
+    var body: some View {
+        Group {
+            if let left = leftSpecies, let right = rightSpecies {
+                content(left: left, right: right)
+            } else {
+                ContentUnavailableView {
+                    Label("No Data", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text("Comparison data isn't available for one of these Pokémon.")
+                }
+            }
+        }
+        .navigationTitle("\(originName) vs \(targetName)")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+    }
+
+    @ViewBuilder
+    private func content(left: ChampionsSpecies, right: ChampionsSpecies) -> some View {
+        let l = DisplayedForm.resolve(species: left, form: leftForm)
+        let r = DisplayedForm.resolve(species: right, form: rightForm)
+
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                headerRow(left: left, right: right)
+                statsCard(l: l, r: r)
+                movesCard(l: l, r: r)
+            }
+            .padding(.horizontal)
+            .padding(.top, 12)
+            .padding(.bottom, 24)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    // MARK: Header
+
+    @ViewBuilder
+    private func headerRow(left: ChampionsSpecies, right: ChampionsSpecies) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            FormMenu(species: left, selection: $leftForm)
+                .frame(maxWidth: .infinity)
+            FormMenu(species: right, selection: $rightForm)
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    // MARK: Stats
+
+    @ViewBuilder
+    private func statsCard(l: DisplayedForm, r: DisplayedForm) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "chart.bar.fill")
+                Text("Base Stats").font(.headline)
+                Spacer()
+            }
+
+            if let ls = l.stats, let rs = r.stats {
+                VStack(spacing: 8) {
+                    StatCompareRow(label: "HP",  left: ls.hp,  right: rs.hp)
+                    StatCompareRow(label: "Atk", left: ls.atk, right: rs.atk)
+                    StatCompareRow(label: "Def", left: ls.def, right: rs.def)
+                    StatCompareRow(label: "SpA", left: ls.spa, right: rs.spa)
+                    StatCompareRow(label: "SpD", left: ls.spd, right: rs.spd)
+                    StatCompareRow(label: "Spe", left: ls.spe, right: rs.spe)
+                    Divider()
+                    StatCompareRow(label: "BST", left: ls.total, right: rs.total, isTotal: true)
+                }
+            } else {
+                Text("Stats not available for one of the selected forms.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .cardStyle()
+    }
+
+    // MARK: Moves
+
+    @ViewBuilder
+    private func movesCard(l: DisplayedForm, r: DisplayedForm) -> some View {
+        let shared = Set(l.moves).intersection(r.moves)
+
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "bolt.horizontal")
+                Text("Movepool").font(.headline)
+                Spacer()
+                Text("\(shared.count) shared")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(Color.accentColor)
+            }
+
+            HStack {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Search both movepools", text: $moveSearch)
+                    .textFieldStyle(.plain)
+                    .autocorrectionDisabled(true)
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    #endif
+                if !moveSearch.isEmpty {
+                    Button { moveSearch = "" } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+
+            HStack(alignment: .top, spacing: 12) {
+                MoveColumn(title: l.name, moves: l.moves, shared: shared,
+                           query: moveSearch, allMoves: allMoves)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Divider()
+                MoveColumn(title: r.name, moves: r.moves, shared: shared,
+                           query: moveSearch, allMoves: allMoves)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .cardStyle()
+    }
+}
+
+// MARK: - Comparison: per-side form picker
+
+/// Compact form picker used on each side of the comparison header. Mirrors the
+/// detail view's `formPicker` styling; no-op menu when the species has no
+/// alternate forms (still shows the name).
+private struct FormMenu: View {
+    let species: ChampionsSpecies
+    @Binding var selection: FormChoice
+
+    var body: some View {
+        Menu {
+            Button("Base — \(species.name)") { selection = .base }
+            if !species.megas.isEmpty {
+                Section("Mega Evolutions") {
+                    ForEach(species.megas) { mega in
+                        Button(mega.name) { selection = .mega(mega.name) }
+                    }
+                }
+            }
+            if !species.alternateForms.isEmpty {
+                Section("Alternate Forms") {
+                    ForEach(species.alternateForms) { alt in
+                        Button(alt.name) { selection = .alternate(alt.name) }
+                    }
+                }
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(species.name)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(formDisplayName(selection, species: species))
+                        .font(.caption)
+                        .foregroundStyle(Color.accentColor)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    if !species.megas.isEmpty || !species.alternateForms.isEmpty {
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 8).padding(.horizontal, 10)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .disabled(species.megas.isEmpty && species.alternateForms.isEmpty)
+    }
+}
+
+// MARK: - Comparison: stat row
+
+/// One stat compared across the two forms — value on each end, the higher side
+/// tinted, and mirrored bars growing outward from the centered label.
+private struct StatCompareRow: View {
+    let label: String
+    let left: Int
+    let right: Int
+    var isTotal: Bool = false
+
+    private static let maxStat: Double = 255.0
+    private static let maxTotal: Double = 800.0
+
+    private var maxValue: Double { isTotal ? Self.maxTotal : Self.maxStat }
+    private var leftWins: Bool { left > right }
+    private var rightWins: Bool { right > left }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("\(left)")
+                .font(.caption.monospacedDigit().weight(leftWins ? .bold : .regular))
+                .foregroundStyle(leftWins ? Color.green : .secondary)
+                .frame(width: 38, alignment: .trailing)
+
+            bar(value: left, alignment: .trailing, win: leftWins)
+
+            Text(label)
+                .font(.caption2.bold())
+                .foregroundStyle(.secondary)
+                .frame(width: 34)
+
+            bar(value: right, alignment: .leading, win: rightWins)
+
+            Text("\(right)")
+                .font(.caption.monospacedDigit().weight(rightWins ? .bold : .regular))
+                .foregroundStyle(rightWins ? Color.green : .secondary)
+                .frame(width: 38, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func bar(value: Int, alignment: Alignment, win: Bool) -> some View {
+        GeometryReader { geo in
+            let fraction = min(max(Double(value) / maxValue, 0), 1)
+            ZStack(alignment: alignment) {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.secondary.opacity(0.15))
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(win ? Color.green : Color.accentColor.opacity(0.55))
+                    .frame(width: geo.size.width * fraction)
+            }
+        }
+        .frame(height: 9)
+    }
+}
+
+// MARK: - Comparison: move column
+
+/// One side's movepool, filtered by the shared query. Moves also known by the
+/// other side are tinted. Tapping a resolved move opens its detail page.
+private struct MoveColumn: View {
+    let title: String
+    let moves: [String]
+    let shared: Set<String>
+    let query: String
+    let allMoves: [MoveData]
+
+    private var filtered: [String] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return moves }
+        return moves.filter { $0.lowercased().contains(q) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.bold())
+                .lineLimit(1)
+            Text(query.isEmpty ? "\(moves.count) moves"
+                               : "\(filtered.count) of \(moves.count)")
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.secondary)
+
+            if filtered.isEmpty {
+                Text(moves.isEmpty ? "No moves." : "No matches.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 4)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(filtered, id: \.self) { name in
+                        let data = championsMoveData(name, in: allMoves)
+                        let isShared = shared.contains(name)
+                        if let data {
+                            NavigationLink {
+                                MoveDetailView(move: data, genFilter: .champions)
+                            } label: {
+                                CompareMoveRow(name: name, data: data, isShared: isShared)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            CompareMoveRow(name: name, data: nil, isShared: isShared)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Compact move row for the narrow comparison columns.
+private struct CompareMoveRow: View {
+    let name: String
+    let data: MoveData?
+    let isShared: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(name)
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 4)
+            if let d = data {
+                TypeBadge(type: d.type)
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isShared ? Color.accentColor.opacity(0.14) : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 6))
+        .contentShape(Rectangle())
+    }
 }
