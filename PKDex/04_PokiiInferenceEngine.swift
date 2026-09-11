@@ -244,10 +244,16 @@ public final class PokiiInferenceEngine: ObservableObject {
         }
     }
 
-    /// Free the model from memory. Useful when the user navigates away from
-    /// the AI builder and you want to reclaim ~4 GB of RAM.
+    /// Free the model from memory and reclaim ~4 GB of RAM. Call this when the
+    /// app backgrounds (see `PokedexApp`) or the user is done with the AI
+    /// builder. `load()` is idempotent, so the next generation transparently
+    /// reloads. Also drops MLX's pooled Metal buffers — nil-ing the container
+    /// releases the weights, but MLX keeps freed buffers in a cache that still
+    /// counts against the (tiny) background memory budget and would otherwise
+    /// get the process jetsam-killed while suspended.
     public func unload() {
         modelContainer = nil
+        MLX.Memory.clearCache()
         if case .ready = state { state = .downloaded }
         if case .generating = state { state = .downloaded }
     }

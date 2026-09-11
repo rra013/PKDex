@@ -503,6 +503,16 @@ struct ChampionsPokemonDetailView: View {
         // Base form — use the base species' types directly.
         if formName == pokemon.name { return baseTypes }
 
+        // Mega forms: `MegaForms` is the authoritative type source. PokeAPI's
+        // PKMNStats often has no entry for Champions-original / Z-A Megas (e.g.
+        // Mega Garchomp Z, Mega Salamence), so the fuzzy match below would
+        // silently fall back to the base typing and miss the Mega's type change
+        // (Charizard → Fire/Dragon, Gyarados → Water/Dark, …). Match on the
+        // Mega's display name, which equals the JSON `megas[].name`.
+        if let mega = MegaForms.all.first(where: { $0.displayName == formName }) {
+            return [mega.type1] + [mega.type2].compactMap { $0 }
+        }
+
         // Try an exact name match first (cheap path).
         if let exact = allPokemonStats.first(where: { $0.name == formName }) {
             return [exact.type1] + [exact.type2].compactMap { $0 }

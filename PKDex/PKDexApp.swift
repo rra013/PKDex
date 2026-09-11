@@ -10,6 +10,8 @@ import SwiftData
 
 @main
 struct PokedexApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+
     let container: ModelContainer = {
         let schema = Schema([PKMN.self, Gen8Pokemon.self, Gen9Pokemon.self, PKMNStats.self, MoveData.self, SavedSpread.self, SavedTeam.self])
         let config = ModelConfiguration(schema: schema)
@@ -48,6 +50,17 @@ struct PokedexApp: App {
                     // Trigger the private helper function
                     await performStartupSync()
                 }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            // The on-device Pokii LLM (~4 GB) is held resident on a shared
+            // singleton once loaded and has no other teardown path, so a
+            // backgrounded session gets jetsam-killed almost immediately on a
+            // real device. Release it (and MLX's pooled Metal buffers) when we
+            // leave the foreground; the AI builder reloads it lazily on return
+            // via the idempotent `PokiiInferenceEngine.load()`.
+            if newPhase == .background {
+                PokiiInferenceEngine.shared.unload()
+            }
         }
     }
     
