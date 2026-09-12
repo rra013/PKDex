@@ -9,6 +9,17 @@ import SwiftUI
 import SwiftData
 import WebKit
 
+// MARK: - Adaptive layout helper
+
+extension EnvironmentValues {
+    /// True when there's room for a multi-column / split ("wide") layout —
+    /// i.e. a regular horizontal size class (large/foldable iPhone in landscape,
+    /// iPad, wide multitasking panes). iPhone **portrait is always compact**, so
+    /// this is the single gate that keeps portrait on its original,
+    /// untouched single-column code path.
+    var isWideLayout: Bool { horizontalSizeClass == .regular }
+}
+
 // MARK: - App Tab Definition
 
 enum AppTab: String, CaseIterable, Identifiable {
@@ -170,6 +181,8 @@ private struct PokedexTab: View {
     @State private var searchText = ""
     @State private var championsFilters: ChampionsFilters = .none
     @State private var showFilterSheet: Bool = false
+    @Environment(\.horizontalSizeClass) private var hSize
+    @State private var selectedMon: PKMN?
 
     private var activeFilter: PokedexFilter {
         selectedFilter ?? PokedexFilter(rawValue: defaultGeneration) ?? .champions
@@ -183,59 +196,127 @@ private struct PokedexTab: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if allPokemon.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Mons Found", systemImage: "antenna.radiowaves.left.and.right")
-                    } description: {
-                        Text("Syncing with PokeAPI... please wait.")
-                    }
+        // Wide layouts get a roster/detail split; compact (portrait) keeps the
+        // original single-column push navigation, unchanged.
+        if hSize == .regular {
+            wideBody
+        } else {
+            NavigationStack {
+                indexColumn(selection: nil)
+            }
+        }
+    }
+
+    /// Two-pane split for wide layouts: roster list on the left, live detail on
+    /// the right (no push/pop — ideal for glancing alongside the game).
+    private var wideBody: some View {
+        NavigationSplitView {
+            indexColumn(selection: $selectedMon)
+        } detail: {
+            NavigationStack {
+                if let selectedMon {
+                    monIndexDestination(for: selectedMon, filter: activeFilter)
                 } else {
-                    VStack(spacing: 0) {
-                        if activeFilter == .champions && championsFilters.isActive {
-                            ChampionsFilterChipStrip(filters: $championsFilters)
-                                .background(.bar)
-                        }
-                        FilteredList(filter: activeFilter,
-                                     searchText: searchText,
-                                     championsFilters: effectiveChampionsFilters)
+                    ContentUnavailableView {
+                        Label("Select a Pokémon", systemImage: "sidebar.left")
+                    } description: {
+                        Text("Choose a Pokémon from the list to see its details.")
                     }
                 }
             }
-            .navigationTitle("Mon Index")
-            .searchable(text: $searchText, prompt: "Search Mons")
-            .toolbar {
+        }
+        // Drop the selection when the roster changes so the detail pane never
+        // shows a mon that isn't in the newly-selected dex/regulation.
+        .onChange(of: activeFilter) { _, _ in selectedMon = nil }
+        // Picking a mon is the natural "done searching" signal — put the
+        // keyboard away so the detail pane isn't obscured.
+        .onChange(of: selectedMon) { _, newValue in
+            if newValue != nil { dismissSearchKeyboard() }
+        }
+    }
+
+    private func dismissSearchKeyboard() {
+        #if os(iOS)
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil, from: nil, for: nil)
+        #endif
+    }
+
+    /// The roster column (list + search + filters). `selection == nil` renders
+    /// today's push rows (compact); a non-nil binding drives the split detail.
+    @ViewBuilder
+    private func indexColumn(selection: Binding<PKMN?>?) -> some View {
+        Group {
+            if allPokemon.isEmpty {
+                ContentUnavailableView {
+                    Label("No Mons Found", systemImage: "antenna.radiowaves.left.and.right")
+                } description: {
+                    Text("Syncing with PokeAPI... please wait.")
+                }
+            } else {
+                VStack(spacing: 0) {
+                    if activeFilter == .champions && championsFilters.isActive {
+                        ChampionsFilterChipStrip(filters: $championsFilters)
+                            .background(.bar)
+                    }
+                    FilteredList(filter: activeFilter,
+                                 searchText: searchText,
+                                 championsFilters: effectiveChampionsFilters,
+                                 selection: selection)
+                }
+                // Wide layout only: tap anywhere in the roster area (not the
+                // search bar, which lives in the nav chrome above this VStack)
+                // to dismiss the search keyboard. `.simultaneousGesture` fires
+                // alongside row selection without consuming the tap, so rows
+                // still select. No-op in compact (portrait), where `selection`
+                // is nil — leaving portrait untouched.
+                .simultaneousGesture(TapGesture().onEnded {
+                    if selection != nil, hSize == .regular { dismissSearchKeyboard() }
+                })
+            }
+        }
+        .navigationTitle("Mon Index")
+        .searchable(text: $searchText, prompt: "Search Mons")
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Menu {
+                    ForEach(PokedexFilter.allCases) { filter in
+                        Button(filter.title) { selectedFilter = filter }
+                    }
+                } label: {
+                    Label(activeFilter.title, systemImage: "line.3.horizontal.decrease.circle")
+                }
+            }
+            if activeFilter == .champions {
                 ToolbarItem(placement: .automatic) {
-                    Menu {
-                        ForEach(PokedexFilter.allCases) { filter in
-                            Button(filter.title) { selectedFilter = filter }
-                        }
+                    Button {
+                        showFilterSheet = true
                     } label: {
-                        Label(activeFilter.title, systemImage: "line.3.horizontal.decrease.circle")
-                    }
-                }
-                if activeFilter == .champions {
-                    ToolbarItem(placement: .automatic) {
-                        Button {
-                            showFilterSheet = true
-                        } label: {
-                            Label("Filters",
-                                  systemImage: championsFilters.isActive
-                                    ? "slider.horizontal.3"
-                                    : "slider.horizontal.below.rectangle")
-                                .symbolVariant(championsFilters.isActive ? .fill : .none)
-                        }
+                        Label("Filters",
+                              systemImage: championsFilters.isActive
+                                ? "slider.horizontal.3"
+                                : "slider.horizontal.below.rectangle")
+                            .symbolVariant(championsFilters.isActive ? .fill : .none)
                     }
                 }
             }
-            .sheet(isPresented: $showFilterSheet) {
-                ChampionsFilterSheet(
-                    filters: $championsFilters,
-                    availableAbilities: ChampionsFilterOptions.availableAbilities(),
-                    availableMoves: ChampionsFilterOptions.availableMoves()
-                )
-            }
+        }
+        // Wide layout only: the split sidebar's search keyboard can't be
+        // dismissed by dragging when a search narrows the list to a few rows
+        // (nothing to scroll). A `.searchable` field is a UIKit `UISearchBar`,
+        // so a SwiftUI `.keyboard` toolbar won't attach — instead dismiss on the
+        // keyboard's Search/return key. Gated to `.regular` so portrait's return
+        // behavior is left exactly as-is.
+        .onSubmit(of: .search) {
+            if hSize == .regular { dismissSearchKeyboard() }
+        }
+        .sheet(isPresented: $showFilterSheet) {
+            ChampionsFilterSheet(
+                filters: $championsFilters,
+                availableAbilities: ChampionsFilterOptions.availableAbilities(),
+                availableMoves: ChampionsFilterOptions.availableMoves()
+            )
         }
     }
 }
@@ -272,13 +353,19 @@ struct FilteredList: View {
     private let filter: PokedexFilter
     private let searchText: String
     private let championsFilters: ChampionsFilters
+    /// When non-nil the list drives a `NavigationSplitView` detail pane via this
+    /// selection (wide layout). When nil it renders today's push
+    /// `NavigationLink` rows verbatim (compact / portrait).
+    private let selection: Binding<PKMN?>?
 
     init(filter: PokedexFilter,
          searchText: String,
-         championsFilters: ChampionsFilters = .none) {
+         championsFilters: ChampionsFilters = .none,
+         selection: Binding<PKMN?>? = nil) {
         self.filter = filter
         self.searchText = searchText
         self.championsFilters = championsFilters
+        self.selection = selection
         let predicate: Predicate<PKMN> = {
             switch filter {
             case .all:       return #Predicate<PKMN> { _ in true }
@@ -363,25 +450,57 @@ struct FilteredList: View {
             .padding(.top, 8)
             .padding(.bottom, 4)
 
-            List(visiblePokemon) { pokemon in
-                let detailURL = pokemon.detailURL(for: filter)
-                if filter == .champions {
-                    NavigationLink {
-                        ChampionsPokemonDetailView(pokemon: pokemon, detailURL: detailURL)
-                    } label: {
-                        PokemonRow(pokemon: pokemon)
+            if let selection {
+                // Wide layout: selection-driven rows feed the split-view detail
+                // pane. No per-row NavigationLink — the detail column observes
+                // `selection`.
+                List(selection: selection) {
+                    ForEach(visiblePokemon) { pokemon in
+                        PokemonRow(pokemon: pokemon).tag(pokemon)
                     }
-                } else if let detailURL {
-                    NavigationLink {
-                        PokemonDetailView(pokemon: pokemon, filter: filter, detailURL: detailURL)
-                    } label: {
-                        PokemonRow(pokemon: pokemon)
-                    }
-                } else {
-                    PokemonRow(pokemon: pokemon)
                 }
+                .scrollDismissesKeyboard(.interactively)
+            } else {
+                // Compact layout: today's push-navigation rows, unchanged.
+                List(visiblePokemon) { pokemon in
+                    let detailURL = pokemon.detailURL(for: filter)
+                    if filter == .champions {
+                        NavigationLink {
+                            ChampionsPokemonDetailView(pokemon: pokemon, detailURL: detailURL)
+                        } label: {
+                            PokemonRow(pokemon: pokemon)
+                        }
+                    } else if let detailURL {
+                        NavigationLink {
+                            PokemonDetailView(pokemon: pokemon, filter: filter, detailURL: detailURL)
+                        } label: {
+                            PokemonRow(pokemon: pokemon)
+                        }
+                    } else {
+                        PokemonRow(pokemon: pokemon)
+                    }
+                }
+                .scrollDismissesKeyboard(.interactively)
             }
-            .scrollDismissesKeyboard(.interactively)
+        }
+    }
+}
+
+/// Detail destination for a Mon Index row — the Champions structured page, or
+/// the Serebii web view for generation dexes. Shared by the compact push rows
+/// (implicitly, via the same views) and the wide split-view detail pane.
+@ViewBuilder
+func monIndexDestination(for pokemon: PKMN, filter: PokedexFilter) -> some View {
+    let detailURL = pokemon.detailURL(for: filter)
+    if filter == .champions {
+        ChampionsPokemonDetailView(pokemon: pokemon, detailURL: detailURL)
+    } else if let detailURL {
+        PokemonDetailView(pokemon: pokemon, filter: filter, detailURL: detailURL)
+    } else {
+        ContentUnavailableView {
+            Label(pokemon.name, systemImage: "photo.on.rectangle.angled")
+        } description: {
+            Text("No detail page is available for this Pokémon in the \(filter.title) dex.")
         }
     }
 }

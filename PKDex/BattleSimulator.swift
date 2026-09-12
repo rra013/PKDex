@@ -4914,6 +4914,7 @@ struct BattleSimulatorView: View {
     /// which case the toggle is disabled and a note is shown.
     @State private var championsValidator: ChampionsValidator? = nil
     @State private var validatorLoadAttempted: Bool = false
+    @Environment(\.horizontalSizeClass) private var hSize
 
     var body: some View {
         NavigationStack {
@@ -4935,61 +4936,38 @@ struct BattleSimulatorView: View {
 
     private var setupView: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            Group {
                 if allPokemon.isEmpty || allMoves.isEmpty {
                     syncingCard
                 } else if teams.isEmpty {
                     emptyTeamsCard
+                } else if hSize == .regular {
+                    // Wide layout: the two sides sit next to each other, with
+                    // the format picker on top and the AI / Start controls below.
+                    VStack(spacing: 16) {
+                        formatCard
+                        HStack(alignment: .top, spacing: 16) {
+                            VStack(spacing: 16) {
+                                sideBlock("Side 1", selectedID: $team1ID, order: $team1Order)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .top)
+                            VStack(spacing: 16) {
+                                sideBlock("Side 2", selectedID: $team2ID, order: $team2Order)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .top)
+                        }
+                        if format == .doubles { aiControlCard }
+                        startBattleButton
+                    }
                 } else {
-                    formatCard
-                    TeamPickerCard(label: "Side 1", selectedID: $team1ID,
-                                   teams: teams, savedSpreads: savedSpreads,
-                                   allPokemon: allPokemon, allMoves: allMoves,
-                                   format: format,
-                                   championsFormat: championsFormat,
-                                   validator: championsValidator)
-                    if let t1 = team(for: team1ID) {
-                        LeadOrderCard(
-                            label: "Side 1 — Lead Order",
-                            slots: t1.resolvedSlots(allSpreads: savedSpreads,
-                                                    allPokemon: allPokemon,
-                                                    allMoves: allMoves),
-                            bringCount: format.bringCount,
-                            activeSlots: format.activeSlots,
-                            order: $team1Order
-                        )
+                    // Compact layout: original single column, unchanged.
+                    VStack(spacing: 16) {
+                        formatCard
+                        sideBlock("Side 1", selectedID: $team1ID, order: $team1Order)
+                        sideBlock("Side 2", selectedID: $team2ID, order: $team2Order)
+                        if format == .doubles { aiControlCard }
+                        startBattleButton
                     }
-                    TeamPickerCard(label: "Side 2", selectedID: $team2ID,
-                                   teams: teams, savedSpreads: savedSpreads,
-                                   allPokemon: allPokemon, allMoves: allMoves,
-                                   format: format,
-                                   championsFormat: championsFormat,
-                                   validator: championsValidator)
-                    if let t2 = team(for: team2ID) {
-                        LeadOrderCard(
-                            label: "Side 2 — Lead Order",
-                            slots: t2.resolvedSlots(allSpreads: savedSpreads,
-                                                    allPokemon: allPokemon,
-                                                    allMoves: allMoves),
-                            bringCount: format.bringCount,
-                            activeSlots: format.activeSlots,
-                            order: $team2Order
-                        )
-                    }
-
-                    if format == .doubles {
-                        aiControlCard
-                    }
-
-                    Button {
-                        startBattle()
-                    } label: {
-                        Label("Start Battle", systemImage: "play.fill")
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 4)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!canStart)
                 }
             }
             .padding()
@@ -5001,6 +4979,44 @@ struct BattleSimulatorView: View {
             team1Order.removeAll()
             team2Order.removeAll()
         }
+    }
+
+    /// One side's cards: team picker + (once a team is chosen) its lead-order
+    /// editor. Shared by the compact single column and the wide two-column
+    /// layout so the two stay in lockstep.
+    @ViewBuilder
+    private func sideBlock(_ label: String,
+                           selectedID: Binding<PersistentIdentifier?>,
+                           order: Binding<[Int]>) -> some View {
+        TeamPickerCard(label: label, selectedID: selectedID,
+                       teams: teams, savedSpreads: savedSpreads,
+                       allPokemon: allPokemon, allMoves: allMoves,
+                       format: format,
+                       championsFormat: championsFormat,
+                       validator: championsValidator)
+        if let t = team(for: selectedID.wrappedValue) {
+            LeadOrderCard(
+                label: "\(label) — Lead Order",
+                slots: t.resolvedSlots(allSpreads: savedSpreads,
+                                       allPokemon: allPokemon,
+                                       allMoves: allMoves),
+                bringCount: format.bringCount,
+                activeSlots: format.activeSlots,
+                order: order
+            )
+        }
+    }
+
+    private var startBattleButton: some View {
+        Button {
+            startBattle()
+        } label: {
+            Label("Start Battle", systemImage: "play.fill")
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(!canStart)
     }
 
     /// Parses the bundled Champions JSON the first time we need it. If the JSON

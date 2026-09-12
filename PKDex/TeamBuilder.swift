@@ -17,45 +17,88 @@ struct TeamListView: View {
     @Query(sort: \MoveData.name) private var allMoves: [MoveData]
     @Environment(\.modelContext) private var modelContext
     @State private var showNewTeam = false
+    @Environment(\.horizontalSizeClass) private var hSize
+    @State private var selectedTeam: SavedTeam?
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if savedTeams.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Teams", systemImage: "person.3")
-                    } description: {
-                        Text("Create a team of six to see type coverage analysis.")
-                    } actions: {
-                        Button("New Team") { showNewTeam = true }
-                            .buttonStyle(.borderedProminent).tint(.red)
-                    }
+        // Wide layouts get a list/detail split; compact (portrait) keeps the
+        // original push navigation, unchanged.
+        if hSize == .regular {
+            wideBody
+        } else {
+            NavigationStack {
+                listColumn(selection: nil)
+            }
+        }
+    }
+
+    private var wideBody: some View {
+        NavigationSplitView {
+            listColumn(selection: $selectedTeam)
+        } detail: {
+            NavigationStack {
+                if let selectedTeam {
+                    TeamDetailView(team: selectedTeam, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
                 } else {
-                    List {
-                        ForEach(savedTeams) { team in
-                            NavigationLink {
-                                TeamDetailView(team: team, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
-                            } label: {
-                                TeamRowView(team: team, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
-                            }
-                        }
-                        .onDelete { indices in
-                            for i in indices { modelContext.delete(savedTeams[i]) }
-                        }
+                    ContentUnavailableView {
+                        Label("Select a Team", systemImage: "sidebar.left")
+                    } description: {
+                        Text("Choose a team from the list to see its coverage.")
                     }
                 }
             }
-            .navigationTitle("Teams")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showNewTeam = true } label: {
-                        Image(systemName: "plus")
+        }
+    }
+
+    @ViewBuilder
+    private func listColumn(selection: Binding<SavedTeam?>?) -> some View {
+        Group {
+            if savedTeams.isEmpty {
+                ContentUnavailableView {
+                    Label("No Teams", systemImage: "person.3")
+                } description: {
+                    Text("Create a team of six to see type coverage analysis.")
+                } actions: {
+                    Button("New Team") { showNewTeam = true }
+                        .buttonStyle(.borderedProminent).tint(.red)
+                }
+            } else if let selection {
+                // Wide: selection-driven rows feed the split detail pane.
+                List(selection: selection) {
+                    ForEach(savedTeams) { team in
+                        TeamRowView(team: team, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+                            .tag(team)
+                    }
+                    .onDelete { indices in
+                        for i in indices { modelContext.delete(savedTeams[i]) }
+                    }
+                }
+            } else {
+                // Compact: today's push rows, unchanged.
+                List {
+                    ForEach(savedTeams) { team in
+                        NavigationLink {
+                            TeamDetailView(team: team, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+                        } label: {
+                            TeamRowView(team: team, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+                        }
+                    }
+                    .onDelete { indices in
+                        for i in indices { modelContext.delete(savedTeams[i]) }
                     }
                 }
             }
-            .sheet(isPresented: $showNewTeam) {
-                NewTeamSheet(savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+        }
+        .navigationTitle("Teams")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { showNewTeam = true } label: {
+                    Image(systemName: "plus")
+                }
             }
+        }
+        .sheet(isPresented: $showNewTeam) {
+            NewTeamSheet(savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
         }
     }
 }

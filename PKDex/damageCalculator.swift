@@ -601,18 +601,38 @@ struct DamageCalculatorView: View {
     @Query(sort: \PKMNStats.name) private var allPokemon: [PKMNStats]
     @Query(sort: \MoveData.name) private var allMoves: [MoveData]
     @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
+    @Environment(\.horizontalSizeClass) private var hSize
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                Group {
                     if allPokemon.isEmpty {
                         SyncingCard()
+                    } else if hSize == .regular {
+                        // Wide layout: mon inputs on the left, result + global
+                        // modifiers on the right so the damage output stays
+                        // visible while tweaking either mon.
+                        HStack(alignment: .top, spacing: 16) {
+                            VStack(spacing: 16) {
+                                SideCard(title: "Pokemon 1", icon: "circle.fill", side: vm.side1, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
+                                SideCard(title: "Pokemon 2", icon: "circle.fill", side: vm.side2, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .top)
+                            VStack(spacing: 16) {
+                                ResultCard(vm: vm)
+                                ModifiersCard(vm: vm)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .top)
+                        }
                     } else {
-                        ResultCard(vm: vm)
-                        SideCard(title: "Pokemon 1", icon: "circle.fill", side: vm.side1, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
-                        SideCard(title: "Pokemon 2", icon: "circle.fill", side: vm.side2, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
-                        ModifiersCard(vm: vm)
+                        // Compact layout: original single column, unchanged.
+                        VStack(spacing: 16) {
+                            ResultCard(vm: vm)
+                            SideCard(title: "Pokemon 1", icon: "circle.fill", side: vm.side1, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
+                            SideCard(title: "Pokemon 2", icon: "circle.fill", side: vm.side2, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
+                            ModifiersCard(vm: vm)
+                        }
                     }
                 }
                 .padding()

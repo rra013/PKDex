@@ -22,76 +22,124 @@ struct SetListView: View {
     @AppStorage("instantSetDelete") private var instantSetDelete: Bool = false
     /// Spread queued for deletion, awaiting alert confirmation.
     @State private var pendingDeletion: SavedSpread?
+    @Environment(\.horizontalSizeClass) private var hSize
+    @State private var selectedSpread: SavedSpread?
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if savedSpreads.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Sets", systemImage: "tray")
-                    } description: {
-                        Text("Create a set to get started. Sets can be loaded into teams for coverage analysis.")
-                    } actions: {
-                        Button("New Set") { showNewSetSheet = true }
-                            .buttonStyle(.borderedProminent).tint(.red)
-                    }
+        // Wide layouts get a list/editor split; compact (portrait) keeps the
+        // original push navigation, unchanged.
+        if hSize == .regular {
+            wideBody
+        } else {
+            NavigationStack {
+                listColumn(selection: nil)
+            }
+        }
+    }
+
+    private var wideBody: some View {
+        NavigationSplitView {
+            listColumn(selection: $selectedSpread)
+        } detail: {
+            NavigationStack {
+                if let selectedSpread {
+                    SetEditorView(spread: selectedSpread, allPokemon: allPokemon, allMoves: allMoves)
                 } else {
-                    List {
-                        ForEach(savedSpreads) { spread in
-                            NavigationLink {
-                                SetEditorView(spread: spread, allPokemon: allPokemon, allMoves: allMoves)
-                            } label: {
-                                SetRowView(spread: spread, allMoves: allMoves)
-                            }
+                    ContentUnavailableView {
+                        Label("Select a Set", systemImage: "sidebar.left")
+                    } description: {
+                        Text("Choose a set from the list to edit it.")
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func listColumn(selection: Binding<SavedSpread?>?) -> some View {
+        Group {
+            if savedSpreads.isEmpty {
+                ContentUnavailableView {
+                    Label("No Sets", systemImage: "tray")
+                } description: {
+                    Text("Create a set to get started. Sets can be loaded into teams for coverage analysis.")
+                } actions: {
+                    Button("New Set") { showNewSetSheet = true }
+                        .buttonStyle(.borderedProminent).tint(.red)
+                }
+            } else if let selection {
+                // Wide: selection-driven rows feed the split editor pane.
+                List(selection: selection) {
+                    ForEach(savedSpreads) { spread in
+                        SetRowView(spread: spread, allMoves: allMoves)
+                            .tag(spread)
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button(role: .destructive) {
-                                    if instantSetDelete {
-                                        modelContext.delete(spread)
-                                    } else {
-                                        pendingDeletion = spread
-                                    }
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
+                                deleteButton(for: spread)
                             }
+                    }
+                }
+            } else {
+                // Compact: today's push rows, unchanged.
+                List {
+                    ForEach(savedSpreads) { spread in
+                        NavigationLink {
+                            SetEditorView(spread: spread, allPokemon: allPokemon, allMoves: allMoves)
+                        } label: {
+                            SetRowView(spread: spread, allMoves: allMoves)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            deleteButton(for: spread)
                         }
                     }
                 }
             }
-            .navigationTitle("Sets")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showNewSetSheet = true } label: {
-                        Image(systemName: "plus")
-                    }
+        }
+        .navigationTitle("Sets")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { showNewSetSheet = true } label: {
+                    Image(systemName: "plus")
                 }
             }
-            .sheet(isPresented: $showNewSetSheet) {
-                NewSetSheet(allPokemon: allPokemon, allMoves: allMoves)
+        }
+        .sheet(isPresented: $showNewSetSheet) {
+            NewSetSheet(allPokemon: allPokemon, allMoves: allMoves)
+        }
+        .alert("Delete \(pendingDeletion?.name ?? "set")?",
+               isPresented: Binding(
+                get: { pendingDeletion != nil },
+                set: { if !$0 { pendingDeletion = nil } }
+               ),
+               presenting: pendingDeletion) { spread in
+            Button("Delete", role: .destructive) {
+                modelContext.delete(spread)
+                pendingDeletion = nil
             }
-            .alert("Delete \(pendingDeletion?.name ?? "set")?",
-                   isPresented: Binding(
-                    get: { pendingDeletion != nil },
-                    set: { if !$0 { pendingDeletion = nil } }
-                   ),
-                   presenting: pendingDeletion) { spread in
-                Button("Delete", role: .destructive) {
-                    modelContext.delete(spread)
-                    pendingDeletion = nil
-                }
-                Button("Delete & Always Delete") {
-                    // One-shot opt-in to instant delete from inside the
-                    // confirmation alert. Future swipe-deletes skip the alert.
-                    instantSetDelete = true
-                    modelContext.delete(spread)
-                    pendingDeletion = nil
-                }
-                Button("Cancel", role: .cancel) {
-                    pendingDeletion = nil
-                }
-            } message: { _ in
-                Text("This can't be undone. Toggle \"Always Delete\" to skip this prompt from now on.")
+            Button("Delete & Always Delete") {
+                // One-shot opt-in to instant delete from inside the
+                // confirmation alert. Future swipe-deletes skip the alert.
+                instantSetDelete = true
+                modelContext.delete(spread)
+                pendingDeletion = nil
             }
+            Button("Cancel", role: .cancel) {
+                pendingDeletion = nil
+            }
+        } message: { _ in
+            Text("This can't be undone. Toggle \"Always Delete\" to skip this prompt from now on.")
+        }
+    }
+
+    @ViewBuilder
+    private func deleteButton(for spread: SavedSpread) -> some View {
+        Button(role: .destructive) {
+            if instantSetDelete {
+                modelContext.delete(spread)
+            } else {
+                pendingDeletion = spread
+            }
+        } label: {
+            Label("Delete", systemImage: "trash")
         }
     }
 }

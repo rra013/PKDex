@@ -136,6 +136,7 @@ struct SpeedTierView: View {
     @State private var fieldAbilityMod: SpeedAbilityModifier = .none
 
     @State private var filterChampions = false
+    @State private var includeMegas = true
     @State private var searchText = ""
 
     var body: some View {
@@ -173,6 +174,8 @@ struct SpeedTierView: View {
                         }
                         Toggle("Champions Roster Only", isOn: $filterChampions)
                             .tint(.red)
+                        Toggle("Include Mega Evolutions", isOn: $includeMegas)
+                            .tint(.red)
                     }
 
                     speedTierResults
@@ -204,18 +207,39 @@ struct SpeedTierView: View {
 
     @ViewBuilder
     private var userPokemonSection: some View {
-        if let p = side.pokemon {
+        if side.pokemon != nil {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(p.name).font(.headline)
-                    Text("Base Speed: \(p.baseSpeed)").font(.caption).foregroundStyle(.secondary)
+                    // Mega-aware: shows "Mega …" name/speed/types when active.
+                    Text(side.effectiveDisplayName).font(.headline)
+                    Text("Base Speed: \(side.effectiveBaseSpeed)").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                TypeBadge(type: p.type1)
-                if let t2 = p.type2 { TypeBadge(type: t2) }
-                Button { side.pokemon = nil; side.searchText = "" } label: {
+                ForEach(side.effectiveTypes, id: \.self) { TypeBadge(type: $0) }
+                Button {
+                    side.pokemon = nil
+                    side.searchText = ""
+                    side.megaActive = false
+                    side.heldItem = .none
+                } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                 }
+            }
+
+            // Mega Evolution — only for species with a registered Mega. Picking
+            // one sets the corresponding stone + `megaActive`, so `side.speed`
+            // (and thus Your Speed) uses the Mega's base Speed via CalcSide's
+            // existing `effectiveBaseSpeed`.
+            if !megaOptionsForSelected.isEmpty {
+                Picker("Mega Evolution", selection: megaSelection) {
+                    Text("None (Base)").tag(HeldItem?.none)
+                    ForEach(megaOptionsForSelected, id: \.displayName) { m in
+                        if let stone = m.stone {
+                            Text(m.displayName).tag(Optional(stone))
+                        }
+                    }
+                }
+                .tint(.red)
             }
 
             // Nature
@@ -304,6 +328,9 @@ struct SpeedTierView: View {
                     side.pokemon = p
                     side.searchText = ""
                     side.selectedAbility = p.ability1
+                    // Start on the base form; user can Mega via the picker.
+                    side.megaActive = false
+                    side.heldItem = .none
                 } label: {
                     HStack {
                         Text("#\(p.id)").foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
@@ -317,6 +344,33 @@ struct SpeedTierView: View {
             }
             Button("Load Saved Set") { showLoadSpread = true }
         }
+    }
+
+    /// Stone-based Mega forms available for the currently-selected species.
+    /// (Rayquaza's stoneless Mega is intentionally excluded — it needs Dragon
+    /// Ascent, which the speed calc doesn't model.)
+    private var megaOptionsForSelected: [MegaForm] {
+        guard let p = side.pokemon else { return [] }
+        let key = BattleSimSeed.normalize(p.name)
+        return MegaForms.all.filter { $0.speciesKey == key && $0.stone != nil }
+    }
+
+    /// Two-way binding between the Mega picker and `CalcSide`. Reads the active
+    /// Mega's stone (nil = base); writing a stone flips `megaActive` on and sets
+    /// the held item so `availableMegaForm` resolves to that Mega.
+    private var megaSelection: Binding<HeldItem?> {
+        Binding(
+            get: { side.megaActive ? side.availableMegaForm?.stone : nil },
+            set: { newStone in
+                if let stone = newStone {
+                    side.heldItem = stone
+                    side.megaActive = true
+                } else {
+                    side.megaActive = false
+                    side.heldItem = .none
+                }
+            }
+        )
     }
 
     private var filteredPokemonSearch: [PKMNStats] {
@@ -352,7 +406,7 @@ struct SpeedTierView: View {
         }
 
         let champMode = side.championsMode
-        return deduplicated.map { p in
+        var entries = deduplicated.map { p in
             let finalSpeed = computeBenchmarkSpeed(
                 baseSpeed: p.baseSpeed, level: level,
                 benchmark: fieldBenchmark, championsMode: champMode,
@@ -363,7 +417,34 @@ struct SpeedTierView: View {
                               type1: p.type1, type2: p.type2,
                               finalSpeed: finalSpeed)
         }
-        .sorted { $0.finalSpeed > $1.finalSpeed }
+
+        // Mega Evolutions as their own tier entries, using the Mega's base
+        // Speed / typing from `MegaForms.all` (the same table the battle sim and
+        // damage calc use — covers mainline, Z-A, and Champions-original Megas
+        // incl. the "Z" variants). A Mega only appears when its base species is
+        // present in the current pool, so the Champions-roster filter carries
+        // over automatically.
+        if includeMegas {
+            var baseByKey: [String: PKMNStats] = [:]
+            for p in deduplicated {
+                baseByKey[BattleSimSeed.normalize(p.name)] = p
+            }
+            for mega in MegaForms.all {
+                guard let base = baseByKey[mega.speciesKey] else { continue }
+                let finalSpeed = computeBenchmarkSpeed(
+                    baseSpeed: mega.baseSpeed, level: level,
+                    benchmark: fieldBenchmark, championsMode: champMode,
+                    itemMod: fieldItemMod, abilityMod: fieldAbilityMod
+                )
+                entries.append(SpeedEntry(pokemonName: mega.displayName,
+                                          pokemonID: base.id,
+                                          baseSpeed: mega.baseSpeed,
+                                          type1: mega.type1, type2: mega.type2,
+                                          finalSpeed: finalSpeed))
+            }
+        }
+
+        return entries.sorted { $0.finalSpeed > $1.finalSpeed }
     }
 
     private var filteredEntries: [SpeedEntry] {
