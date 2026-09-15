@@ -568,8 +568,18 @@ enum HeldItem: String, CaseIterable, Identifiable {
     /// - Rayquaza (and any other Mega trigger that's not stone-gated) shows
     ///   zero Mega Stones, which is correct: it Mega-evolves via Dragon
     ///   Ascent, not a held item.
+    /// Items that don't exist in the Champions format and aren't modeled by the
+    /// vendored `champions.ts` damage pipeline — hidden from the calc's picker so
+    /// the selection stays true to the format. (The enum cases remain for the
+    /// Battle Simulator and saved-team data.)
+    static let nonChampionsItems: Set<HeldItem> = [
+        .choiceBand, .choiceSpecs, .assaultVest, .eviolite, .thickClub,
+    ]
+
     static func pickerOptions(forSpeciesNamed speciesName: String?) -> [HeldItem] {
-        guard let name = speciesName else { return Array(HeldItem.allCases) }
+        guard let name = speciesName else {
+            return HeldItem.allCases.filter { !nonChampionsItems.contains($0) }
+        }
         let key = BattleSimSeed.normalize(name)
         let relevantStones: [HeldItem] = MegaForms.all
             .filter { $0.speciesKey == key }
@@ -579,6 +589,7 @@ enum HeldItem: String, CaseIterable, Identifiable {
         for item in HeldItem.allCases {
             if relevantSet.contains(item) { continue }
             if item.isMegaStone { continue }
+            if nonChampionsItems.contains(item) { continue }
             result.append(item)
         }
         return result

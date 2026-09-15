@@ -4503,6 +4503,19 @@ final class BattleEngine {
         return Double.random(in: 0..<1) < chance
     }
 
+    /// Maps the sim's `BattleStatus` to the Showdown port's `ShowdownStatus`.
+    private func showdownStatus(from status: BattleStatus) -> ShowdownStatus {
+        switch status {
+        case .none:       return .none
+        case .burn:       return .brn
+        case .paralysis:  return .par
+        case .poison:     return .psn
+        case .toxic:      return .tox
+        case .sleep:      return .slp
+        case .freeze:     return .frz
+        }
+    }
+
     private func configure(side: CalcSide, from p: BattleParticipant, withMove move: MoveData?) {
         if let mega = p.megaForm {
             // Feed the damage calc a transient PKMNStats representing the Mega form so
@@ -4529,6 +4542,13 @@ final class BattleEngine {
         side.nature = p.nature
         side.heldItem = p.effectiveHeldItem
         side.atFullHP = p.atFullHP
+        // Feed the Showdown port real status + current HP so status-scaling moves
+        // (Facade/Hex/Barb Barrage) and HP-scaling ones (Reversal/Eruption) and
+        // abilities (Multiscale, Guts, Marvel Scale) resolve faithfully.
+        side.status = showdownStatus(from: p.status)
+        if p.maxHP > 0 {
+            side.currentHPPercent = max(1, min(100, Int((Double(p.currentHP) / Double(p.maxHP)) * 100.0)))
+        }
         side.championsMode = p.slot.championsMode
         side.evHP = p.slot.evHP
         side.evAtk = p.slot.evAtk

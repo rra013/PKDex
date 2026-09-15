@@ -289,8 +289,11 @@ func checkSeedBoost(_ p: ShowdownPokemon, _ field: ShowdownField) {
 func checkMultihitBoost(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
                         _ defender: ShowdownPokemon, _ move: ShowdownMove, _ field: ShowdownField,
                         _ attackerUsedItem: Bool = false, _ defenderUsedItem: Bool = false) -> (Bool, Bool) {
-    var aUsed = attackerUsedItem
-    var dUsed = defenderUsedItem
+    // This Champions subset never consumes White Herb/berries, so the "used
+    // item" flags pass straight through (kept in the signature for parity with
+    // upstream's multi-hit loop, which threads them across iterations).
+    let aUsed = attackerUsedItem
+    let dUsed = defenderUsedItem
     if move.named("Power-Up Punch") {
         attacker.boosts.atk = min(attacker.boosts.atk + 1, 6)
         attacker.stats.atk = getModifiedStat(attacker.rawStats.atk, attacker.boosts.atk)
