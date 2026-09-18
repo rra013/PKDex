@@ -153,7 +153,7 @@ enum BattleSimSeed {
 
     /// Normalizes Pokemon and move names so lookups succeed regardless of whether the
     /// data source uses "Will-O-Wisp", "will-o-wisp", or "willowisp".
-    static func normalize(_ s: String) -> String {
+    nonisolated static func normalize(_ s: String) -> String {
         s.lowercased().filter { $0.isLetter || $0.isNumber }
     }
 }

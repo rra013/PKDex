@@ -13,7 +13,7 @@ import SwiftData
 let allTypes = ["Normal","Fire","Water","Electric","Grass","Ice","Fighting","Poison",
                 "Ground","Flying","Psychic","Bug","Rock","Ghost","Dragon","Dark","Steel","Fairy"]
 
-let typeEffectivenessChart: [String: [String: Double]] = [
+nonisolated let typeEffectivenessChart: [String: [String: Double]] = [
     "Normal":   ["Rock": 0.5, "Ghost": 0, "Steel": 0.5],
     "Fire":     ["Fire": 0.5, "Water": 0.5, "Grass": 2, "Ice": 2, "Bug": 2, "Rock": 0.5, "Dragon": 0.5, "Steel": 2],
     "Water":    ["Fire": 2, "Water": 0.5, "Grass": 0.5, "Ground": 2, "Rock": 2, "Dragon": 0.5],
@@ -36,12 +36,12 @@ let typeEffectivenessChart: [String: [String: Double]] = [
 
 // MARK: - Damage Engine (Gen V+ formula)
 
-private func pokeFloor(_ value: Int, _ modifier: Double) -> Int {
+nonisolated private func pokeFloor(_ value: Int, _ modifier: Double) -> Int {
     if modifier == 1.0 { return value }
     return Int(floor(Double(value) * modifier))
 }
 
-func calcDamageRange(
+nonisolated func calcDamageRange(
     level: Int, movePower: Int, userAtk: Int, defenderDef: Int,
     multi: Bool,
     weatherMult: Double, glaiveRush: Bool,
@@ -81,7 +81,7 @@ func calcDamageRange(
     return (Double(applyPostRandom(minBase)), Double(applyPostRandom(maxBase)))
 }
 
-func computeTypeEffectiveness(moveType: String, defenderTypes: [String]) -> Double {
+nonisolated func computeTypeEffectiveness(moveType: String, defenderTypes: [String]) -> Double {
     var mult = 1.0
     let chart = typeEffectivenessChart[moveType] ?? [:]
     for dt in defenderTypes {
@@ -479,121 +479,67 @@ class DamageCalcVM {
             return showdown
         }
 
-        let moveType = move.type
-        let movePower = move.power ?? 0
-        let isPhysical = move.damageClass == "physical"
-        let isContact = move.makesContact
-        let stab = attacker.types.contains(moveType)
-        let stabBonus = stab ? 1.5 : 1.0
-        let burnReduction = (burn && isPhysical) ? 0.5 : 1.0
-        let typeEff = computeTypeEffectiveness(moveType: moveType, defenderTypes: defender.types)
-        let weatherMult = weather.moveDamageMultiplier(moveType: moveType)
-
-        let itemMods = computeItemModifiers(
-            attackerItem: attacker.effectiveHeldItem,
-            defenderItem: defender.effectiveHeldItem,
-            isPhysical: isPhysical,
-            typeEffectiveness: typeEff,
-            moveType: moveType
-        )
-
-        // Mold Breaker (and friends — Teravolt, Turboblaze) suppresses the
-        // defender's ability for damage-modifier purposes during the attacker's
-        // move. Tier 6: only the canon "mold-breaker" ID is mapped.
-        let moldBreaker = attacker.effectiveAbility == "mold-breaker"
-        let abilityMods = computeAbilityModifiers(
-            attackerAbility: attacker.effectiveAbility,
-            defenderAbility: defender.effectiveAbility,
-            moveType: moveType,
-            movePower: movePower,
-            isPhysical: isPhysical,
-            isContact: isContact,
-            isSTAB: stab,
-            typeEffectiveness: typeEff,
-            weather: weather,
-            attackerAtFullHP: attacker.atFullHP,
-            defenderAtFullHP: defender.atFullHP,
-            defenderTypes: defender.types,
-            terrain: terrain,
-            isSpread: multi,
-            moldBreaker: moldBreaker
-        )
-
-        let baseAtk = isPhysical ? attacker.atk : attacker.spAtk
-        let itemAtkMult = isPhysical ? itemMods.atkMultiplier : itemMods.spAtkMultiplier
-        let effectiveAtk = Int(floor(Double(baseAtk) * itemAtkMult))
-
-        let effectiveDef: Int
-        if isPhysical {
-            let snowMult = weather.snowDefMultiplier(defenderTypes: defender.types)
-            effectiveDef = Int(floor(Double(defender.def) * snowMult * itemMods.defMultiplier))
-        } else {
-            let sandMult = weather.sandSpDefMultiplier(defenderTypes: defender.types)
-            effectiveDef = Int(floor(Double(defender.spDef) * sandMult * itemMods.spDefMultiplier))
+        // Legacy engine. The arithmetic lives in `CalcEngine.evaluateLegacy`
+        // so the solver can run it off the main actor; this call site only
+        // snapshots the inputs and dresses the numeric outcome for display.
+        //
+        // `snapshot()` is nil-on-no-species, but an empty side reaching here
+        // means the user hasn't picked a Pokemon yet — the old code silently
+        // computed against 1/1/1 fallback stats, so `emptyResult` preserves
+        // that "nothing to show" outcome without inventing a phantom statline.
+        guard let attackerSnap = attacker.snapshot(),
+              let defenderSnap = defender.snapshot() else {
+            return Self.emptyResult(for: move)
         }
 
-        let terrainMult = terrain.moveDamageMultiplier(moveType: moveType)
-
-        let raw = calcDamageRange(
-            level: attacker.level, movePower: movePower,
-            userAtk: effectiveAtk, defenderDef: effectiveDef,
-            multi: multi,
-            weatherMult: weatherMult, glaiveRush: glaiveRush,
-            crit: crit, critMultiplier: 1.5,
-            stabBonus: stabBonus, typeEffect: typeEff,
-            burnReduction: burnReduction, abilityMods: abilityMods,
-            zMoveBypass: zMoveBypass
+        let outcome = CalcEngine.evaluateLegacy(
+            move: move.snapshot(),
+            attacker: attackerSnap,
+            defender: defenderSnap,
+            field: fieldSnapshot()
         )
+        return Self.moveResult(from: outcome, move: move)
+    }
 
-        let im = itemMods.damageMult * terrainMult
-        let dMin = floor(raw.min * im)
-        let dMax = floor(raw.max * im)
-        let minPct = defender.hp > 0 ? min(dMin / Double(defender.hp) * 100, 999) : 0
-        let maxPct = defender.hp > 0 ? min(dMax / Double(defender.hp) * 100, 999) : 0
+    // MARK: - Outcome -> display
 
-        let hitsToKO: String = {
-            guard maxPct > 0 else { return "--" }
-            let minHits = Int(ceil(100.0 / maxPct))
-            let maxHits = minPct > 0 ? Int(ceil(100.0 / minPct)) : 0
-            if minHits == maxHits { return "\(minHits)HKO" }
-            return "\(minHits)-\(maxHits)HKO"
-        }()
-
-        let eff = abilityMods.typeEffOverride ?? typeEff
-        let effLabel: String = {
-            switch eff {
-            case 0:    return "Immune"
-            case 0.25: return "1/4x"
-            case 0.5:  return "1/2x"
-            case 1:    return "1x"
-            case 2:    return "2x"
-            case 4:    return "4x"
-            default:   return String(format: "%.2fx", eff)
-            }
-        }()
-        let effColor: Color = {
-            switch eff {
-            case 0:          return .gray
-            case 0.25, 0.5:  return .blue
-            case 1:          return .primary
-            case 2:          return .orange
-            case 4:          return .red
-            default:         return .primary
-            }
-        }()
-
-        // STAB is true if natural type match OR ability grants it (Protean/Libero)
-        let hasSTAB = stab || abilityMods.stabOverride != nil
-
-        return MoveResult(
+    /// Dresses a numeric `CalcOutcome` as the `MoveResult` the UI renders.
+    /// The label and colour tables are unchanged from when they were inline.
+    static func moveResult(from outcome: CalcOutcome, move: MoveData) -> MoveResult {
+        MoveResult(
             move: move,
-            damageMin: dMin, damageMax: dMax,
-            minPercent: minPct, maxPercent: maxPct,
-            hitsToKO: hitsToKO,
-            effectiveness: eff,
-            effectivenessLabel: effLabel,
-            effectivenessColor: effColor,
-            isSTAB: hasSTAB
+            damageMin: outcome.damageMin, damageMax: outcome.damageMax,
+            minPercent: outcome.minPercent, maxPercent: outcome.maxPercent,
+            hitsToKO: outcome.hitsToKOText,
+            effectiveness: outcome.effectiveness,
+            effectivenessLabel: outcome.effectivenessLabel,
+            effectivenessColor: effectivenessColor(outcome.effectiveness),
+            isSTAB: outcome.isSTAB
+        )
+    }
+
+    static func effectivenessColor(_ eff: Double) -> Color {
+        switch eff {
+        case 0:          return .gray
+        case 0.25, 0.5:  return .blue
+        case 1:          return .primary
+        case 2:          return .orange
+        case 4:          return .red
+        default:         return .primary
+        }
+    }
+
+    /// Placeholder for a matchup with no species selected.
+    private static func emptyResult(for move: MoveData) -> MoveResult {
+        MoveResult(
+            move: move,
+            damageMin: 0, damageMax: 0,
+            minPercent: 0, maxPercent: 0,
+            hitsToKO: "--",
+            effectiveness: 1,
+            effectivenessLabel: "1x",
+            effectivenessColor: .primary,
+            isSTAB: false
         )
     }
 

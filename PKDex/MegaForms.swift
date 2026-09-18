@@ -8,7 +8,7 @@ import Foundation
 /// Static description of a Pokemon's Mega form: post-evolution stats, types, and ability.
 /// HP is intentionally omitted — no canonical Mega Evolution changes HP, so the base
 /// species' HP stat carries over.
-struct MegaForm: Equatable {
+nonisolated struct MegaForm: Equatable, Sendable {
     let speciesKey: String      // Normalized lowercase species name, e.g. "charizard"
     let stone: HeldItem?        // nil iff Rayquaza (mega trigger is Dragon Ascent)
     let requiresMove: String?   // Normalized move name; nil unless Rayquaza
@@ -23,7 +23,7 @@ struct MegaForm: Equatable {
     let ability: String         // Ability ID matching computeAbilityModifiers keys
 }
 
-enum MegaForms {
+nonisolated enum MegaForms {
 
     /// Returns the Mega form a participant is eligible to transform into, or nil if it
     /// doesn't qualify (wrong species, wrong stone, or missing Dragon Ascent for Rayquaza).

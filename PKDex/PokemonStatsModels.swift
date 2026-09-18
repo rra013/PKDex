@@ -105,13 +105,13 @@ final class MoveData {
 
 // MARK: - Nature
 
-struct Nature: Identifiable, Hashable {
+nonisolated struct Nature: Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let boosted: StatKey?
     let lowered: StatKey?
 
-    enum StatKey: String, CaseIterable {
+    nonisolated enum StatKey: String, CaseIterable, Sendable {
         case atk, def, spAtk, spDef, speed
 
         var label: String {
@@ -137,7 +137,7 @@ struct Nature: Identifiable, Hashable {
     }
 }
 
-let allNatures: [Nature] = [
+nonisolated let allNatures: [Nature] = [
     Nature(id: "hardy",   name: "Hardy",   boosted: nil,    lowered: nil),
     Nature(id: "docile",  name: "Docile",  boosted: nil,    lowered: nil),
     Nature(id: "serious", name: "Serious", boosted: nil,    lowered: nil),
@@ -311,32 +311,32 @@ struct TeamMoveInfo: Codable, Identifiable, Equatable {
 // MARK: - EV System
 
 // Main-series scale
-let maxEVPerStat = 252
-let maxTotalEVs = 510
+nonisolated let maxEVPerStat = 252
+nonisolated let maxTotalEVs = 510
 
 // Champions scale: 0-32 per stat, where 32 == 252 in the main formula.
 // Total cap scales proportionally: floor(510 * 32 / 252) = 64
-let championsMaxEVPerStat = 32
-let championsMaxTotalEVs = 66
+nonisolated let championsMaxEVPerStat = 32
+nonisolated let championsMaxTotalEVs = 66
 
 /// Convert a Champions-scale EV (0-32) to the main-series value used in stat formulas.
-func championsEVToMain(_ cev: Int) -> Int {
+nonisolated func championsEVToMain(_ cev: Int) -> Int {
     return cev * 252 / 32
 }
 
 // MARK: - Stat Calculation (Gen III+ formula)
 
-func calcHP(base: Int, iv: Int, ev: Int, level: Int) -> Int {
+nonisolated func calcHP(base: Int, iv: Int, ev: Int, level: Int) -> Int {
     if base == 1 { return 1 } // Shedinja
     return ((2 * base + iv + ev / 4) * level / 100) + level + 10
 }
 
-func calcStat(base: Int, iv: Int, ev: Int, level: Int, natureMod: Double) -> Int {
+nonisolated func calcStat(base: Int, iv: Int, ev: Int, level: Int, natureMod: Double) -> Int {
     let raw = ((2 * base + iv + ev / 4) * level / 100) + 5
     return Int(Double(raw) * natureMod)
 }
 
-func statStageMultiplier(stage: Int) -> Double {
+nonisolated func statStageMultiplier(stage: Int) -> Double {
     let clamped = max(-6, min(6, stage))
     if clamped >= 0 {
         return Double(2 + clamped) / 2.0
@@ -349,7 +349,7 @@ func statStageMultiplier(stage: Int) -> Double {
 
 // MARK: - Held Items
 
-enum HeldItem: String, CaseIterable, Identifiable {
+nonisolated enum HeldItem: String, CaseIterable, Identifiable, Sendable {
     case none = "None"
 
     // Offensive
@@ -598,7 +598,7 @@ enum HeldItem: String, CaseIterable, Identifiable {
 
 /// Maps a damage-affecting held item to the type it boosts. Used by the damage calc
 /// to apply 1.2x to moves of that type without bloating the main switch statement.
-let typeBoostingItemMap: [HeldItem: String] = [
+nonisolated let typeBoostingItemMap: [HeldItem: String] = [
     .silkScarf: "Normal", .charcoal: "Fire", .mysticWater: "Water",
     .magnet: "Electric", .miracleSeed: "Grass", .neverMeltIce: "Ice",
     .blackBelt: "Fighting", .poisonBarb: "Poison", .softSand: "Ground",
@@ -609,7 +609,7 @@ let typeBoostingItemMap: [HeldItem: String] = [
 
 /// Maps a type-resist berry to the move type it resists. Triggers in the damage calc
 /// (halves damage) and is consumed by the engine after the hit.
-let typeResistBerryMap: [HeldItem: String] = [
+nonisolated let typeResistBerryMap: [HeldItem: String] = [
     .occaBerry: "Fire", .passhoBerry: "Water", .wacanBerry: "Electric",
     .rindoBerry: "Grass", .yacheBerry: "Ice", .chopleBerry: "Fighting",
     .kebiaBerry: "Poison", .shucaBerry: "Ground", .cobaBerry: "Flying",
@@ -618,7 +618,7 @@ let typeResistBerryMap: [HeldItem: String] = [
     .babiriBerry: "Steel", .roseliBerry: "Fairy",
 ]
 
-struct ItemModResult {
+nonisolated struct ItemModResult: Sendable {
     var atkMultiplier: Double = 1.0
     var spAtkMultiplier: Double = 1.0
     var defMultiplier: Double = 1.0
@@ -626,7 +626,7 @@ struct ItemModResult {
     var damageMult: Double = 1.0
 }
 
-func computeItemModifiers(
+nonisolated func computeItemModifiers(
     attackerItem: HeldItem,
     defenderItem: HeldItem,
     isPhysical: Bool,
@@ -688,7 +688,7 @@ func computeItemModifiers(
 
 // MARK: - Weather
 
-enum WeatherCondition: String, CaseIterable, Identifiable {
+nonisolated enum WeatherCondition: String, CaseIterable, Identifiable, Sendable {
     case none = "None"
     case sun = "Sun"
     case rain = "Rain"
@@ -727,7 +727,7 @@ enum WeatherCondition: String, CaseIterable, Identifiable {
 
 // MARK: - Terrain
 
-enum TerrainCondition: String, CaseIterable, Identifiable {
+nonisolated enum TerrainCondition: String, CaseIterable, Identifiable, Sendable {
     case none = "None"
     case electric = "Electric"
     case grassy = "Grassy"
@@ -757,7 +757,7 @@ enum TerrainCondition: String, CaseIterable, Identifiable {
 // MARK: - Ability Damage Modifiers
 
 /// All competitively relevant abilities that modify damage calculation.
-enum DamageAbility: String, CaseIterable, Identifiable {
+nonisolated enum DamageAbility: String, CaseIterable, Identifiable, Sendable {
     // Attacker — stat / power multipliers
     case adaptability = "adaptability"
     case aerilate = "aerilate"
@@ -861,7 +861,7 @@ enum DamageAbility: String, CaseIterable, Identifiable {
     }
 }
 
-struct AbilityModResult {
+nonisolated struct AbilityModResult: Sendable {
     var atkMultiplier: Double = 1.0
     var defMultiplier: Double = 1.0
     var powerMultiplier: Double = 1.0
@@ -871,7 +871,7 @@ struct AbilityModResult {
     var finalMultiplier: Double = 1.0
 }
 
-func computeAbilityModifiers(
+nonisolated func computeAbilityModifiers(
     attackerAbility: String?,
     defenderAbility: String?,
     moveType: String,

@@ -183,6 +183,11 @@ private struct PokedexTab: View {
     @State private var showFilterSheet: Bool = false
     @Environment(\.horizontalSizeClass) private var hSize
     @State private var selectedMon: PKMN?
+    /// Compact-layout navigation path. Value-based navigation rather than
+    /// destination-based `NavigationLink` so there's an observable value to
+    /// hang the selection haptic on — a destination-based link changes no
+    /// state we can see.
+    @State private var path: [PKMN] = []
 
     private var activeFilter: PokedexFilter {
         selectedFilter ?? PokedexFilter(rawValue: defaultGeneration) ?? .champions
@@ -201,9 +206,16 @@ private struct PokedexTab: View {
         if hSize == .regular {
             wideBody
         } else {
-            NavigationStack {
+            NavigationStack(path: $path) {
                 indexColumn(selection: nil)
+                    .navigationDestination(for: PKMN.self) { mon in
+                        monIndexDestination(for: mon, filter: activeFilter)
+                    }
             }
+            // The push animation reads as "something happened next" rather
+            // than "your tap landed". Ticking on the path change confirms the
+            // hit at the moment it registers.
+            .sensoryFeedback(.selection, trigger: path)
         }
     }
 
@@ -233,6 +245,11 @@ private struct PokedexTab: View {
         .onChange(of: selectedMon) { _, newValue in
             if newValue != nil { dismissSearchKeyboard() }
         }
+        // The wide layout has no push animation, so a sidebar tap otherwise
+        // only registers as a tint change in the corner of the eye. A
+        // selection tick confirms the hit — especially useful while the detail
+        // pane's web view is still loading.
+        .sensoryFeedback(.selection, trigger: selectedMon)
     }
 
     private func dismissSearchKeyboard() {
@@ -267,13 +284,21 @@ private struct PokedexTab: View {
                 }
                 // Wide layout only: tap anywhere in the roster area (not the
                 // search bar, which lives in the nav chrome above this VStack)
-                // to dismiss the search keyboard. `.simultaneousGesture` fires
-                // alongside row selection without consuming the tap, so rows
-                // still select. No-op in compact (portrait), where `selection`
-                // is nil — leaving portrait untouched.
-                .simultaneousGesture(TapGesture().onEnded {
-                    if selection != nil, hSize == .regular { dismissSearchKeyboard() }
-                })
+                // to dismiss the search keyboard.
+                //
+                // The gate has to be on the gesture *mask*, not just inside
+                // `onEnded`. Gating only the action still installs a live tap
+                // recognizer on the VStack wrapping the `List`, and an ancestor
+                // TapGesture competes with row activation — despite the name,
+                // `simultaneousGesture` doesn't reliably coexist with the
+                // UICollectionView-backed `List`, so compact-layout
+                // `NavigationLink` rows stop pushing. `including: .none`
+                // disables the recognizer outright while keeping the modifier
+                // attached, so view identity doesn't change between layouts.
+                .simultaneousGesture(
+                    TapGesture().onEnded { dismissSearchKeyboard() },
+                    including: selection != nil && hSize == .regular ? .all : .none
+                )
             }
         }
         .navigationTitle("Mon Index")
@@ -461,21 +486,19 @@ struct FilteredList: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
             } else {
-                // Compact layout: today's push-navigation rows, unchanged.
+                // Compact layout: push navigation, now value-based so the
+                // enclosing `NavigationStack`'s path drives the haptic. The
+                // destination itself is built by `monIndexDestination`, which
+                // the wide layout already shares.
                 List(visiblePokemon) { pokemon in
-                    let detailURL = pokemon.detailURL(for: filter)
-                    if filter == .champions {
-                        NavigationLink {
-                            ChampionsPokemonDetailView(pokemon: pokemon, detailURL: detailURL)
-                        } label: {
+                    // Rows with no detail page in this dex stay inert, exactly
+                    // as they did before — only rows that go somewhere become
+                    // links.
+                    if filter == .champions || pokemon.detailURL(for: filter) != nil {
+                        NavigationLink(value: pokemon) {
                             PokemonRow(pokemon: pokemon)
                         }
-                    } else if let detailURL {
-                        NavigationLink {
-                            PokemonDetailView(pokemon: pokemon, filter: filter, detailURL: detailURL)
-                        } label: {
-                            PokemonRow(pokemon: pokemon)
-                        }
+                        .buttonStyle(MonRowPressStyle())
                     } else {
                         PokemonRow(pokemon: pokemon)
                     }
@@ -507,6 +530,27 @@ func monIndexDestination(for pokemon: PKMN, filter: PokedexFilter) -> some View 
 
 // MARK: - Row & Detail Views
 
+/// Press highlight for Mon Index rows.
+///
+/// `NavigationLink` exposes no pressed state, so the highlight has to come
+/// from a button style applied to the link itself. The fill is grown past the
+/// label with negative padding so it reads as a full-row highlight without
+/// touching the row's layout metrics — `listRowInsets` would have shifted
+/// every row's spacing to achieve the same thing.
+private struct MonRowPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(.rect)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(configuration.isPressed ? 0.09 : 0))
+                    .padding(.vertical, -6)
+                    .padding(.horizontal, -10)
+            )
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
 private struct PokemonRow: View {
     let pokemon: PKMN
 
@@ -516,7 +560,11 @@ private struct PokemonRow: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 48, alignment: .leading)
             Text(pokemon.name)
+            // Claim the full row width so the highlight and hit target cover
+            // the whole cell rather than just the two labels.
+            Spacer(minLength: 0)
         }
+        .contentShape(.rect)
     }
 }
 

@@ -27,7 +27,7 @@ import Foundation
 typealias ShowdownID = String
 
 /// Lowercases and strips to `[a-z0-9]`, matching upstream `toID`.
-func toID(_ text: String) -> ShowdownID {
+nonisolated func toID(_ text: String) -> ShowdownID {
     let lcase = text.lowercased()
     if lcase == "flabébé" { return "flabebe" }
     var out = ""
@@ -38,12 +38,12 @@ func toID(_ text: String) -> ShowdownID {
 
 // MARK: - Stats
 
-enum ShowdownStat: String, CaseIterable, Hashable {
+nonisolated enum ShowdownStat: String, CaseIterable, Hashable {
     case hp, atk, def, spa, spd, spe
 }
 
 /// `StatsTable` — six named integer stats with `StatID` subscripting.
-struct ShowdownStats: Hashable, Codable {
+nonisolated struct ShowdownStats: Hashable, Codable {
     var hp = 0, atk = 0, def = 0, spa = 0, spd = 0, spe = 0
 
     subscript(_ s: ShowdownStat) -> Int {

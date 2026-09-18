@@ -20,7 +20,7 @@ enum ShowdownType: String, Hashable, Codable {
 }
 
 enum ShowdownCategory: String, Codable { case physical = "Physical", special = "Special", status = "Status" }
-enum ShowdownStatus: String { case slp = "slp", psn = "psn", brn = "brn", frz = "frz", par = "par", tox = "tox", none = "" }
+nonisolated enum ShowdownStatus: String, Sendable { case slp = "slp", psn = "psn", brn = "brn", frz = "frz", par = "par", tox = "tox", none = "" }
 
 // MARK: - Data model (decoded from vendored JSON; populated by ShowdownData)
 
