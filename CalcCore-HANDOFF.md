@@ -38,7 +38,7 @@ evaluations — hence the need to get off the main actor.
 | 2.2 | `EVSolver.swift` — survive / KO / outspeed solves | done, tested |
 | 2.3 | `EVSolverSheet.swift` — solver UI on the calc's move rows | done, checked in the simulator |
 
-Last full run (after 1.3): **812 of 812 passing**. The test-randomness
+Last full run (after the downloader hardening): **820 of 820 passing**. The test-randomness
 fixes held for three runs in a row before that. See "Randomness in tests" below. Both
 engines are behind `CalcEngine`, so the whole damage suite exercises the
 extracted code.
@@ -272,10 +272,26 @@ hits), and survival from less than full HP.
   - Only one set is loaded per side. A pasted team shows a picker for which
     set to load. Importing a whole team into `SavedTeam` isn't wired up,
     though `PasteImporter.teamSlot(for:)` exists for it.
-- **Security items from the earlier audit are unaddressed**, notably the
-  size-only model integrity check (`05_PokiiModelDownloader.swift:110`, `:281`)
-  and the unvalidated manifest filenames used as path components (`:228`,
-  `:299`).
+- **Model downloader hardening — done 2026-09-23** (`05_PokiiModelDownloader.swift`,
+  tests in `ModelFileSafetyTests`). Both audit items are fixed, plus a gap
+  found next to them:
+  - **Manifest names are validated** before anything touches disk. Only
+    plain relative paths made of `[A-Za-z0-9._-]` components are allowed,
+    with no `..`, absolute paths or backslashes, and a containment check on
+    top. Reserved names (`manifest.json`, `verified.json`) are rejected, as
+    are duplicates, negative sizes and malformed SHA-256 strings. A bad
+    manifest fails the download ("Manifest rejected: …"). `isModelInstalled`
+    applies the same validation to the saved manifest. All 8 names in the
+    real pinned manifest (3b-v3) pass these rules.
+  - **Skipping an existing file now needs a verification record**
+    (`verified.json`), written only after a file's SHA-256 matches. Before,
+    a right-sized file was skipped unhashed, so a download killed between
+    finishing and verifying installed an unchecked file. An oversized
+    partial is now deleted and restarted rather than treated as complete.
+  - `isModelInstalled` stays a size-only check by design: the saved
+    manifest is only written after every file has been verified.
+  - Not changed: the manifest itself is trusted via HTTPS plus the commit
+    pin, with no hash of it embedded in the app.
 
 ## Verifying
 

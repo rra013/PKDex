@@ -113,9 +113,12 @@ public final class PokiiModelDownloader: NSObject, ObservableObject {
         guard let data = try? Data(contentsOf: manifestPath),
               let manifest = try? JSONDecoder().decode(Manifest.self, from: data)
         else { return false }
+        // Same validation as a fresh download, so a tampered on-disk manifest
+        // can't point this check outside the model directory.
+        guard ModelFileSafety.validate(manifest.files) == nil else { return false }
         for file in manifest.files where !Self.isMetadataFile(file.name) {
-            let path = dir.appendingPathComponent(file.name)
-            guard let attrs = try? FileManager.default.attributesOfItem(
+            guard let path = ModelFileSafety.destination(for: file.name, in: dir),
+                  let attrs = try? FileManager.default.attributesOfItem(
                     atPath: path.path),
                   let size = attrs[.size] as? Int64,
                   size == file.size
@@ -207,6 +210,14 @@ public final class PokiiModelDownloader: NSObject, ObservableObject {
             return
         }
 
+        // Reject the whole manifest before touching disk if any entry could
+        // escape the model directory, collide with our own bookkeeping files,
+        // or carry a malformed checksum.
+        if let problem = ModelFileSafety.validate(manifest.files) {
+            status = .failed("Manifest rejected: \(problem)")
+            return
+        }
+
         let dir = modelDirectory(version: version)
         try? FileManager.default.createDirectory(
             at: dir, withIntermediateDirectories: true)
@@ -225,8 +236,13 @@ public final class PokiiModelDownloader: NSObject, ObservableObject {
                 status = .cancelled
                 return
             }
-            let destURL = dir.appendingPathComponent(file.name)
-            if (try? localFileMatches(file, at: destURL)) ?? false {
+            // Validated above, so this can't be nil; guarded anyway rather
+            // than force-unwrapped.
+            guard let destURL = ModelFileSafety.destination(for: file.name, in: dir) else {
+                status = .failed("Manifest rejected: unsafe file name \(file.name)")
+                return
+            }
+            if ModelFileSafety.canSkip(file, at: destURL, in: dir) {
                 progress.bytesDownloaded += file.size
                 continue
             }
@@ -253,11 +269,13 @@ public final class PokiiModelDownloader: NSObject, ObservableObject {
             status = .verifying(file: file.name)
             do {
                 let actual = try await sha256OfFile(at: destURL)
-                guard actual == file.sha256 else {
+                guard actual == file.sha256.lowercased() else {
                     try? FileManager.default.removeItem(at: destURL)
+                    ModelFileSafety.forgetVerified(file.name, in: dir)
                     throw DownloadError.checksumMismatch(
                         file: file.name, expected: file.sha256, actual: actual)
                 }
+                ModelFileSafety.recordVerified(file.name, sha256: actual, in: dir)
             } catch {
                 status = .failed("Checksum failed for \(file.name): " +
                                  error.localizedDescription)
@@ -278,26 +296,18 @@ public final class PokiiModelDownloader: NSObject, ObservableObject {
         status = .completed
     }
 
-    private func localFileMatches(
-        _ file: ManifestFile, at url: URL
-    ) throws -> Bool {
-        guard let attrs = try? FileManager.default.attributesOfItem(
-            atPath: url.path),
-              let size = attrs[.size] as? Int64
-        else { return false }
-        // Quick check: size match. SHA verification happens after download
-        // for fresh downloads; for already-present files we trust size.
-        return size == file.size
-    }
-
     private func downloadFile(
         _ file: ManifestFile,
         to destURL: URL,
         session: URLSession,
         basePriorBytes: Int64
     ) async throws {
+        // `file.name` was validated as a safe relative path, so it can't
+        // climb out of the pinned commit's directory on the server either.
         let url = Self.fileBaseURL.appendingPathComponent(file.name)
         var request = URLRequest(url: url)
+        try FileManager.default.createDirectory(
+            at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
         // Resume support: if a partial file exists, send a Range header
         var partialSize: Int64 = 0
@@ -306,10 +316,16 @@ public final class PokiiModelDownloader: NSObject, ObservableObject {
            let s = attrs[.size] as? Int64 {
             partialSize = s
         }
+        if partialSize > file.size {
+            // Longer than the manifest says: not a resumable partial (e.g. a
+            // server that ignored Range and re-sent the whole body). Start over.
+            try FileManager.default.removeItem(at: destURL)
+            partialSize = 0
+        }
         if partialSize > 0 && partialSize < file.size {
             request.addValue("bytes=\(partialSize)-", forHTTPHeaderField: "Range")
-        } else if partialSize >= file.size {
-            // Already fully on disk; nothing to do
+        } else if partialSize == file.size {
+            // Complete on disk but unverified; the caller hashes it next.
             return
         }
 
@@ -353,15 +369,134 @@ public final class PokiiModelDownloader: NSObject, ObservableObject {
 
 // MARK: - Manifest types
 
-private struct Manifest: Codable {
+nonisolated struct Manifest: Codable {
     let version: String
     let files: [ManifestFile]
 }
 
-private struct ManifestFile: Codable {
+nonisolated struct ManifestFile: Codable, Equatable {
     let name: String
     let size: Int64
     let sha256: String
+}
+
+// MARK: - File safety
+
+/// Checks that keep manifest data from steering writes, plus the record of
+/// which files have actually been hashed.
+///
+/// Manifest names are network data used as path components, both on disk and
+/// in the download URL. The manifest is fetched over HTTPS from a pinned
+/// commit, so a bad entry takes a bad or compromised manifest. It's still
+/// cheap to make that a refused download rather than a write outside the
+/// model directory.
+///
+/// `nonisolated` and free of the downloader's state so tests can call it
+/// directly.
+nonisolated enum ModelFileSafety {
+
+    /// Files the downloader writes itself. A manifest entry with one of these
+    /// names would be overwritten by, or overwrite, the bookkeeping.
+    static let reservedNames: Set<String> = ["manifest.json", "verified.json"]
+
+    /// A relative path made only of ordinary components: letters, digits,
+    /// `.`, `_` and `-`, separated by single `/`. No `.` or `..`
+    /// components, no leading or trailing slash, no backslashes, no empty
+    /// components.
+    static func isSafeRelativePath(_ name: String) -> Bool {
+        guard !name.isEmpty, name.count <= 255 else { return false }
+        let components = name.split(separator: "/", omittingEmptySubsequences: false)
+        return components.allSatisfy { component in
+            !component.isEmpty && component != "." && component != ".."
+                && component.allSatisfy { ch in
+                    ch.isASCII && (ch.isLetter || ch.isNumber || ch == "." || ch == "_" || ch == "-")
+                }
+        }
+    }
+
+    /// Where `name` lives inside `dir`, or nil when it isn't a safe relative
+    /// path or would resolve outside `dir`. The containment check is belt
+    /// and braces on top of `isSafeRelativePath`.
+    static func destination(for name: String, in dir: URL) -> URL? {
+        guard isSafeRelativePath(name) else { return nil }
+        let base = dir.standardizedFileURL
+        let candidate = base.appendingPathComponent(name).standardizedFileURL
+        let basePath = base.path.hasSuffix("/") ? base.path : base.path + "/"
+        return candidate.path.hasPrefix(basePath) ? candidate : nil
+    }
+
+    static func isValidSHA256(_ value: String) -> Bool {
+        value.count == 64 && value.allSatisfy { $0.isHexDigit }
+    }
+
+    /// First problem with a manifest's file list, or nil when every entry is
+    /// usable.
+    static func validate(_ files: [ManifestFile]) -> String? {
+        var seen = Set<String>()
+        for file in files {
+            guard isSafeRelativePath(file.name) else { return "unsafe file name \"\(file.name)\"" }
+            guard !reservedNames.contains(file.name.lowercased()) else {
+                return "reserved file name \"\(file.name)\""
+            }
+            guard seen.insert(file.name.lowercased()).inserted else {
+                return "duplicate file name \"\(file.name)\""
+            }
+            guard file.size >= 0 else { return "negative size for \(file.name)" }
+            guard isValidSHA256(file.sha256) else { return "malformed checksum for \(file.name)" }
+        }
+        return nil
+    }
+
+    // MARK: Verification record
+
+    /// True when a file already on disk can be skipped: the right size AND
+    /// hashed-and-matched by an earlier run, per the verification record.
+    ///
+    /// Size alone isn't enough. If the app is killed after a download lands
+    /// but before its SHA check finishes, the file has the right size and was
+    /// never verified; trusting size would install it unchecked. Without a
+    /// record the downloader falls through to the download step, which sees
+    /// the file is complete and goes straight to verification.
+    static func canSkip(_ file: ManifestFile, at url: URL, in dir: URL) -> Bool {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = attrs[.size] as? Int64,
+              size == file.size
+        else { return false }
+        return verifiedHash(of: file.name, in: dir) == file.sha256.lowercased()
+    }
+
+    private static func recordURL(in dir: URL) -> URL {
+        dir.appendingPathComponent("verified.json")
+    }
+
+    private static func loadRecord(in dir: URL) -> [String: String] {
+        guard let data = try? Data(contentsOf: recordURL(in: dir)),
+              let record = try? JSONDecoder().decode([String: String].self, from: data)
+        else { return [:] }
+        return record
+    }
+
+    private static func saveRecord(_ record: [String: String], in dir: URL) {
+        guard let data = try? JSONEncoder().encode(record) else { return }
+        try? data.write(to: recordURL(in: dir), options: .atomic)
+    }
+
+    /// The hash an earlier run computed and matched for `name`, lowercased.
+    static func verifiedHash(of name: String, in dir: URL) -> String? {
+        loadRecord(in: dir)[name]
+    }
+
+    static func recordVerified(_ name: String, sha256: String, in dir: URL) {
+        var record = loadRecord(in: dir)
+        record[name] = sha256.lowercased()
+        saveRecord(record, in: dir)
+    }
+
+    static func forgetVerified(_ name: String, in dir: URL) {
+        var record = loadRecord(in: dir)
+        guard record.removeValue(forKey: name) != nil else { return }
+        saveRecord(record, in: dir)
+    }
 }
 
 private enum DownloadError: Error, LocalizedError {
