@@ -204,20 +204,20 @@ nonisolated enum EVSolver {
     /// The smallest Speed investment that brings `side` above `targetSpeed`,
     /// or level with it when `allowTie` is set.
     ///
-    /// Compares the stage-adjusted stat times `multiplier`, so a caller can
-    /// fold in Choice Scarf (1.5), Tailwind (2) or paralysis (0.5). The
-    /// multiplied value is floored, matching how the games apply speed
-    /// modifiers.
+    /// `speedOf` turns a candidate into the Speed that's compared. The default
+    /// is the stage-adjusted stat. The calc passes `CalcEngine.finalSpeed`,
+    /// which also applies items, Tailwind, weather abilities and paralysis.
+    /// Measure `targetSpeed` the same way, or the comparison is lopsided.
     static func minimumToOutspeed(
         _ side: CalcSnapshot,
         targetSpeed: Int,
-        multiplier: Double = 1.0,
-        allowTie: Bool = false
+        allowTie: Bool = false,
+        speedOf: (CalcSnapshot) -> Int = { $0.speed }
     ) -> Result<Solution, Failure> {
         let budget = remainingBudget(side, excluding: [.speed])
         for value in side.evDomain where value <= budget {
             let candidate = side.settingEV(.speed, to: value)
-            let speed = Int(floor(Double(candidate.speed) * multiplier))
+            let speed = speedOf(candidate)
             if speed > targetSpeed || (allowTie && speed == targetSpeed) {
                 return .success(Solution(evs: [.speed: value], snapshot: candidate,
                                          outcome: nil, usedRolls: false))
