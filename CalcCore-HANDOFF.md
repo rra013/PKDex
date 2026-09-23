@@ -30,7 +30,7 @@ evaluations — hence the need to get off the main actor.
 |---|---|---|
 | 1.1 | `ShowdownPaste.swift` — paste text ⇄ structs | done, tested |
 | 1.2 | `ShowdownPasteImport.swift` — resolve against Pokedex, validate | done, tested |
-| 1.3 | Import sheet + `ShareLink` export UI | **not started** |
+| 1.3 | `PasteImportSheet.swift` — paste import + copy/share export on the calc | done, tested, checked in the simulator |
 | 2.1a | `CalcSnapshot.swift` — Sendable snapshot/outcome types | done, tested |
 | 2.1b | `CalcEngine.swift` — legacy engine extracted, VM delegates | done, tested |
 | 2.1c | Vendored port made nonisolated | done, tested |
@@ -38,8 +38,8 @@ evaluations — hence the need to get off the main actor.
 | 2.2 | `EVSolver.swift` — survive / KO / outspeed solves | done, tested |
 | 2.3 | `EVSolverSheet.swift` — solver UI on the calc's move rows | done, checked in the simulator |
 
-Last full run (after 2.2 and the test-randomness fixes): **805 of 805
-passing, three runs in a row**. See "Randomness in tests" below. Both
+Last full run (after 1.3): **812 of 812 passing**. The test-randomness
+fixes held for three runs in a row before that. See "Randomness in tests" below. Both
 engines are behind `CalcEngine`, so the whole damage suite exercises the
 extracted code.
 
@@ -251,17 +251,27 @@ hits), and survival from less than full HP.
   abilities, …); `rollOverride` doesn't cover them, so a new test depending
   on one needs its own guard. Three full runs on the old build surfaced no
   flakes beyond the four above.
-- **Phase 1.3 UI is unstarted**, so the paste parser and importer are dead code
-  from the app's point of view. When building the import sheet: unmodelled
-  *mainline* items (Covert Cloak, Safety Goggles, Booster Energy, Clear Amulet,
-  Loaded Dice, Weakness Policy, Punching Glove) fire `itemUnrecognized`
-  constantly because `HeldItem` covers all 58 Champions-legal items but not the
-  wider pool. Style that as informational, not an error, or good pastes look
-  broken.
-- **Ambiguous EV scale.** A low-investment paste (`4 HP / 8 Atk`) fits both
-  scales; the parser defaults to mainline and sets `scaleWasAmbiguous`. The
-  import sheet should turn that flag into a units toggle
-  (`parse(_:forcedScale:)` accepts the override).
+- **Phase 1.3 landed** (`PasteImportSheet.swift`). Each calc side has
+  **Paste** and **Export** buttons. Paste opens a sheet with a live preview;
+  Export is a menu with Copy first and Share second. Import goes through the
+  same `loadSpread` path as the Load button. Details:
+  - Unmodelled mainline items (Covert Cloak, Loaded Dice, …) show as grey
+    info notes, not errors. Legality violations show in orange as warnings
+    and don't block the import.
+  - **Ambiguous EV scale now defaults to the calc side's scale**, via
+    `ShowdownPaste.parse(_:ambiguousDefault:)`. The parser's own default is
+    still mainline. This was a real bug: a Champions export written only in
+    multiples of 4 (`32 HP / 32 Atk`) fits both scales, so it re-imported as
+    mainline EVs and came back as 4 / 4 points. `PasteRoundTripTests` covers
+    it, and a mutation check confirmed the test catches it. The toggle still
+    shows whenever the numbers fit both scales.
+  - Export writes EVs in the side's own scale. A Champions set exports as
+    stat points, which is what the parser expects for Champions pastes. It is
+    *not* converted to mainline EVs for use in a mainline Showdown format.
+    If that's wanted, `showdownText(scale: .mainline)` already does it.
+  - Only one set is loaded per side. A pasted team shows a picker for which
+    set to load. Importing a whole team into `SavedTeam` isn't wired up,
+    though `PasteImporter.teamSlot(for:)` exists for it.
 - **Security items from the earlier audit are unaddressed**, notably the
   size-only model integrity check (`05_PokiiModelDownloader.swift:110`, `:281`)
   and the unvalidated manifest filenames used as path components (`:228`,

@@ -546,6 +546,24 @@ nonisolated enum ShowdownPaste {
     /// is indistinguishable from Champions points) the answer is `.mainline`,
     /// the interchange default, flagged as ambiguous so the UI can offer a
     /// toggle.
+    /// Like `parse(_:)`, but an ambiguous paste resolves to `ambiguousDefault`
+    /// instead of `.mainline`. `scaleWasAmbiguous` stays true, so the UI can
+    /// still offer the toggle.
+    ///
+    /// For callers that know the context. A Champions spread written only in
+    /// multiples of 4 (`32 HP / 32 Atk`) fits both scales, and reading it as
+    /// mainline would silently turn 32 points into 4 when it lands on a
+    /// Champions calc. Unambiguous pastes are unaffected.
+    static func parse(_ text: String, ambiguousDefault: StatScale) -> ParsedPaste {
+        let detected = parse(text)
+        guard detected.scaleWasAmbiguous, detected.detectedScale != ambiguousDefault else {
+            return detected
+        }
+        var resolved = parse(text, forcedScale: ambiguousDefault)
+        resolved.scaleWasAmbiguous = true
+        return resolved
+    }
+
     static func detectScale(_ sets: [ShowdownPasteSet]) -> (scale: StatScale, ambiguous: Bool) {
         var sawAnyEVs = false
         var sawNonMultipleOfFour = false

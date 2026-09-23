@@ -870,6 +870,53 @@ private struct SideCard: View {
     @Environment(\.modelContext) private var modelContext
     @State private var showSaveSheet = false
     @State private var showLoadSheet = false
+    @State private var showPasteSheet = false
+
+    @ViewBuilder
+    private var spreadButtons: some View {
+        Button { showSaveSheet = true } label: {
+            Label("Save Spread", systemImage: "square.and.arrow.down")
+                .font(.caption).lineLimit(1)
+        }
+        .buttonStyle(.bordered).tint(.red)
+
+        Button { showLoadSheet = true } label: {
+            Label("Load", systemImage: "tray.and.arrow.up")
+                .font(.caption).lineLimit(1)
+        }
+        .buttonStyle(.bordered).tint(.secondary)
+        .disabled(savedSpreads.isEmpty)
+    }
+
+    /// Showdown paste import, plus export once there's a set to export.
+    /// Export leads with Copy: pasting into Showdown is the common case, and
+    /// not every share sheet offers Copy up front.
+    @ViewBuilder
+    private var pasteButtons: some View {
+        Button { showPasteSheet = true } label: {
+            Label("Paste", systemImage: "doc.on.clipboard")
+                .font(.caption).lineLimit(1)
+        }
+        .buttonStyle(.bordered).tint(.secondary)
+
+        if let set = side.showdownPasteSet() {
+            let text = set.showdownText()
+            Menu {
+                Button {
+                    UIPasteboard.general.string = text
+                } label: {
+                    Label("Copy Paste", systemImage: "doc.on.doc")
+                }
+                ShareLink(item: text, preview: SharePreview("\(set.species) set")) {
+                    Label("Share…", systemImage: "square.and.arrow.up")
+                }
+            } label: {
+                Label("Export", systemImage: "square.and.arrow.up")
+                    .font(.caption).lineLimit(1)
+            }
+            .buttonStyle(.bordered).tint(.secondary)
+        }
+    }
 
     private var filteredPokemon: [PKMNStats] {
         let q = side.searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -1011,19 +1058,14 @@ private struct SideCard: View {
                     }
                 }
             }
-            HStack {
-                Button { showSaveSheet = true } label: {
-                    Label("Save Spread", systemImage: "square.and.arrow.down")
-                        .font(.caption)
+            // Four buttons don't fit one row on a phone without wrapping
+            // "Save Spread", so fall back to two rows when they won't.
+            ViewThatFits(in: .horizontal) {
+                HStack { spreadButtons; pasteButtons }
+                VStack(alignment: .leading) {
+                    HStack { spreadButtons }
+                    HStack { pasteButtons }
                 }
-                .buttonStyle(.bordered).tint(.red)
-
-                Button { showLoadSheet = true } label: {
-                    Label("Load", systemImage: "tray.and.arrow.up")
-                        .font(.caption)
-                }
-                .buttonStyle(.bordered).tint(.secondary)
-                .disabled(savedSpreads.isEmpty)
             }
 
             if let pkmn = side.pokemon {
@@ -1236,6 +1278,9 @@ private struct SideCard: View {
         }
         .sheet(isPresented: $showSaveSheet) {
             SaveSpreadSheet(side: side, modelContext: modelContext, isPresented: $showSaveSheet)
+        }
+        .sheet(isPresented: $showPasteSheet) {
+            PasteImportSheet(side: side, allPokemon: allPokemon, allMoves: allMoves)
         }
         .sheet(isPresented: $showLoadSheet) {
             LoadSpreadSheet(side: side, spreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves, modelContext: modelContext, isPresented: $showLoadSheet)
