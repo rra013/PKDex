@@ -17,6 +17,7 @@ struct TeamListView: View {
     @Query(sort: \MoveData.name) private var allMoves: [MoveData]
     @Environment(\.modelContext) private var modelContext
     @State private var showNewTeam = false
+    @State private var showImportTeam = false
     @Environment(\.horizontalSizeClass) private var hSize
     @State private var selectedTeam: SavedTeam?
 
@@ -61,6 +62,8 @@ struct TeamListView: View {
                 } actions: {
                     Button("New Team") { showNewTeam = true }
                         .buttonStyle(.borderedProminent).tint(.red)
+                    Button("Import Paste") { showImportTeam = true }
+                        .buttonStyle(.bordered)
                 }
             } else if let selection {
                 // Wide: selection-driven rows feed the split detail pane.
@@ -95,10 +98,21 @@ struct TeamListView: View {
                 Button { showNewTeam = true } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityLabel("New Team")
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button { showImportTeam = true } label: {
+                    Image(systemName: "doc.on.clipboard")
+                }
+                .accessibilityLabel("Import Team from Paste")
             }
         }
         .sheet(isPresented: $showNewTeam) {
             NewTeamSheet(savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+        }
+        .sheet(isPresented: $showImportTeam) {
+            TeamPasteImportSheet(savedSpreads: savedSpreads, savedTeams: savedTeams,
+                                 allPokemon: allPokemon, allMoves: allMoves)
         }
     }
 }

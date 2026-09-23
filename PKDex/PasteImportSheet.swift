@@ -201,7 +201,7 @@ struct PasteImportSheet: View {
         if !notes.isEmpty || !violations.isEmpty {
             Section("Notes") {
                 ForEach(Array(notes.enumerated()), id: \.offset) { _, issue in
-                    issueRow(issue)
+                    ImportIssueRow(issue: issue)
                 }
                 ForEach(Array(violations.enumerated()), id: \.offset) { _, violation in
                     Label(violation.message, systemImage: "exclamationmark.triangle")
@@ -210,23 +210,6 @@ struct PasteImportSheet: View {
                 }
             }
         }
-    }
-
-    /// Blocking issues in red; things the import worked around in orange;
-    /// purely informational ones in grey. Unmodelled mainline items (Covert
-    /// Cloak, Loaded Dice, …) are informational, or good pastes look broken.
-    private func issueRow(_ issue: ImportIssue) -> some View {
-        let (icon, color): (String, Color) = {
-            if issue.isBlocking { return ("xmark.octagon", .red) }
-            switch issue {
-            case .itemUnrecognized, .levelDefaulted, .evScaleConverted:
-                return ("info.circle", .secondary)
-            default:
-                return ("exclamationmark.circle", .orange)
-            }
-        }()
-        return Label(issue.message, systemImage: icon)
-            .font(.footnote).foregroundStyle(color)
     }
 
     private func itemText(_ slot: ResolvedSlot) -> String {
@@ -253,6 +236,31 @@ struct PasteImportSheet: View {
         // Pasted, not loaded from the saved list.
         side.loadedSpreadName = nil
         dismiss()
+    }
+}
+
+// MARK: - Shared rows
+
+/// One `ImportIssue`, colored by how much it matters: blocking in red,
+/// things the import worked around in orange, purely informational in grey.
+/// Unmodelled mainline items (Covert Cloak, Loaded Dice, …) are
+/// informational, or good pastes look broken. Shared by the calc's paste
+/// sheet and the team import.
+struct ImportIssueRow: View {
+    let issue: ImportIssue
+
+    var body: some View {
+        let (icon, color): (String, Color) = {
+            if issue.isBlocking { return ("xmark.octagon", .red) }
+            switch issue {
+            case .itemUnrecognized, .levelDefaulted, .evScaleConverted:
+                return ("info.circle", .secondary)
+            default:
+                return ("exclamationmark.circle", .orange)
+            }
+        }()
+        Label(issue.message, systemImage: icon)
+            .font(.footnote).foregroundStyle(color)
     }
 }
 
