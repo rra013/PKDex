@@ -1324,6 +1324,23 @@ final class BattleEngine {
     var magicRoomTurns: Int = 0
     var gravityTurns: Int = 0
 
+    /// Pins the engine's damage randomness. nil (the default) is normal play.
+    ///
+    /// Tests that compare two engine runs need this: every damaging hit rolls
+    /// both a crit and a damage value, and at low power the roll alone can
+    /// swing damage by 3x, which swamps the effect a ratio test is measuring.
+    /// Pinning both makes those comparisons deterministic without loosening
+    /// the assertion.
+    var rollOverride: RollOverride?
+
+    struct RollOverride {
+        enum Roll { case min, max }
+        /// Whether every crit check succeeds.
+        var crit: Bool
+        /// Which end of each damage range to take.
+        var roll: Roll
+    }
+
     /// When true for a given [side][slot], that actor will Mega Evolve at the start of
     /// the next executed turn (before any action). Cleared once processed.
     var pendingMega: [[Bool]]
@@ -1781,7 +1798,7 @@ final class BattleEngine {
         )
         let dMin = Int(raw.min)
         let dMax = max(Int(raw.max), dMin)
-        return dMin == dMax ? dMin : Int.random(in: dMin...dMax)
+        return rollDamage(dMin, dMax)
     }
 
     /// Effective accuracy the move needs to clear against this target. Compound
@@ -1790,7 +1807,10 @@ final class BattleEngine {
     /// roll is `Int.random(in: 1...100)`, so anything > 100 always hits, which
     /// matches the canon behavior of Compound Eyes turning a 95-acc move into
     /// effectively-perfect.
-    private func effectiveAccuracy(_ move: MoveData,
+    ///
+    /// Internal rather than private so tests can check the arithmetic exactly
+    /// instead of inferring it from sampled hit rates.
+    func effectiveAccuracy(_ move: MoveData,
                                    attacker: BattleParticipant?,
                                    against defender: BattleParticipant?) -> Int? {
         guard let acc = move.accuracy else { return nil }
@@ -2324,7 +2344,7 @@ final class BattleEngine {
 
         let dMin = Int(raw.min)
         let dMax = max(Int(raw.max), dMin)
-        let damage = dMin == dMax ? dMin : Int.random(in: dMin...dMax)
+        let damage = rollDamage(dMin, dMax)
         defender.currentHP = max(0, defender.currentHP - damage)
         log.append(BattleLogEntry(text: "\(defender.displayName) took \(damage) damage."))
         if defender.fainted {
@@ -2444,7 +2464,7 @@ final class BattleEngine {
             lastEff = result.eff
             let dMin = Int(result.min)
             let dMax = max(Int(result.max), dMin)
-            var damage = dMin == dMax ? dMin : Int.random(in: dMin...dMax)
+            var damage = rollDamage(dMin, dMax)
             // Tier 8 — Earthquake-on-Dig and friends deal 2x to the
             // invulnerable defender.
             if invDamageMult != 1.0 {
@@ -4491,6 +4511,7 @@ final class BattleEngine {
     /// Gen 7+ crit ratio table. Stage 0 → 1/24, Stage 1 → 1/8, Stage 2 → 1/2,
     /// Stage 3+ → always crit. Move's `critRate` field stacks with Scope Lens.
     private func rollCrit(attacker: BattleParticipant, move: MoveData) -> Bool {
+        if let rollOverride { return rollOverride.crit }
         var stage = move.critRate
         if attacker.effectiveHeldItem == .scopeLens { stage += 1 }
         let chance: Double
@@ -4501,6 +4522,17 @@ final class BattleEngine {
         default: chance = 1.0
         }
         return Double.random(in: 0..<1) < chance
+    }
+
+    /// Picks a damage value from a range: uniformly at random, or the pinned
+    /// end when `rollOverride` is set.
+    private func rollDamage(_ dMin: Int, _ dMax: Int) -> Int {
+        guard dMin < dMax else { return dMin }
+        switch rollOverride?.roll {
+        case .min?: return dMin
+        case .max?: return dMax
+        case nil:   return Int.random(in: dMin...dMax)
+        }
     }
 
     /// Maps the sim's `BattleStatus` to the Showdown port's `ShowdownStatus`.

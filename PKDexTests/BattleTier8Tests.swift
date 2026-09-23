@@ -147,6 +147,11 @@ struct BattleTier8ExceptionTests {
         let splash = T8.mv("Splash", id: 3, dmg: "status", power: nil)
         let e1 = T8.engine((a, "blaze", [eq]), (bDig, "blaze", [dig]))
         let e2 = T8.engine((a, "blaze", [eq]), (bIdle, "blaze", [splash]))
+        // Pin the rolls so both engines compute the same base hit: a crit in
+        // either run would otherwise skew the ratio (a control crit took it
+        // to 1.27 in ~8% of runs).
+        e1.rollOverride = .init(crit: false, roll: .max)
+        e2.rollOverride = .init(crit: false, roll: .max)
         // Both engines: A uses EQ. B1 digs (then is hit underground), B2 splashes.
         e1.setAction(side: 0, slot: 0, action: .move(moveIndex: 0, targetSide: 1, targetSlot: 0))
         e1.setAction(side: 1, slot: 0, action: .move(moveIndex: 0, targetSide: 0, targetSlot: 0))
@@ -157,8 +162,9 @@ struct BattleTier8ExceptionTests {
         let dmgDig = e1.side2.active(at: 0)!.maxHP - e1.side2.active(at: 0)!.currentHP
         let dmgIdle = e2.side2.active(at: 0)!.maxHP - e2.side2.active(at: 0)!.currentHP
         #expect(dmgDig > 0, "EQ should hit through Dig")
-        #expect(dmgDig > Int(Double(dmgIdle) * 1.5),
-                "EQ on a digging target should be ~2× damage (allow some variance)")
+        // With rolls pinned the base hit is identical, so the doubling is exact.
+        #expect(dmgDig == dmgIdle * 2,
+                "EQ on a digging target should deal exactly 2× damage")
     }
 
     @Test func gustHitsFlyingTarget() {

@@ -2,7 +2,8 @@
 
 Working notes for the in-progress work that turns the damage calculator into
 something an EV solver can drive. Companion to `ShowdownPort-NOTES.md`, which
-covers the vendored `@smogon/calc` port itself.
+covers the vendored `@smogon/calc` port itself. (That file isn't in the repo
+as of 2026-09-23.)
 
 ## Why any of this
 
@@ -34,13 +35,13 @@ evaluations — hence the need to get off the main actor.
 | 2.1b | `CalcEngine.swift` — legacy engine extracted, VM delegates | done, tested |
 | 2.1c | Vendored port made nonisolated | done, tested |
 | 2.1d | Champions/Showdown path extracted | done, tested |
-| 2.2 | `EVSolver.swift` | **not started** |
+| 2.2 | `EVSolver.swift` — survive / KO / outspeed solves | done, tested |
 | 2.3 | Solver UI | **not started** |
 
-Last full run (after 2.1d): **787 of 788 passing**. The single failure was
-`lowKickScalesWithDefenderWeight`, one of the random-roll flaky tests — see
-"Known flaky tests" below. Both engines are now behind `CalcEngine`, so the
-whole damage suite exercises the extracted code.
+Last full run (after 2.2 and the test-randomness fixes): **805 of 805
+passing, three runs in a row**. See "Randomness in tests" below. Both
+engines are behind `CalcEngine`, so the whole damage suite exercises the
+extracted code.
 
 ## The `nonisolated` convention
 
@@ -132,14 +133,49 @@ Three things to know before building on it:
   behavioural difference, and `DamageCalcMegaEvolutionTests` plus the
   `BattleTier` files are where a mistake would surface.
 
-## Next step: 2.2 — `EVSolver.swift`
+## What 2.2 landed
 
-Nothing structural is in the way now: `CalcEngine.evaluate` is `nonisolated`,
-takes and returns `Sendable` values, and covers both formats. The remaining
-design work is the constraint API, and the one constraint the snapshot layer
-already anticipates is roll granularity — available on the Champions path
-only, so the predicate set has to degrade to
-`isGuaranteedOHKO` / `isGuaranteedSurvival` when `rolls` is nil.
+`EVSolver` is a `nonisolated` enum with three solves, all returning
+`Result<Solution, Failure>`:
+
+| Solve | Varies | Goal |
+|---|---|---|
+| `minimumToSurvive(move:attacker:defender:field:certainty:)` | defender HP + the defensive stat the engine reads | survives from full HP |
+| `minimumToKO(move:attacker:defender:field:certainty:)` | the attacker's offensive stat the engine reads | OHKO from full HP |
+| `minimumToOutspeed(_:targetSpeed:multiplier:allowTie:)` | Speed | beats (or ties) a speed stat |
+
+Things to know before building the UI on it:
+
+- **Stats are probed, not hardcoded.** Each candidate stat is set to 0 and
+  to the cap; the one that moves `damageMax` most is the one solved. That's
+  how Psyshock picks Def, Body Press picks the user's Def, and Foul Play
+  reports `.noRelevantStat` on the Champions path. The legacy engine
+  models none of those, and the probe follows whichever engine answered.
+  Tests cover all three.
+- **`Certainty.chance` needs rolls.** Without them (legacy path, multi-hit)
+  it falls back to `.guaranteed`, the conservative reading, and
+  `Solution.usedRolls` is false. The UI should say which one applied.
+- **Budget.** The EVs available are the total cap minus what the side
+  already has in *other* stats. Existing investment in the solved stats is
+  freed, since the solve replaces it.
+- **Minimality is exact, not heuristic.** The survive solve scans the full
+  grid and prunes only on cost. Ties go to the spread that takes the least
+  worst-case damage. `EVSolverTests` checks minimality by an independent
+  brute force over every cheaper spread.
+- **Full HP only.** Both engines compare damage against max HP, so the
+  solves ignore `currentHPPercent`. Chip damage, hazards and multi-turn
+  goals (2HKO, survive two hits) aren't modelled yet.
+- **Speed takes a caller-supplied multiplier** (Scarf 1.5, Tailwind 2,
+  paralysis 0.5). The solver doesn't read items or side conditions for
+  speed.
+- **Unreachable goals report `best`**, the outcome at maximum investment,
+  so the UI can show how close the spread gets.
+
+## Next step: 2.3 — solver UI
+
+The solver runs off the main actor. From the calc screen, snapshot the
+sides with `CalcSide.snapshot()` / `DamageCalcVM.fieldSnapshot()` and run
+the solve in a detached task. The worst case is about 4k evaluations.
 
 ## Design decisions worth not re-litigating
 
@@ -164,34 +200,35 @@ only, so the predicate set has to degrade to
 
 ## Open items
 
-- **Known flaky tests — two, one root cause.** The battle-tier suite compares
-  two independent `BattleEngine` runs and asserts a ratio between them, but
-  every run randomises both the crit and the damage roll, so any two runs can
-  collide. Neither test is wrong about the mechanic; both are unpinnable as
-  written.
+- **Randomness in tests — resolved 2026-09-23.** Four tests could fail by
+  chance; all are now deterministic or effectively so. Each fix was
+  mutation-checked: the mechanic was broken on purpose, the test failed, and
+  the source was restored.
 
-  - `earthquakeHitsDiggingTargetForDoubleDamage` (`BattleTier8Tests.swift:160`),
-    ~8% of runs. Crits are rolled randomly (`rollCrit`,
-    `BattleSimulator.swift:2439`) and a crit in the *control* engine deflates
-    the ratio below the test's 1.5 threshold — `2.0 x 71 = 142` vs
-    `1.5 x 75 = 112` gives 1.27. Without a crit the ratio is bounded to
-    [1.7, 2.35] and it always passes.
-  - `lowKickScalesWithDefenderWeight` (`BattleTier9Tests.swift:146`), ~22% of
-    runs. The damage roll (`Int.random(in: dMin...dMax)`,
-    `BattleSimulator.swift:2447`) happens *before* the tier-5 weight
-    multiplier is applied. At `power: 1` both sides compute to 120 Atk / 120
-    Def and a 2–4 damage range; Wisp is unknown so it falls back to 50 kg →
-    80 BP (**not** the 60 BP the test's comment claims — the table's `< 50`
-    band excludes 50), Snorlax is 460 kg → 120 BP. Outcomes are
-    {160, 240, 320} vs {240, 360, 480}, so the assertion fails whenever
-    Snorlax rolls a 2 and Wisp rolls a 3 or 4.
+  | Test | Cause | Fix |
+  |---|---|---|
+  | `heavySlamHitsHarderAgainstLightTarget` | at `power: 1` the roll range is 2–6, swamping 60 vs 120 BP (~16%) | pinned rolls |
+  | `lowKickScalesWithDefenderWeight` | roll range 2–4 overlaps 80 vs 120 BP (~22%) | pinned rolls |
+  | `earthquakeHitsDiggingTargetForDoubleDamage` | a crit in either run skewed the ratio (~8%) | pinned rolls; assertion tightened from `> 1.5x` to exactly `2x` |
+  | `compoundEyesLandsMoreThanBaseline` | 200 samples put the 5pp threshold ~2 SD from the mean (~2%) | 1000 samples (~1 in 500k), plus a new exact test of `effectiveAccuracy` |
 
-  Recommended fix, covering both: an optional roll override on `BattleEngine`
-  that `rollCrit` *and* the damage-roll line consult, so ratio tests can take
-  variance off the table. This is latent across the whole battle-tier suite,
-  not two bad assertions. **Do not** just loosen the thresholds — at
-  `power: 1` the bands are close enough that a tolerant threshold would also
-  stop the tests detecting the mechanic failing outright.
+  **The tool:** `BattleEngine.rollOverride`. Set
+  `.init(crit: false, roll: .max)` on each engine before `executeTurn()`. It
+  pins `rollCrit` and every damage roll (moves, Struggle, confusion self-hits
+  all go through `rollDamage`); nil keeps normal random play. Use it for any
+  new test that compares damage across engine runs. **Do not** loosen
+  thresholds instead: at `power: 1` the bands are close enough that a
+  tolerant threshold would also stop the test detecting the mechanic failing
+  outright.
+
+  **Checked and left alone:** the crit-stage tests in `BattleCritTests`
+  average 40 rolls (ratio error ~1% against a ±10% band, and a real bug
+  shows as ~0.5), and the "at least one proc in 50–100 tries" tests at 30%
+  per try (false failure ~10⁻⁸ or less). The engine still has ~35 other
+  random draws (paralysis, confusion, sleep length, speed ties, contact
+  abilities, …); `rollOverride` doesn't cover them, so a new test depending
+  on one needs its own guard. Three full runs on the old build surfaced no
+  flakes beyond the four above.
 - **Phase 1.3 UI is unstarted**, so the paste parser and importer are dead code
   from the app's point of view. When building the import sheet: unmodelled
   *mainline* items (Covert Cloak, Safety Goggles, Booster Energy, Clear Amulet,
@@ -216,8 +253,20 @@ against a simulator works:
 
 ```
 xcodebuild test -project PKDex.xcodeproj -scheme PKDex \
-  -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.0'
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
+  -parallel-testing-enabled NO
 ```
+
+There is no plain "iPhone 17" simulator on this machine. Turning off
+parallel testing matters: the default clones the simulator, and a clone
+left over from an interrupted run makes the next launch fail with
+"Application failed preflight checks" (Busy).
+
+`xcodebuild` also sometimes hangs *after* the tests finish (the Swift Testing
+summary prints, the process never exits). If you script repeat runs, kill it
+once the `Test run with N tests` line appears rather than waiting on it.
+`-test-iterations` doesn't repeat Swift Testing tests; loop
+`test-without-building` instead.
 
 The existing suites are the parity gate for the calc extraction — the nine
 `BattleTier` files, `DamageCalcMegaEvolutionTests`, `AbilityTests`,
