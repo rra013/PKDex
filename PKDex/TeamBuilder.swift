@@ -17,45 +17,88 @@ struct TeamListView: View {
     @Query(sort: \MoveData.name) private var allMoves: [MoveData]
     @Environment(\.modelContext) private var modelContext
     @State private var showNewTeam = false
+    @Environment(\.horizontalSizeClass) private var hSize
+    @State private var selectedTeam: SavedTeam?
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if savedTeams.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Teams", systemImage: "person.3")
-                    } description: {
-                        Text("Create a team of six to see type coverage analysis.")
-                    } actions: {
-                        Button("New Team") { showNewTeam = true }
-                            .buttonStyle(.borderedProminent).tint(.red)
-                    }
+        // Wide layouts get a list/detail split; compact (portrait) keeps the
+        // original push navigation, unchanged.
+        if hSize == .regular {
+            wideBody
+        } else {
+            NavigationStack {
+                listColumn(selection: nil)
+            }
+        }
+    }
+
+    private var wideBody: some View {
+        NavigationSplitView {
+            listColumn(selection: $selectedTeam)
+        } detail: {
+            NavigationStack {
+                if let selectedTeam {
+                    TeamDetailView(team: selectedTeam, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
                 } else {
-                    List {
-                        ForEach(savedTeams) { team in
-                            NavigationLink {
-                                TeamDetailView(team: team, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
-                            } label: {
-                                TeamRowView(team: team)
-                            }
-                        }
-                        .onDelete { indices in
-                            for i in indices { modelContext.delete(savedTeams[i]) }
-                        }
+                    ContentUnavailableView {
+                        Label("Select a Team", systemImage: "sidebar.left")
+                    } description: {
+                        Text("Choose a team from the list to see its coverage.")
                     }
                 }
             }
-            .navigationTitle("Teams")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showNewTeam = true } label: {
-                        Image(systemName: "plus")
+        }
+    }
+
+    @ViewBuilder
+    private func listColumn(selection: Binding<SavedTeam?>?) -> some View {
+        Group {
+            if savedTeams.isEmpty {
+                ContentUnavailableView {
+                    Label("No Teams", systemImage: "person.3")
+                } description: {
+                    Text("Create a team of six to see type coverage analysis.")
+                } actions: {
+                    Button("New Team") { showNewTeam = true }
+                        .buttonStyle(.borderedProminent).tint(.red)
+                }
+            } else if let selection {
+                // Wide: selection-driven rows feed the split detail pane.
+                List(selection: selection) {
+                    ForEach(savedTeams) { team in
+                        TeamRowView(team: team, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+                            .tag(team)
+                    }
+                    .onDelete { indices in
+                        for i in indices { modelContext.delete(savedTeams[i]) }
+                    }
+                }
+            } else {
+                // Compact: today's push rows, unchanged.
+                List {
+                    ForEach(savedTeams) { team in
+                        NavigationLink {
+                            TeamDetailView(team: team, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+                        } label: {
+                            TeamRowView(team: team, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+                        }
+                    }
+                    .onDelete { indices in
+                        for i in indices { modelContext.delete(savedTeams[i]) }
                     }
                 }
             }
-            .sheet(isPresented: $showNewTeam) {
-                NewTeamSheet(savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+        }
+        .navigationTitle("Teams")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { showNewTeam = true } label: {
+                    Image(systemName: "plus")
+                }
             }
+        }
+        .sheet(isPresented: $showNewTeam) {
+            NewTeamSheet(savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
         }
     }
 }
@@ -64,11 +107,14 @@ struct TeamListView: View {
 
 private struct TeamRowView: View {
     let team: SavedTeam
+    let savedSpreads: [SavedSpread]
+    let allPokemon: [PKMNStats]
+    let allMoves: [MoveData]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(team.name).font(.headline)
-            let slots = team.slots
+            let slots = team.resolvedSlots(allSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
             if slots.isEmpty {
                 Text("Empty team").font(.caption).foregroundStyle(.tertiary)
             } else {
@@ -137,6 +183,52 @@ private struct NewTeamSheet: View {
         .interactiveDismissDisabled(hasChanges)
         .presentationDetents([.large])
     }
+
+    private func appendGeneratedToTeam(_ generated: PokemonSet) {
+        guard slots.count < 6 else { return }
+        guard let slot = buildSlot(from: generated) else { return }
+        slots.append(slot)
+    }
+
+    private func replaceTeamWithGenerated(name teamName: String?,
+                                          members: [PokemonSet]) {
+        let built = members.compactMap { buildSlot(from: $0) }
+        slots = built
+        if name.isEmpty, let teamName, !teamName.isEmpty {
+            name = teamName
+        }
+    }
+
+    private func buildSlot(from generated: PokemonSet) -> TeamSlotInfo? {
+        guard let pokemon = allPokemon.first(where: { $0.name == generated.species })
+        else { return nil }
+        let moveSlots: [TeamMoveInfo] = generated.moves.compactMap { moveName in
+            guard let move = allMoves.first(where: { $0.name == moveName })
+            else { return nil }
+            let types = [pokemon.type1] + [pokemon.type2].compactMap { $0 }
+            return TeamMoveInfo(
+                moveID: move.id, moveName: move.name, moveType: move.type,
+                damageClass: move.damageClass, power: move.power,
+                isSTAB: move.damageClass != "status" && types.contains(move.type)
+            )
+        }
+        return TeamSlotInfo(
+            spreadName: "\(generated.species) (AI)",
+            pokemonID: pokemon.id,
+            pokemonName: pokemon.name,
+            type1: pokemon.type1, type2: pokemon.type2,
+            abilityName: generated.ability,
+            itemRawValue: generated.item,
+            championsMode: true,
+            natureID: allNatures.first(where: { $0.name == generated.nature })?.id
+                      ?? "adamant",
+            level: 50,
+            evHP: generated.statPoints.hp, evAtk: generated.statPoints.atk,
+            evDef: generated.statPoints.def, evSpAtk: generated.statPoints.spa,
+            evSpDef: generated.statPoints.spd, evSpeed: generated.statPoints.spe,
+            moveSlots: moveSlots
+        )
+    }
 }
 
 // MARK: - Team Detail View
@@ -201,7 +293,11 @@ struct TeamDetailView: View {
                 guard !hasLoaded else { return }
                 hasLoaded = true
                 name = team.name
-                slots = team.slots
+                // Resolve through live SavedSpread data so the editor shows the latest
+                // moves/EVs/ability for each slot, not the snapshot from when it was added.
+                slots = team.resolvedSlots(allSpreads: savedSpreads,
+                                           allPokemon: allPokemon,
+                                           allMoves: allMoves)
                 originalName = name
                 originalSlots = slots
             }

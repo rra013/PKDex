@@ -17,44 +17,129 @@ struct SetListView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var showNewSetSheet = false
 
+    /// When true, swipe-to-delete acts immediately without the confirmation
+    /// alert. Toggleable from the alert itself ("Always Delete" sets it).
+    @AppStorage("instantSetDelete") private var instantSetDelete: Bool = false
+    /// Spread queued for deletion, awaiting alert confirmation.
+    @State private var pendingDeletion: SavedSpread?
+    @Environment(\.horizontalSizeClass) private var hSize
+    @State private var selectedSpread: SavedSpread?
+
     var body: some View {
-        NavigationStack {
-            Group {
-                if savedSpreads.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Sets", systemImage: "tray")
-                    } description: {
-                        Text("Create a set to get started. Sets can be loaded into teams for coverage analysis.")
-                    } actions: {
-                        Button("New Set") { showNewSetSheet = true }
-                            .buttonStyle(.borderedProminent).tint(.red)
-                    }
+        // Wide layouts get a list/editor split; compact (portrait) keeps the
+        // original push navigation, unchanged.
+        if hSize == .regular {
+            wideBody
+        } else {
+            NavigationStack {
+                listColumn(selection: nil)
+            }
+        }
+    }
+
+    private var wideBody: some View {
+        NavigationSplitView {
+            listColumn(selection: $selectedSpread)
+        } detail: {
+            NavigationStack {
+                if let selectedSpread {
+                    SetEditorView(spread: selectedSpread, allPokemon: allPokemon, allMoves: allMoves)
                 } else {
-                    List {
-                        ForEach(savedSpreads) { spread in
-                            NavigationLink {
-                                SetEditorView(spread: spread, allPokemon: allPokemon, allMoves: allMoves)
-                            } label: {
-                                SetRowView(spread: spread, allMoves: allMoves)
+                    ContentUnavailableView {
+                        Label("Select a Set", systemImage: "sidebar.left")
+                    } description: {
+                        Text("Choose a set from the list to edit it.")
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func listColumn(selection: Binding<SavedSpread?>?) -> some View {
+        Group {
+            if savedSpreads.isEmpty {
+                ContentUnavailableView {
+                    Label("No Sets", systemImage: "tray")
+                } description: {
+                    Text("Create a set to get started. Sets can be loaded into teams for coverage analysis.")
+                } actions: {
+                    Button("New Set") { showNewSetSheet = true }
+                        .buttonStyle(.borderedProminent).tint(.red)
+                }
+            } else if let selection {
+                // Wide: selection-driven rows feed the split editor pane.
+                List(selection: selection) {
+                    ForEach(savedSpreads) { spread in
+                        SetRowView(spread: spread, allMoves: allMoves)
+                            .tag(spread)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                deleteButton(for: spread)
                             }
+                    }
+                }
+            } else {
+                // Compact: today's push rows, unchanged.
+                List {
+                    ForEach(savedSpreads) { spread in
+                        NavigationLink {
+                            SetEditorView(spread: spread, allPokemon: allPokemon, allMoves: allMoves)
+                        } label: {
+                            SetRowView(spread: spread, allMoves: allMoves)
                         }
-                        .onDelete { indices in
-                            for i in indices { modelContext.delete(savedSpreads[i]) }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            deleteButton(for: spread)
                         }
                     }
                 }
             }
-            .navigationTitle("Sets")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showNewSetSheet = true } label: {
-                        Image(systemName: "plus")
-                    }
+        }
+        .navigationTitle("Sets")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { showNewSetSheet = true } label: {
+                    Image(systemName: "plus")
                 }
             }
-            .sheet(isPresented: $showNewSetSheet) {
-                NewSetSheet(allPokemon: allPokemon, allMoves: allMoves)
+        }
+        .sheet(isPresented: $showNewSetSheet) {
+            NewSetSheet(allPokemon: allPokemon, allMoves: allMoves)
+        }
+        .alert("Delete \(pendingDeletion?.name ?? "set")?",
+               isPresented: Binding(
+                get: { pendingDeletion != nil },
+                set: { if !$0 { pendingDeletion = nil } }
+               ),
+               presenting: pendingDeletion) { spread in
+            Button("Delete", role: .destructive) {
+                modelContext.delete(spread)
+                pendingDeletion = nil
             }
+            Button("Delete & Always Delete") {
+                // One-shot opt-in to instant delete from inside the
+                // confirmation alert. Future swipe-deletes skip the alert.
+                instantSetDelete = true
+                modelContext.delete(spread)
+                pendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeletion = nil
+            }
+        } message: { _ in
+            Text("This can't be undone. Toggle \"Always Delete\" to skip this prompt from now on.")
+        }
+    }
+
+    @ViewBuilder
+    private func deleteButton(for spread: SavedSpread) -> some View {
+        Button(role: .destructive) {
+            if instantSetDelete {
+                modelContext.delete(spread)
+            } else {
+                pendingDeletion = spread
+            }
+        } label: {
+            Label("Delete", systemImage: "trash")
         }
     }
 }
@@ -89,12 +174,19 @@ private struct SetRowView: View {
                             .foregroundStyle(.orange)
                             .background(Color.orange.opacity(0.12), in: Capsule())
                     }
-                    if let item = spread.itemRawValue {
+                    if let item = spread.itemRawValue, item != HeldItem.none.rawValue {
                         Text(item)
                             .font(.caption2)
                             .padding(.horizontal, 4).padding(.vertical, 1)
                             .foregroundStyle(.green)
                             .background(Color.green.opacity(0.12), in: Capsule())
+                    }
+                    if let nature = allNatures.first(where: { $0.id == spread.natureID }) {
+                        Text(nature.name)
+                            .font(.caption2)
+                            .padding(.horizontal, 4).padding(.vertical, 1)
+                            .foregroundStyle(.purple)
+                            .background(Color.purple.opacity(0.12), in: Capsule())
                     }
                 }
             }
@@ -116,9 +208,10 @@ private struct SetRowView: View {
 
 // MARK: - New Set Sheet
 
-private struct NewSetSheet: View {
+struct NewSetSheet: View {
     let allPokemon: [PKMNStats]
     let allMoves: [MoveData]
+    var initialPokemon: PKMNStats? = nil
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
@@ -137,6 +230,11 @@ private struct NewSetSheet: View {
                 .navigationTitle("New Set")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        SetPredictorButton(initialSpecies: side.pokemon?.name) { generated in
+                            applyGeneratedSet(generated)
+                        }
+                    }
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
                             if hasChanges {
@@ -155,6 +253,13 @@ private struct NewSetSheet: View {
                     if defaultGeneration == PokedexFilter.champions.rawValue {
                         side.setChampionsMode(true)
                     }
+                    if side.pokemon == nil, let initial = initialPokemon {
+                        side.pokemon = initial
+                        side.selectedAbility = initial.ability1
+                        if name.isEmpty {
+                            name = initial.name
+                        }
+                    }
                 }
                 .confirmationDialog("Discard Changes?", isPresented: $showDiscardAlert, titleVisibility: .visible) {
                     Button("Discard", role: .destructive) { dismiss() }
@@ -165,6 +270,61 @@ private struct NewSetSheet: View {
         }
         .interactiveDismissDisabled(hasChanges)
         .presentationDetents([.large])
+    }
+
+    private func applyGeneratedSet(_ generated: PokemonSet) {
+        if let match = allPokemon.first(where: { $0.name == generated.species }) {
+            side.pokemon = match
+            // The predictor emits abilities in the training-data convention
+            // ("Flash Fire") but `PKMNStats.allAbilities` stores them as PokeAPI
+            // slugs ("flash-fire"). The Picker binds on the slug, so we have
+            // to translate before assignment — otherwise the selection
+            // silently doesn't take.
+            side.selectedAbility = resolveAbilitySlug(generated.ability, for: match)
+            side.heldItem = HeldItem(rawValue: generated.item ?? "") ?? .none
+            side.nature = allNatures.first(where: { $0.name == generated.nature })
+                      ?? side.nature
+            side.championsMode = true
+            side.evHP = generated.statPoints.hp
+            side.evAtk = generated.statPoints.atk
+            side.evDef = generated.statPoints.def
+            side.evSpAtk = generated.statPoints.spa
+            side.evSpDef = generated.statPoints.spd
+            side.evSpeed = generated.statPoints.spe
+            side.ivHP = 31; side.ivAtk = 31; side.ivDef = 31
+            side.ivSpAtk = 31; side.ivSpDef = 31; side.ivSpeed = 31
+
+            for i in 0..<4 {
+                let moveName = i < generated.moves.count ? generated.moves[i] : ""
+                side.moves[i] = allMoves.first(where: { $0.name == moveName })
+            }
+
+            if name.isEmpty {
+                name = "\(generated.species) (AI)"
+            }
+        }
+    }
+
+    /// Map the predictor's display-formatted ability name onto the slug the
+    /// species' Pokedex row uses. Tries (in order): exact match against the
+    /// species' ability list, slug conversion ("Flash Fire" → "flash-fire"
+    /// with apostrophes stripped — "Mind's Eye" → "minds-eye"), and finally
+    /// a `formatAbilityName` round-trip so a slug already in canonical form
+    /// passes through untouched.
+    private func resolveAbilitySlug(_ displayName: String, for pkmn: PKMNStats) -> String {
+        let slug = displayName
+            .lowercased()
+            .replacingOccurrences(of: "'", with: "")
+            .replacingOccurrences(of: " ", with: "-")
+        // Prefer a slug that actually exists on this species so the Picker
+        // binding has something concrete to latch onto.
+        if pkmn.allAbilities.contains(slug) { return slug }
+        if let match = pkmn.allAbilities.first(where: {
+            formatAbilityName($0).caseInsensitiveCompare(displayName) == .orderedSame
+        }) {
+            return match
+        }
+        return slug
     }
 
     private func saveAndDismiss() {
@@ -369,7 +529,7 @@ private struct SetFormContent: View {
                         }
                     }
                     Picker("Item", selection: $side.heldItem) {
-                        ForEach(HeldItem.allCases) { item in
+                        ForEach(HeldItem.pickerOptions(forSpeciesNamed: pkmn.name)) { item in
                             Text(item.rawValue).tag(item)
                         }
                     }

@@ -7,6 +7,31 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		33178D042FCCF1E700FE0B46 /* name_qual_vocab.json in Resources */ = {isa = PBXBuildFile; fileRef = 33178D002FCCF1E700FE0B46 /* name_qual_vocab.json */; };
+		33178D052FCCF1E700FE0B46 /* stat_nature_model.npz in Resources */ = {isa = PBXBuildFile; fileRef = 33178D022FCCF1E700FE0B46 /* stat_nature_model.npz */; };
+		33178D062FCCF1E700FE0B46 /* name_qual_weights.npz in Resources */ = {isa = PBXBuildFile; fileRef = 33178D012FCCF1E700FE0B46 /* name_qual_weights.npz */; };
+		33178D072FCCF1E700FE0B46 /* stat_nature_vocab.json in Resources */ = {isa = PBXBuildFile; fileRef = 33178D032FCCF1E700FE0B46 /* stat_nature_vocab.json */; };
+		333AE8E8305203ED00E83488 /* champions-m-c-learnsets.json in Resources */ = {isa = PBXBuildFile; fileRef = 333AE8E7305203ED00E83488 /* champions-m-c-learnsets.json */; };
+		333AE8E9305203ED00E83488 /* champions-m-c.json in Resources */ = {isa = PBXBuildFile; fileRef = 333AE8E6305203ED00E83488 /* champions-m-c.json */; };
+		3366A45D2FE2D49B00DB0528 /* champions-m-b.json in Resources */ = {isa = PBXBuildFile; fileRef = 3366A45C2FE2D49B00DB0528 /* champions-m-b.json */; };
+		3366A45F2FE2D49D00DB0528 /* champions-m-b-learnsets.json in Resources */ = {isa = PBXBuildFile; fileRef = 3366A45E2FE2D49D00DB0528 /* champions-m-b-learnsets.json */; };
+		337BCB0D2FD4851A003BDFE8 /* feature_config.json in Resources */ = {isa = PBXBuildFile; fileRef = 337BCB0B2FD4851A003BDFE8 /* feature_config.json */; };
+		337BCB0E2FD4851A003BDFE8 /* pokii_battler.safetensors in Resources */ = {isa = PBXBuildFile; fileRef = 337BCB0C2FD4851A003BDFE8 /* pokii_battler.safetensors */; };
+		337BCB142FD510F9003BDFE8 /* pokii_parity_samples.json in Resources */ = {isa = PBXBuildFile; fileRef = 337BCB132FD510F9003BDFE8 /* pokii_parity_samples.json */; };
+		337BE9B72FC9A05A00859F96 /* BenchmarkHelpers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9B62FC9A05A00859F96 /* BenchmarkHelpers */; };
+		337BE9B92FC9A05A00859F96 /* IntegrationTestHelpers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9B82FC9A05A00859F96 /* IntegrationTestHelpers */; };
+		337BE9BB2FC9A05A00859F96 /* MLXEmbedders in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9BA2FC9A05A00859F96 /* MLXEmbedders */; };
+		337BE9BD2FC9A05A00859F96 /* MLXHuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9BC2FC9A05A00859F96 /* MLXHuggingFace */; };
+		337BE9BF2FC9A05A00859F96 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9BE2FC9A05A00859F96 /* MLXLLM */; };
+		337BE9C12FC9A05A00859F96 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9C02FC9A05A00859F96 /* MLXLMCommon */; };
+		337BE9C32FC9A05A00859F96 /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9C22FC9A05A00859F96 /* MLXVLM */; };
+		337BE9C72FC9A25700859F96 /* champions-m-a-learnsets.json in Resources */ = {isa = PBXBuildFile; fileRef = 337BE9C52FC9A25700859F96 /* champions-m-a-learnsets.json */; };
+		337BE9C82FC9A25700859F96 /* champions-m-a.json in Resources */ = {isa = PBXBuildFile; fileRef = 337BE9C62FC9A25700859F96 /* champions-m-a.json */; };
+		337BE9CA2FC9D8EF00859F96 /* move_categories.json in Resources */ = {isa = PBXBuildFile; fileRef = 337BE9C92FC9D8EF00859F96 /* move_categories.json */; };
+		337BE9D92FC9DE0F00859F96 /* Hub in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9D82FC9DE0F00859F96 /* Hub */; };
+		337BE9DB2FC9DE0F00859F96 /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9DA2FC9DE0F00859F96 /* Tokenizers */; };
+		337BE9DD2FC9DE0F00859F96 /* Transformers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9DC2FC9DE0F00859F96 /* Transformers */; };
+		3397EC7B305DFCF4002295C4 /* CalcCore-HANDOFF.md in Resources */ = {isa = PBXBuildFile; fileRef = 3397EC7A305DFCF4002295C4 /* CalcCore-HANDOFF.md */; };
 		33C3EAE62F946AB5004BB026 /* libzstd.1.5.7.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 33C3EAE52F946AB5004BB026 /* libzstd.1.5.7.dylib */; platformFilters = (macos, ); };
 		33C3EAE72F946AB5004BB026 /* libzstd.1.5.7.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 33C3EAE52F946AB5004BB026 /* libzstd.1.5.7.dylib */; platformFilters = (macos, ); settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		33C3ECA62F947399004BB026 /* entropy_common.c in Sources */ = {isa = PBXBuildFile; fileRef = 33C3EC6C2F947399004BB026 /* entropy_common.c */; settings = {COMPILER_FLAGS = "-w"; }; };
@@ -64,7 +89,22 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		33178D002FCCF1E700FE0B46 /* name_qual_vocab.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = name_qual_vocab.json; sourceTree = "<group>"; };
+		33178D012FCCF1E700FE0B46 /* name_qual_weights.npz */ = {isa = PBXFileReference; lastKnownFileType = file; path = name_qual_weights.npz; sourceTree = "<group>"; };
+		33178D022FCCF1E700FE0B46 /* stat_nature_model.npz */ = {isa = PBXFileReference; lastKnownFileType = file; path = stat_nature_model.npz; sourceTree = "<group>"; };
+		33178D032FCCF1E700FE0B46 /* stat_nature_vocab.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = stat_nature_vocab.json; sourceTree = "<group>"; };
 		332D1F312F9128C500E7D180 /* PKDexTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PKDexTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		333AE8E6305203ED00E83488 /* champions-m-c.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-c.json"; sourceTree = "<group>"; };
+		333AE8E7305203ED00E83488 /* champions-m-c-learnsets.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-c-learnsets.json"; sourceTree = "<group>"; };
+		3366A45C2FE2D49B00DB0528 /* champions-m-b.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-b.json"; sourceTree = "<group>"; };
+		3366A45E2FE2D49D00DB0528 /* champions-m-b-learnsets.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-b-learnsets.json"; sourceTree = "<group>"; };
+		337BCB0B2FD4851A003BDFE8 /* feature_config.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = feature_config.json; sourceTree = "<group>"; };
+		337BCB0C2FD4851A003BDFE8 /* pokii_battler.safetensors */ = {isa = PBXFileReference; lastKnownFileType = file; path = pokii_battler.safetensors; sourceTree = "<group>"; };
+		337BCB132FD510F9003BDFE8 /* pokii_parity_samples.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = pokii_parity_samples.json; sourceTree = "<group>"; };
+		337BE9C52FC9A25700859F96 /* champions-m-a-learnsets.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-a-learnsets.json"; sourceTree = "<group>"; };
+		337BE9C62FC9A25700859F96 /* champions-m-a.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-a.json"; sourceTree = "<group>"; };
+		337BE9C92FC9D8EF00859F96 /* move_categories.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = move_categories.json; sourceTree = "<group>"; };
+		3397EC7A305DFCF4002295C4 /* CalcCore-HANDOFF.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "CalcCore-HANDOFF.md"; sourceTree = "<group>"; };
 		33C3DE292F946A84004BB026 /* absl */ = {isa = PBXFileReference; lastKnownFileType = text; path = absl; sourceTree = "<group>"; };
 		33C3DE2A2F946A84004BB026 /* OpenSSL */ = {isa = PBXFileReference; lastKnownFileType = text; path = OpenSSL; sourceTree = "<group>"; };
 		33C3DE2B2F946A84004BB026 /* protobuf */ = {isa = PBXFileReference; lastKnownFileType = text; path = protobuf; sourceTree = "<group>"; };
@@ -3079,8 +3119,18 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				337BE9BF2FC9A05A00859F96 /* MLXLLM in Frameworks */,
 				33C3EAE62F946AB5004BB026 /* libzstd.1.5.7.dylib in Frameworks */,
+				337BE9B92FC9A05A00859F96 /* IntegrationTestHelpers in Frameworks */,
 				33C6C9BD2F8D5DE5005FFCCC /* PokemonAPI in Frameworks */,
+				337BE9B72FC9A05A00859F96 /* BenchmarkHelpers in Frameworks */,
+				337BE9C32FC9A05A00859F96 /* MLXVLM in Frameworks */,
+				337BE9DD2FC9DE0F00859F96 /* Transformers in Frameworks */,
+				337BE9D92FC9DE0F00859F96 /* Hub in Frameworks */,
+				337BE9DB2FC9DE0F00859F96 /* Tokenizers in Frameworks */,
+				337BE9BB2FC9A05A00859F96 /* MLXEmbedders in Frameworks */,
+				337BE9C12FC9A05A00859F96 /* MLXLMCommon in Frameworks */,
+				337BE9BD2FC9A05A00859F96 /* MLXHuggingFace in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -8835,11 +8885,26 @@
 		33C6C9972F8D3CFB005FFCCC = {
 			isa = PBXGroup;
 			children = (
+				333AE8E6305203ED00E83488 /* champions-m-c.json */,
+				333AE8E7305203ED00E83488 /* champions-m-c-learnsets.json */,
+				337BCB132FD510F9003BDFE8 /* pokii_parity_samples.json */,
+				33178D002FCCF1E700FE0B46 /* name_qual_vocab.json */,
+				337BCB0B2FD4851A003BDFE8 /* feature_config.json */,
+				337BCB0C2FD4851A003BDFE8 /* pokii_battler.safetensors */,
+				33178D012FCCF1E700FE0B46 /* name_qual_weights.npz */,
+				33178D022FCCF1E700FE0B46 /* stat_nature_model.npz */,
+				33178D032FCCF1E700FE0B46 /* stat_nature_vocab.json */,
+				337BE9C92FC9D8EF00859F96 /* move_categories.json */,
+				337BE9C62FC9A25700859F96 /* champions-m-a.json */,
+				337BE9C52FC9A25700859F96 /* champions-m-a-learnsets.json */,
 				33C3EC642F94737C004BB026 /* zstd */,
 				33C6C9A22F8D3CFB005FFCCC /* PKDex */,
 				332D1F322F9128C500E7D180 /* PKDexTests */,
 				33C3DE282F946A84004BB026 /* Frameworks */,
 				33C6C9A12F8D3CFB005FFCCC /* Products */,
+				3366A45C2FE2D49B00DB0528 /* champions-m-b.json */,
+				3366A45E2FE2D49D00DB0528 /* champions-m-b-learnsets.json */,
+				3397EC7A305DFCF4002295C4 /* CalcCore-HANDOFF.md */,
 			);
 			sourceTree = "<group>";
 		};
@@ -8897,6 +8962,16 @@
 			name = PKDex;
 			packageProductDependencies = (
 				33C6C9BC2F8D5DE5005FFCCC /* PokemonAPI */,
+				337BE9B62FC9A05A00859F96 /* BenchmarkHelpers */,
+				337BE9B82FC9A05A00859F96 /* IntegrationTestHelpers */,
+				337BE9BA2FC9A05A00859F96 /* MLXEmbedders */,
+				337BE9BC2FC9A05A00859F96 /* MLXHuggingFace */,
+				337BE9BE2FC9A05A00859F96 /* MLXLLM */,
+				337BE9C02FC9A05A00859F96 /* MLXLMCommon */,
+				337BE9C22FC9A05A00859F96 /* MLXVLM */,
+				337BE9D82FC9DE0F00859F96 /* Hub */,
+				337BE9DA2FC9DE0F00859F96 /* Tokenizers */,
+				337BE9DC2FC9DE0F00859F96 /* Transformers */,
 			);
 			productName = PKDex;
 			productReference = 33C6C9A02F8D3CFB005FFCCC /* PKDex.app */;
@@ -8932,6 +9007,8 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				33C6C9BB2F8D5DE5005FFCCC /* XCRemoteSwiftPackageReference "PokemonAPI" */,
+				337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
+				337BE9D72FC9DE0F00859F96 /* XCRemoteSwiftPackageReference "swift-transformers" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 33C6C9A12F8D3CFB005FFCCC /* Products */;
@@ -8956,6 +9033,21 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				337BCB0D2FD4851A003BDFE8 /* feature_config.json in Resources */,
+				337BCB0E2FD4851A003BDFE8 /* pokii_battler.safetensors in Resources */,
+				3366A45F2FE2D49D00DB0528 /* champions-m-b-learnsets.json in Resources */,
+				337BCB142FD510F9003BDFE8 /* pokii_parity_samples.json in Resources */,
+				3366A45D2FE2D49B00DB0528 /* champions-m-b.json in Resources */,
+				33178D042FCCF1E700FE0B46 /* name_qual_vocab.json in Resources */,
+				33178D052FCCF1E700FE0B46 /* stat_nature_model.npz in Resources */,
+				33178D062FCCF1E700FE0B46 /* name_qual_weights.npz in Resources */,
+				333AE8E8305203ED00E83488 /* champions-m-c-learnsets.json in Resources */,
+				333AE8E9305203ED00E83488 /* champions-m-c.json in Resources */,
+				33178D072FCCF1E700FE0B46 /* stat_nature_vocab.json in Resources */,
+				337BE9CA2FC9D8EF00859F96 /* move_categories.json in Resources */,
+				337BE9C72FC9A25700859F96 /* champions-m-a-learnsets.json in Resources */,
+				3397EC7B305DFCF4002295C4 /* CalcCore-HANDOFF.md in Resources */,
+				337BE9C82FC9A25700859F96 /* champions-m-a.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -9190,6 +9282,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
+				CODE_SIGN_ENTITLEMENTS = PKDex/PKDex.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -9268,6 +9361,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
+				CODE_SIGN_ENTITLEMENTS = PKDex/PKDex.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -9372,6 +9466,22 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.31.3;
+			};
+		};
+		337BE9D72FC9DE0F00859F96 /* XCRemoteSwiftPackageReference "swift-transformers" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/huggingface/swift-transformers";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.3.3;
+			};
+		};
 		33C6C9BB2F8D5DE5005FFCCC /* XCRemoteSwiftPackageReference "PokemonAPI" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/kinkofer/PokemonAPI";
@@ -9383,6 +9493,56 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		337BE9B62FC9A05A00859F96 /* BenchmarkHelpers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = BenchmarkHelpers;
+		};
+		337BE9B82FC9A05A00859F96 /* IntegrationTestHelpers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = IntegrationTestHelpers;
+		};
+		337BE9BA2FC9A05A00859F96 /* MLXEmbedders */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXEmbedders;
+		};
+		337BE9BC2FC9A05A00859F96 /* MLXHuggingFace */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXHuggingFace;
+		};
+		337BE9BE2FC9A05A00859F96 /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLLM;
+		};
+		337BE9C02FC9A05A00859F96 /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLMCommon;
+		};
+		337BE9C22FC9A05A00859F96 /* MLXVLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9B52FC9A05A00859F96 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXVLM;
+		};
+		337BE9D82FC9DE0F00859F96 /* Hub */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9D72FC9DE0F00859F96 /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Hub;
+		};
+		337BE9DA2FC9DE0F00859F96 /* Tokenizers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9D72FC9DE0F00859F96 /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Tokenizers;
+		};
+		337BE9DC2FC9DE0F00859F96 /* Transformers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 337BE9D72FC9DE0F00859F96 /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Transformers;
+		};
 		33C6C9BC2F8D5DE5005FFCCC /* PokemonAPI */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 33C6C9BB2F8D5DE5005FFCCC /* XCRemoteSwiftPackageReference "PokemonAPI" */;

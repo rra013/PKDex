@@ -14,9 +14,13 @@ struct SettingsView: View {
     @AppStorage("defaultTab") private var defaultTabRaw: String = AppTab.monIndex.rawValue
     @AppStorage("appAccentColor") private var accentColorRaw: String = AppAccentColor.blue.rawValue
     @AppStorage("appAppearance") private var appearanceRaw: String = AppAppearance.system.rawValue
+    @AppStorage(ChampionsRegulation.userDefaultsKey) private var championsRegulationRaw: String = ChampionsRegulation.mA.rawValue
     @Environment(\.modelContext) private var modelContext
 
     @State private var showResetConfirmation = false
+    @State private var showRedownloadConfirmation = false
+    @State private var isRedownloading = false
+    @State private var redownloadStatus: String?
 
     private var enabledTabSet: Set<String> {
         Set(enabledTabsRaw.split(separator: ",").map(String.init))
@@ -124,11 +128,53 @@ struct SettingsView: View {
                     Text("Sets the default filter for the Mon Index. When Champions is selected, the Damage Calculator will also default to Champions Mode.")
                 }
 
+                // MARK: - Champions Regulation
+                Section {
+                    Picker("Active Regulation", selection: $championsRegulationRaw) {
+                        ForEach(ChampionsRegulation.allCases) { reg in
+                            HStack {
+                                Text(reg.displayName)
+                                Spacer()
+                                if let window = Self.legalWindowString(for: reg) {
+                                    Text(window)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .tag(reg.rawValue)
+                        }
+                    }
+                } header: {
+                    Text("Champions Regulation")
+                } footer: {
+                    Text("Switches the roster, learnsets, and validation rules used by the Mon Index, Set Builder, and Battle Simulator. New installs default to the latest regulation (by start date). Reopen any Champions screen after switching to pick up the new format.")
+                }
+
                 // MARK: - Data Management
                 Section("Data Management") {
+                    Button {
+                        showRedownloadConfirmation = true
+                    } label: {
+                        HStack {
+                            Label("Redownload Pokemon & Move Data", systemImage: "arrow.trianglehead.2.counterclockwise")
+                            Spacer()
+                            if isRedownloading {
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(isRedownloading)
+
+                    if let status = redownloadStatus {
+                        Text(status)
+                            .font(.caption)
+                            .foregroundStyle(status.contains("Failed") ? .red : .secondary)
+                    }
+
                     Button("Reset All Data", role: .destructive) {
                         showResetConfirmation = true
                     }
+                    .disabled(isRedownloading)
                 }
 
                 // MARK: - Disclaimers
@@ -158,6 +204,18 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .confirmationDialog(
+                "Redownload Data",
+                isPresented: $showRedownloadConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Redownload") {
+                    Task { await performRedownload() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will redownload all Pokemon and Move data from PokeAPI. Your saved spreads and teams will not be affected.")
+            }
+            .confirmationDialog(
                 "Reset All Data",
                 isPresented: $showResetConfirmation,
                 titleVisibility: .visible
@@ -167,20 +225,72 @@ struct SettingsView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This will delete all downloaded data and saved spreads. The app will re-sync on next launch. Are you sure?")
+                Text("This will restore the app to a fresh install state, deleting all downloaded data, saved spreads, teams, and preferences. The app will re-sync on next launch.")
             }
         }
     }
 
-    private func performReset() {
-        UserDefaults.standard.removeObject(forKey: "hasCompletedInitialSync")
-        UserDefaults.standard.removeObject(forKey: "hasCompletedCalcSyncV3")
+    private func performRedownload() async {
+        isRedownloading = true
+        redownloadStatus = "Clearing old data…"
+
         try? modelContext.delete(model: PKMN.self)
         try? modelContext.delete(model: Gen8Pokemon.self)
         try? modelContext.delete(model: Gen9Pokemon.self)
         try? modelContext.delete(model: PKMNStats.self)
         try? modelContext.delete(model: MoveData.self)
         try? modelContext.save()
-        print("App reset! Restart the app to re-sync.")
+
+        let container = modelContext.container
+
+        do {
+            redownloadStatus = "Downloading Pokedex data…"
+            let pokeSync = PokeSyncManager(modelContainer: container)
+            try await pokeSync.refreshPokedex()
+            UserDefaults.standard.set(true, forKey: "hasCompletedInitialSync")
+
+            redownloadStatus = "Downloading stats & moves…"
+            let calcSync = CalcDataSyncManager(modelContainer: container)
+            try await calcSync.syncCalcData()
+            UserDefaults.standard.set(true, forKey: "hasCompletedCalcSyncV4")
+
+            redownloadStatus = "Data updated successfully."
+        } catch {
+            redownloadStatus = "Failed: \(error.localizedDescription)"
+        }
+
+        isRedownloading = false
+    }
+
+    /// "Apr 8 – Jun 16, 2026" style window for a regulation, or `nil` when
+    /// neither bound is recorded in its JSON. Used by the regulation picker
+    /// so users can see at-a-glance which format covers which dates.
+    private static func legalWindowString(for reg: ChampionsRegulation) -> String? {
+        let period = reg.legalPeriod
+        if period.from == nil && period.until == nil { return nil }
+        let fmt = legalWindowDateFormatter
+        let from = period.from.map { fmt.string(from: $0) } ?? "?"
+        let until = period.until.map { fmt.string(from: $0) } ?? "TBD"
+        return "\(from) – \(until)"
+    }
+
+    private static let legalWindowDateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "MMM d, yyyy"
+        return df
+    }()
+
+    private func performReset() {
+        if let bundleID = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: bundleID)
+        }
+        try? modelContext.delete(model: PKMN.self)
+        try? modelContext.delete(model: Gen8Pokemon.self)
+        try? modelContext.delete(model: Gen9Pokemon.self)
+        try? modelContext.delete(model: PKMNStats.self)
+        try? modelContext.delete(model: MoveData.self)
+        try? modelContext.delete(model: SavedSpread.self)
+        try? modelContext.delete(model: SavedTeam.self)
+        try? modelContext.save()
     }
 }

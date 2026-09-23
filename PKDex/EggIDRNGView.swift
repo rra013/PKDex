@@ -398,7 +398,8 @@ struct IDRNGView: View {
     @State private var gen3InitAdvance: Int = 0
     @State private var gen3MaxAdvance: Int = 100000
 
-    // Gen 4
+    // Gen 4 - Generator
+    @State private var gen4Mode: Int = 0 // 0 = Generator, 1 = Searcher
     @State private var gen4MinDelay: Int = 500
     @State private var gen4MaxDelay: Int = 10000
     @State private var gen4Year: Int = 2000
@@ -410,6 +411,20 @@ struct IDRNGView: View {
     @State private var gen4FilterTID: Bool = false
     @State private var gen4TargetSID: UInt16 = 0
     @State private var gen4FilterSID: Bool = false
+    @State private var gen4TargetTSV: UInt16 = 0
+    @State private var gen4FilterTSV: Bool = false
+
+    // Gen 4 - Searcher
+    @State private var gen4SearchInfinite: Bool = false
+    @State private var gen4SearchYear: Int = 2000
+    @State private var gen4SearchMinDelay: Int = 500
+    @State private var gen4SearchMaxDelay: Int = 10000
+    @State private var gen4SearchHandle: OpaquePointer?
+    @State private var gen4SearchProgress: Int = 0
+    @State private var gen4Searching: Bool = false
+
+    // Seed verification
+    @State private var selectedResult: PFBridge.IDResult4?
 
     // Results
     @State private var results3: [PFBridge.IDResult] = []
@@ -426,6 +441,7 @@ struct IDRNGView: View {
                 .onChange(of: generation) {
                     let games = FinderGameVersion.games(for: generation)
                     if !games.contains(selectedGame) { selectedGame = games[0] }
+                    cancelSearch()
                 }
 
                 Picker("Game", selection: $selectedGame) {
@@ -437,35 +453,70 @@ struct IDRNGView: View {
                 if generation == .gen3 {
                     gen3Inputs
                 } else {
-                    gen4Inputs
+                    if generation == .gen4 {
+                        gen4ModeSelector
+                    }
+                    if generation == .gen4 && gen4Mode == 1 {
+                        gen4SearcherInputs
+                    } else {
+                        gen4GeneratorInputs
+                    }
                 }
 
-                Button {
-                    generateIDs()
-                } label: {
-                    Label("Generate", systemImage: "magnifyingglass")
-                        .frame(maxWidth: .infinity).padding()
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                if generation == .gen3 || !(generation == .gen4 && gen4Mode == 1) {
+                    Button {
+                        generateIDs()
+                    } label: {
+                        Label("Generate", systemImage: "magnifyingglass")
+                            .frame(maxWidth: .infinity).padding()
+                            .background(Color.accentColor)
+                            .foregroundStyle(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+
+                if generation == .gen4 && gen4Mode == 1 {
+                    gen4SearchButton
                 }
 
                 if generation == .gen3 && !results3.isEmpty {
                     idResults3Section
                 }
-                if generation == .gen4 && !results4.isEmpty {
+                if generation != .gen3 && !results4.isEmpty {
                     idResults4Section
+                }
+
+                if generation == .gen4 {
+                    if let result = selectedResult {
+                        seedVerificationSection(for: result)
+                    }
                 }
             }
             .padding()
         }
         .scrollDismissesKeyboard(.interactively)
         .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+        .onDisappear { cancelSearch() }
     }
+
+    @State private var gen3IsGameCube: Bool = false
 
     private var gen3Inputs: some View {
         RNGSection(title: "Gen 3 ID Generation", icon: "number") {
-            if selectedGame == .ruby || selectedGame == .sapphire {
+            Toggle("GameCube (XD/Colo)", isOn: $gen3IsGameCube)
+
+            if gen3IsGameCube {
+                HStack {
+                    Text("Initial Seed")
+                    Spacer()
+                    TextField("Hex", text: $gen3SeedText)
+                        .textFieldStyle(.roundedBorder).frame(width: 120)
+                        .multilineTextAlignment(.trailing)
+                        .autocorrectionDisabled()
+                }
+                Text("XD/Colosseum: Enter seed to generate TID/SID combos")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else if selectedGame == .ruby || selectedGame == .sapphire {
                 HStack {
                     Text("Initial Seed")
                     Spacer()
@@ -484,34 +535,92 @@ struct IDRNGView: View {
         }
     }
 
-    private var gen4Inputs: some View {
-        RNGSection(title: "Gen 4 ID Generation", icon: "number") {
+    // MARK: - Gen 4 Mode Selector
+
+    private var gen4ModeSelector: some View {
+        Picker("Mode", selection: $gen4Mode) {
+            Text("Generator").tag(0)
+            Text("Searcher").tag(1)
+        }
+        .pickerStyle(.segmented)
+        .onChange(of: gen4Mode) {
+            cancelSearch()
+            results4 = []
+            selectedResult = nil
+        }
+    }
+
+    // MARK: - Gen 4 Generator
+
+    private var gen4GeneratorInputs: some View {
+        RNGSection(title: "Gen 4 ID Generator", icon: "number") {
+            Text("Set the DS date/time and delay range to generate possible TID/SID combinations.")
+                .font(.caption).foregroundStyle(.secondary)
+
             RNGIntField(label: "Min Delay", value: $gen4MinDelay)
             RNGIntField(label: "Max Delay", value: $gen4MaxDelay)
 
             HStack {
                 Text("Date")
                 Spacer()
-                TextField("Y", value: $gen4Year, format: .number)
+                TextField("Y", value: $gen4Year, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder).frame(width: 60)
+                    .keyboardType(.numberPad)
                 Text("/")
-                TextField("M", value: $gen4Month, format: .number)
+                TextField("M", value: $gen4Month, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder).frame(width: 40)
+                    .keyboardType(.numberPad)
                 Text("/")
-                TextField("D", value: $gen4Day, format: .number)
+                TextField("D", value: $gen4Day, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder).frame(width: 40)
+                    .keyboardType(.numberPad)
             }
 
             HStack {
                 Text("Time")
                 Spacer()
-                TextField("H", value: $gen4Hour, format: .number)
+                TextField("H", value: $gen4Hour, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder).frame(width: 40)
+                    .keyboardType(.numberPad)
                 Text(":")
-                TextField("M", value: $gen4Minute, format: .number)
+                TextField("M", value: $gen4Minute, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder).frame(width: 40)
+                    .keyboardType(.numberPad)
             }
 
+            gen4FilterSection
+        }
+    }
+
+    // MARK: - Gen 4 Searcher
+
+    private var gen4SearcherInputs: some View {
+        RNGSection(title: "Gen 4 ID Searcher", icon: "magnifyingglass") {
+            Text("Exhaustively search all possible seeds for a target TID/SID. Set at least one filter to narrow results.")
+                .font(.caption).foregroundStyle(.secondary)
+
+            HStack {
+                Text("Year")
+                Spacer()
+                TextField("", value: $gen4SearchYear, format: .number.grouping(.never))
+                    .textFieldStyle(.roundedBorder).frame(width: 100).multilineTextAlignment(.trailing)
+                    .keyboardType(.numberPad)
+            }
+            RNGIntField(label: "Min Delay", value: $gen4SearchMinDelay)
+            RNGIntField(label: "Max Delay", value: $gen4SearchMaxDelay)
+
+            Toggle("Search All Delays", isOn: $gen4SearchInfinite)
+            if gen4SearchInfinite {
+                Text("Searches all possible delays (can take a long time)")
+                    .font(.caption).foregroundStyle(.orange)
+            }
+
+            gen4FilterSection
+        }
+    }
+
+    private var gen4FilterSection: some View {
+        Group {
             Toggle("Filter TID", isOn: $gen4FilterTID)
             if gen4FilterTID {
                 FinderUInt16Field(label: "Target TID", value: $gen4TargetTID)
@@ -521,8 +630,47 @@ struct IDRNGView: View {
             if gen4FilterSID {
                 FinderUInt16Field(label: "Target SID", value: $gen4TargetSID)
             }
+
+            Toggle("Filter TSV", isOn: $gen4FilterTSV)
+            if gen4FilterTSV {
+                FinderUInt16Field(label: "Target TSV", value: $gen4TargetTSV)
+            }
         }
     }
+
+    // MARK: - Gen 4 Search Button
+
+    private var gen4SearchButton: some View {
+        VStack(spacing: 8) {
+            if gen4Searching {
+                ProgressView(value: Double(gen4SearchProgress), total: 100)
+                    .progressViewStyle(.linear)
+                Text("Searching... \(gen4SearchProgress)%")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button {
+                    cancelSearch()
+                } label: {
+                    Label("Cancel", systemImage: "xmark.circle")
+                        .frame(maxWidth: .infinity).padding()
+                        .background(Color.red)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            } else {
+                Button {
+                    startSearch()
+                } label: {
+                    Label("Search", systemImage: "magnifyingglass")
+                        .frame(maxWidth: .infinity).padding()
+                        .background(Color.accentColor)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
+    }
+
+    // MARK: - Results
 
     private var idResults3Section: some View {
         RNGSection(title: "Results (\(results3.count))", icon: "list.bullet") {
@@ -547,33 +695,201 @@ struct IDRNGView: View {
     private var idResults4Section: some View {
         RNGSection(title: "Results (\(results4.count))", icon: "list.bullet") {
             ForEach(results4.prefix(500)) { r in
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack {
-                        Text("Seed: \(String(format: "%08X", r.seed))")
-                            .font(.system(.caption, design: .monospaced))
-                        Spacer()
-                        Text("Delay: \(r.delay)")
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                Button {
+                    selectedResult = (selectedResult?.id == r.id) ? nil : r
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text("Seed: \(String(format: "%08X", r.seed))")
+                                .font(.system(.caption, design: .monospaced))
+                            Spacer()
+                            Text("Delay: \(r.delay)")
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                        HStack {
+                            Text("TID: \(r.tid)")
+                                .font(.system(.caption, design: .monospaced))
+                            Text("SID: \(r.sid)")
+                                .font(.system(.caption, design: .monospaced))
+                            Spacer()
+                            Text("TSV: \(r.tsv)")
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                            if r.seconds > 0 {
+                                Text("Sec: \(r.seconds)")
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
-                    HStack {
-                        Text("TID: \(r.tid)")
-                            .font(.system(.caption, design: .monospaced))
-                        Text("SID: \(r.sid)")
-                            .font(.system(.caption, design: .monospaced))
-                        Spacer()
-                        Text("TSV: \(r.tsv)")
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                        Text("Sec: \(r.seconds)")
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                    }
+                    .padding(.vertical, 2)
+                    .background(selectedResult?.id == r.id ? Color.accentColor.opacity(0.1) : Color.clear)
+                    .cornerRadius(6)
                 }
+                .buttonStyle(.plain)
                 Divider()
             }
         }
     }
+
+    // MARK: - Seed Verification
+
+    private func seedVerificationSection(for result: PFBridge.IDResult4) -> some View {
+        RNGSection(title: "Seed Verification", icon: "checkmark.seal") {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Seed")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Text(String(format: "%08X", result.seed))
+                        .font(.system(.body, design: .monospaced))
+                }
+
+                HStack {
+                    Text("TID / SID / TSV")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(result.tid) / \(result.sid) / \(result.tsv)")
+                        .font(.system(.body, design: .monospaced))
+                }
+
+                Divider()
+
+                let isHGSS = selectedGame == .heartGold || selectedGame == .soulSilver
+
+                Text(isHGSS ? "Elm Responses" : "Coin Flips")
+                    .font(.subheadline.weight(.semibold))
+
+                Text(isHGSS
+                     ? "Call Professor Elm after selecting your starter to verify your seed. Compare the responses below with what you see in-game."
+                     : "Use the coin flip app on the Pokétch to verify your seed. Compare the sequence below with your in-game flips.")
+                    .font(.caption).foregroundStyle(.secondary)
+
+                if isHGSS {
+                    let calls = PFBridge.getCalls(result.seed, skips: 0)
+                    elmCallsDisplay(calls)
+                } else {
+                    let flips = PFBridge.coinFlips(result.seed)
+                    coinFlipDisplay(flips)
+                }
+
+                Divider()
+
+                Text("Seed to Time")
+                    .font(.subheadline.weight(.semibold))
+                Text("Set your DS clock to hit this seed:")
+                    .font(.caption).foregroundStyle(.secondary)
+
+                let times = PFBridge.seedToTime4(seed: result.seed,
+                                                  year: UInt16(gen4Mode == 0 ? gen4Year : gen4SearchYear))
+                if times.isEmpty {
+                    Text("No matching date/time found for this seed and year.")
+                        .font(.caption).foregroundStyle(.orange)
+                } else {
+                    ForEach(Array(times.prefix(10).enumerated()), id: \.offset) { _, st in
+                        HStack {
+                            Text(String(format: "%04d/%02d/%02d %02d:%02d:%02d",
+                                        st.dateTime.year, st.dateTime.month, st.dateTime.day,
+                                        st.dateTime.hour, st.dateTime.minute, st.dateTime.second))
+                                .font(.system(.caption, design: .monospaced))
+                            Spacer()
+                            Text("Delay: \(st.delay)")
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func coinFlipDisplay(_ flips: String) -> some View {
+        let items = flips.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        return FlowLayout(spacing: 4) {
+            ForEach(Array(items.prefix(20).enumerated()), id: \.offset) { _, flip in
+                let isHeads = flip == "H"
+                Text(flip)
+                    .font(.system(.caption, design: .monospaced).weight(.bold))
+                    .foregroundStyle(isHeads ? .orange : .blue)
+                    .frame(width: 22, height: 22)
+                    .background(isHeads ? Color.orange.opacity(0.15) : Color.blue.opacity(0.15))
+                    .clipShape(Circle())
+            }
+        }
+    }
+
+    private func elmCallsDisplay(_ calls: String) -> some View {
+        let cleaned = calls.replacingOccurrences(of: "(", with: "")
+                           .replacingOccurrences(of: ")", with: "")
+                           .replacingOccurrences(of: "skipped", with: "")
+        let items = cleaned.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        return FlowLayout(spacing: 4) {
+            ForEach(Array(items.prefix(20).enumerated()), id: \.offset) { _, call in
+                let letter = String(call.prefix(1))
+                let color: Color = switch letter {
+                case "E": .green
+                case "K": .orange
+                case "P": .purple
+                default: .gray
+                }
+                Text(letter)
+                    .font(.system(.caption, design: .monospaced).weight(.bold))
+                    .foregroundStyle(color)
+                    .frame(width: 22, height: 22)
+                    .background(color.opacity(0.15))
+                    .clipShape(Circle())
+            }
+        }
+    }
+
+    private struct FlowLayout: Layout {
+        var spacing: CGFloat = 4
+
+        func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+            let rows = computeRows(proposal: proposal, subviews: subviews)
+            var height: CGFloat = 0
+            for row in rows {
+                height += row.map { subviews[$0].sizeThatFits(.unspecified).height }.max() ?? 0
+            }
+            height += CGFloat(max(0, rows.count - 1)) * spacing
+            return CGSize(width: proposal.width ?? 0, height: height)
+        }
+
+        func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+            let rows = computeRows(proposal: proposal, subviews: subviews)
+            var y = bounds.minY
+            for row in rows {
+                var x = bounds.minX
+                var rowHeight: CGFloat = 0
+                for idx in row {
+                    let size = subviews[idx].sizeThatFits(.unspecified)
+                    subviews[idx].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+                    x += size.width + spacing
+                    rowHeight = max(rowHeight, size.height)
+                }
+                y += rowHeight + spacing
+            }
+        }
+
+        private func computeRows(proposal: ProposedViewSize, subviews: Subviews) -> [[Int]] {
+            let maxWidth = proposal.width ?? .infinity
+            var rows: [[Int]] = [[]]
+            var currentWidth: CGFloat = 0
+            for (i, sub) in subviews.enumerated() {
+                let size = sub.sizeThatFits(.unspecified)
+                if currentWidth + size.width > maxWidth && !rows[rows.count - 1].isEmpty {
+                    rows.append([])
+                    currentWidth = 0
+                }
+                rows[rows.count - 1].append(i)
+                currentWidth += size.width + spacing
+            }
+            return rows
+        }
+    }
+
+    // MARK: - Actions
 
     private func generateIDs() {
         let gen = generation
@@ -582,16 +898,23 @@ struct IDRNGView: View {
         let initAdv = UInt32(gen3InitAdvance)
         let maxAdv = UInt32(gen3MaxAdvance)
         let tID = gen3TID
+        let isGameCube = gen3IsGameCube
         let minDel = UInt32(gen4MinDelay), maxDel = UInt32(gen4MaxDelay)
         let yr = UInt16(gen4Year), mo = UInt8(gen4Month), dy = UInt8(gen4Day)
         let hr = UInt8(gen4Hour), mn = UInt8(gen4Minute)
         let targetTID = gen4TargetTID, fTID = gen4FilterTID
         let targetSID = gen4TargetSID, fSID = gen4FilterSID
 
+        selectedResult = nil
         searchTask = Task.detached {
             if gen == .gen3 {
                 let r: [PFBridge.IDResult]
-                if game == .ruby || game == .sapphire {
+                if isGameCube {
+                    let seed = UInt32(seedText, radix: 16) ?? 0
+                    r = PFBridge.idGenerate3XDColo(seed: seed,
+                                                     initialAdvances: initAdv,
+                                                     maxAdvances: maxAdv)
+                } else if game == .ruby || game == .sapphire {
                     let seed = UInt16(seedText, radix: 16) ?? 0
                     r = PFBridge.idGenerate3RS(seed: seed,
                                                 initialAdvances: initAdv,
@@ -612,5 +935,59 @@ struct IDRNGView: View {
                 await MainActor.run { results4 = r }
             }
         }
+    }
+
+    private func startSearch() {
+        let infinite = gen4SearchInfinite
+        let year = UInt16(gen4SearchYear)
+        let minDel = UInt32(gen4SearchMinDelay)
+        let maxDel = UInt32(gen4SearchMaxDelay)
+        let targetTID = gen4TargetTID, fTID = gen4FilterTID
+        let targetSID = gen4TargetSID, fSID = gen4FilterSID
+        let targetTSV = gen4TargetTSV, fTSV = gen4FilterTSV
+
+        results4 = []
+        selectedResult = nil
+        gen4Searching = true
+        gen4SearchProgress = 0
+
+        let handle = PFBridge.idSearch4Start(
+            infinite: infinite, year: year,
+            minDelay: minDel, maxDelay: maxDel,
+            targetTID: targetTID, filterTID: fTID,
+            targetSID: targetSID, filterSID: fSID,
+            targetTSV: targetTSV, filterTSV: fTSV)
+        gen4SearchHandle = handle
+
+        searchTask = Task {
+            while gen4Searching {
+                try? await Task.sleep(for: .milliseconds(250))
+                let progress = PFBridge.idSearch4Progress(handle)
+                await MainActor.run { gen4SearchProgress = progress }
+
+                let partial = PFBridge.idSearch4GetResults(handle)
+                if !partial.isEmpty {
+                    await MainActor.run { results4.append(contentsOf: partial) }
+                }
+
+                if progress >= 100 { break }
+            }
+
+            let final = PFBridge.idSearch4GetResults(handle)
+            await MainActor.run {
+                if !final.isEmpty { results4.append(contentsOf: final) }
+                gen4Searching = false
+                PFBridge.idSearch4Free(handle)
+                gen4SearchHandle = nil
+            }
+        }
+    }
+
+    private func cancelSearch() {
+        if let handle = gen4SearchHandle {
+            PFBridge.idSearch4Cancel(handle)
+        }
+        searchTask?.cancel()
+        gen4Searching = false
     }
 }

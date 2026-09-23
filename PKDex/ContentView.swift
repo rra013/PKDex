@@ -9,21 +9,34 @@ import SwiftUI
 import SwiftData
 import WebKit
 
+// MARK: - Adaptive layout helper
+
+extension EnvironmentValues {
+    /// True when there's room for a multi-column / split ("wide") layout —
+    /// i.e. a regular horizontal size class (large/foldable iPhone in landscape,
+    /// iPad, wide multitasking panes). iPhone **portrait is always compact**, so
+    /// this is the single gate that keeps portrait on its original,
+    /// untouched single-column code path.
+    var isWideLayout: Bool { horizontalSizeClass == .regular }
+}
+
 // MARK: - App Tab Definition
 
 enum AppTab: String, CaseIterable, Identifiable {
-    case monIndex, moveIndex, damageCalc, sets, teams, speedTiers, rngTools, tournaments, settings
+    case monIndex, moveIndex, abilityIndex, damageCalc, sets, teams, speedTiers, battleSim, rngTools, tournaments, settings
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .monIndex:   return "Mon Index"
-        case .moveIndex:  return "Move Index"
-        case .damageCalc: return "Damage Calc"
-        case .sets:       return "Sets"
-        case .teams:      return "Teams"
-        case .speedTiers: return "Speed Tiers"
+        case .monIndex:     return "Mon Index"
+        case .moveIndex:    return "Move Index"
+        case .abilityIndex: return "Ability Index"
+        case .damageCalc:   return "Damage Calc"
+        case .sets:         return "Sets"
+        case .teams:        return "Teams"
+        case .speedTiers:   return "Speed Tiers"
+        case .battleSim:    return "Battle Sim"
         case .rngTools:     return "RNG Tools"
         case .tournaments:  return "Tournaments"
         case .settings:     return "Settings"
@@ -32,19 +45,21 @@ enum AppTab: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
-        case .monIndex:   return "list.bullet"
-        case .moveIndex:  return "text.book.closed"
-        case .damageCalc: return "bolt.fill"
-        case .sets:       return "square.and.pencil"
-        case .teams:      return "person.3"
-        case .speedTiers: return "hare"
+        case .monIndex:     return "list.bullet"
+        case .moveIndex:    return "text.book.closed"
+        case .abilityIndex: return "sparkles"
+        case .damageCalc:   return "bolt.fill"
+        case .sets:         return "square.and.pencil"
+        case .teams:        return "person.3"
+        case .speedTiers:   return "hare"
+        case .battleSim:    return "gamecontroller.fill"
         case .rngTools:     return "dice"
         case .tournaments:  return "trophy"
         case .settings:     return "gear"
         }
     }
 
-    static let allUserTabs: [AppTab] = [.monIndex, .moveIndex, .damageCalc, .sets, .teams, .speedTiers, .rngTools, .tournaments]
+    static let allUserTabs: [AppTab] = [.monIndex, .moveIndex, .abilityIndex, .damageCalc, .sets, .teams, .speedTiers, .battleSim, .rngTools, .tournaments]
     static let defaultEnabledRaw = allUserTabs.map(\.rawValue).joined(separator: ",")
 }
 
@@ -142,12 +157,14 @@ struct ContentView: View {
     @ViewBuilder
     private func tabContent(for tab: AppTab) -> some View {
         switch tab {
-        case .monIndex:   PokedexTab()
-        case .moveIndex:  MoveIndexTab()
-        case .damageCalc: DamageCalculatorView()
+        case .monIndex:     PokedexTab()
+        case .moveIndex:    MoveIndexTab()
+        case .abilityIndex: AbilityIndexTab()
+        case .damageCalc:   DamageCalculatorView()
         case .sets:       SetListView()
         case .teams:      TeamListView()
         case .speedTiers: SpeedTierView()
+        case .battleSim:    BattleSimulatorView()
         case .rngTools:     RNGToolsView()
         case .tournaments:  TournamentsTab()
         case .settings:     SettingsView()
@@ -162,37 +179,169 @@ private struct PokedexTab: View {
     @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
     @State private var selectedFilter: PokedexFilter?
     @State private var searchText = ""
+    @State private var championsFilters: ChampionsFilters = .none
+    @State private var showFilterSheet: Bool = false
+    @Environment(\.horizontalSizeClass) private var hSize
+    @State private var selectedMon: PKMN?
+    /// Compact-layout navigation path. Value-based navigation rather than
+    /// destination-based `NavigationLink` so there's an observable value to
+    /// hang the selection haptic on — a destination-based link changes no
+    /// state we can see.
+    @State private var path: [PKMN] = []
 
     private var activeFilter: PokedexFilter {
         selectedFilter ?? PokedexFilter(rawValue: defaultGeneration) ?? .champions
     }
 
+    /// Champions filters only apply to the Champions list — when the user
+    /// switches to a generation view, hand the empty value down so
+    /// `FilteredList` skips its match pass entirely.
+    private var effectiveChampionsFilters: ChampionsFilters {
+        activeFilter == .champions ? championsFilters : .none
+    }
+
     var body: some View {
-        NavigationStack {
-            Group {
-                if allPokemon.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Mons Found", systemImage: "antenna.radiowaves.left.and.right")
-                    } description: {
-                        Text("Syncing with PokeAPI... please wait.")
+        // Wide layouts get a roster/detail split; compact (portrait) keeps the
+        // original single-column push navigation, unchanged.
+        if hSize == .regular {
+            wideBody
+        } else {
+            NavigationStack(path: $path) {
+                indexColumn(selection: nil)
+                    .navigationDestination(for: PKMN.self) { mon in
+                        monIndexDestination(for: mon, filter: activeFilter)
                     }
+            }
+            // The push animation reads as "something happened next" rather
+            // than "your tap landed". Ticking on the path change confirms the
+            // hit at the moment it registers.
+            .sensoryFeedback(.selection, trigger: path)
+        }
+    }
+
+    /// Two-pane split for wide layouts: roster list on the left, live detail on
+    /// the right (no push/pop — ideal for glancing alongside the game).
+    private var wideBody: some View {
+        NavigationSplitView {
+            indexColumn(selection: $selectedMon)
+        } detail: {
+            NavigationStack {
+                if let selectedMon {
+                    monIndexDestination(for: selectedMon, filter: activeFilter)
                 } else {
-                    FilteredList(filter: activeFilter, searchText: searchText)
-                }
-            }
-            .navigationTitle("Mon Index")
-            .searchable(text: $searchText, prompt: "Search Mons")
-            .toolbar {
-                ToolbarItem(placement: .automatic) {
-                    Menu {
-                        ForEach(PokedexFilter.allCases) { filter in
-                            Button(filter.title) { selectedFilter = filter }
-                        }
-                    } label: {
-                        Label(activeFilter.title, systemImage: "line.3.horizontal.decrease.circle")
+                    ContentUnavailableView {
+                        Label("Select a Pokémon", systemImage: "sidebar.left")
+                    } description: {
+                        Text("Choose a Pokémon from the list to see its details.")
                     }
                 }
             }
+        }
+        // Drop the selection when the roster changes so the detail pane never
+        // shows a mon that isn't in the newly-selected dex/regulation.
+        .onChange(of: activeFilter) { _, _ in selectedMon = nil }
+        // Picking a mon is the natural "done searching" signal — put the
+        // keyboard away so the detail pane isn't obscured.
+        .onChange(of: selectedMon) { _, newValue in
+            if newValue != nil { dismissSearchKeyboard() }
+        }
+        // The wide layout has no push animation, so a sidebar tap otherwise
+        // only registers as a tint change in the corner of the eye. A
+        // selection tick confirms the hit — especially useful while the detail
+        // pane's web view is still loading.
+        .sensoryFeedback(.selection, trigger: selectedMon)
+    }
+
+    private func dismissSearchKeyboard() {
+        #if os(iOS)
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil, from: nil, for: nil)
+        #endif
+    }
+
+    /// The roster column (list + search + filters). `selection == nil` renders
+    /// today's push rows (compact); a non-nil binding drives the split detail.
+    @ViewBuilder
+    private func indexColumn(selection: Binding<PKMN?>?) -> some View {
+        Group {
+            if allPokemon.isEmpty {
+                ContentUnavailableView {
+                    Label("No Mons Found", systemImage: "antenna.radiowaves.left.and.right")
+                } description: {
+                    Text("Syncing with PokeAPI... please wait.")
+                }
+            } else {
+                VStack(spacing: 0) {
+                    if activeFilter == .champions && championsFilters.isActive {
+                        ChampionsFilterChipStrip(filters: $championsFilters)
+                            .background(.bar)
+                    }
+                    FilteredList(filter: activeFilter,
+                                 searchText: searchText,
+                                 championsFilters: effectiveChampionsFilters,
+                                 selection: selection)
+                }
+                // Wide layout only: tap anywhere in the roster area (not the
+                // search bar, which lives in the nav chrome above this VStack)
+                // to dismiss the search keyboard.
+                //
+                // The gate has to be on the gesture *mask*, not just inside
+                // `onEnded`. Gating only the action still installs a live tap
+                // recognizer on the VStack wrapping the `List`, and an ancestor
+                // TapGesture competes with row activation — despite the name,
+                // `simultaneousGesture` doesn't reliably coexist with the
+                // UICollectionView-backed `List`, so compact-layout
+                // `NavigationLink` rows stop pushing. `including: .none`
+                // disables the recognizer outright while keeping the modifier
+                // attached, so view identity doesn't change between layouts.
+                .simultaneousGesture(
+                    TapGesture().onEnded { dismissSearchKeyboard() },
+                    including: selection != nil && hSize == .regular ? .all : .none
+                )
+            }
+        }
+        .navigationTitle("Mon Index")
+        .searchable(text: $searchText, prompt: "Search Mons")
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Menu {
+                    ForEach(PokedexFilter.allCases) { filter in
+                        Button(filter.title) { selectedFilter = filter }
+                    }
+                } label: {
+                    Label(activeFilter.title, systemImage: "line.3.horizontal.decrease.circle")
+                }
+            }
+            if activeFilter == .champions {
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        showFilterSheet = true
+                    } label: {
+                        Label("Filters",
+                              systemImage: championsFilters.isActive
+                                ? "slider.horizontal.3"
+                                : "slider.horizontal.below.rectangle")
+                            .symbolVariant(championsFilters.isActive ? .fill : .none)
+                    }
+                }
+            }
+        }
+        // Wide layout only: the split sidebar's search keyboard can't be
+        // dismissed by dragging when a search narrows the list to a few rows
+        // (nothing to scroll). A `.searchable` field is a UIKit `UISearchBar`,
+        // so a SwiftUI `.keyboard` toolbar won't attach — instead dismiss on the
+        // keyboard's Search/return key. Gated to `.regular` so portrait's return
+        // behavior is left exactly as-is.
+        .onSubmit(of: .search) {
+            if hSize == .regular { dismissSearchKeyboard() }
+        }
+        .sheet(isPresented: $showFilterSheet) {
+            ChampionsFilterSheet(
+                filters: $championsFilters,
+                availableAbilities: ChampionsFilterOptions.availableAbilities(),
+                availableMoves: ChampionsFilterOptions.availableMoves()
+            )
         }
     }
 }
@@ -225,12 +374,23 @@ enum PokedexFilter: String, CaseIterable, Identifiable {
 
 struct FilteredList: View {
     @Query private var filteredPokemon: [PKMN]
+    @Query(sort: \PKMNStats.id) private var allStats: [PKMNStats]
     private let filter: PokedexFilter
     private let searchText: String
+    private let championsFilters: ChampionsFilters
+    /// When non-nil the list drives a `NavigationSplitView` detail pane via this
+    /// selection (wide layout). When nil it renders today's push
+    /// `NavigationLink` rows verbatim (compact / portrait).
+    private let selection: Binding<PKMN?>?
 
-    init(filter: PokedexFilter, searchText: String) {
+    init(filter: PokedexFilter,
+         searchText: String,
+         championsFilters: ChampionsFilters = .none,
+         selection: Binding<PKMN?>? = nil) {
         self.filter = filter
         self.searchText = searchText
+        self.championsFilters = championsFilters
+        self.selection = selection
         let predicate: Predicate<PKMN> = {
             switch filter {
             case .all:       return #Predicate<PKMN> { _ in true }
@@ -243,16 +403,62 @@ struct FilteredList: View {
             case .gen7:      return #Predicate<PKMN> { $0.genSevenLink != nil }
             case .gen8:      return #Predicate<PKMN> { $0.genEightLink != nil }
             case .gen9:      return #Predicate<PKMN> { $0.genNineLink != nil }
-            case .champions: return #Predicate<PKMN> { $0.champsLink != nil }
+            // Champions is filtered AT RUNTIME against the live regulation
+            // roster (`championsRoster` -> `ChampionsRegulation.current`) so
+            // edits to the bundled JSON take effect without requiring users
+            // to re-sync the Pokedex. The `@Query` returns every species;
+            // the actual whitelist filter happens in `visiblePokemon`.
+            case .champions: return #Predicate<PKMN> { _ in true }
             }
         }()
         _filteredPokemon = Query(filter: predicate, sort: \.nationalPokedexNumber)
     }
 
     private var visiblePokemon: [PKMN] {
+        // Apply the regulation roster filter live for Champions so changes to
+        // the bundled JSON appear without a Pokedex re-sync. The other filters
+        // are already scoped at the @Query layer via their gen-link predicates.
+        let baseList: [PKMN] = {
+            guard filter == .champions else { return filteredPokemon }
+            let roster = championsRoster
+            return filteredPokemon.filter { roster.contains($0.name) }
+        }()
+
+        // Type / ability / move filters. The match needs every form belonging
+        // to a species (base + mega + regional) so a "Dragon" filter still
+        // surfaces Charizard because of Mega-Y. Build the lookup once per
+        // body evaluation rather than per row, and hoist the learnset store
+        // out of the per-row predicate so it isn't re-resolved (UserDefaults
+        // read + NSLock acquire) ~250 times per render.
+        let filteredByChampions: [PKMN]
+        if championsFilters.isActive {
+            var formsBySpeciesID: [Int: [PKMNStats]] = [:]
+            var speciesIDByName: [String: Int] = [:]
+            for stats in allStats {
+                formsBySpeciesID[stats.speciesID, default: []].append(stats)
+                if !stats.isForm {
+                    speciesIDByName[stats.name] = stats.speciesID
+                } else if speciesIDByName[stats.name] == nil {
+                    // Fall back when the base entry isn't loaded yet — this
+                    // way Mega-only species still get a species-ID hit.
+                    speciesIDByName[stats.name] = stats.speciesID
+                }
+            }
+            let store = ChampionsLearnsetStore.shared
+            filteredByChampions = baseList.filter { pkmn in
+                let speciesID = speciesIDByName[pkmn.name]
+                let forms = speciesID.flatMap { formsBySpeciesID[$0] } ?? []
+                return championsFilters.matches(speciesName: pkmn.name,
+                                                formStats: forms,
+                                                store: store)
+            }
+        } else {
+            filteredByChampions = baseList
+        }
+
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return filteredPokemon }
-        return filteredPokemon.filter {
+        guard !trimmed.isEmpty else { return filteredByChampions }
+        return filteredByChampions.filter {
             $0.name.localizedStandardContains(trimmed) ||
             String($0.nationalPokedexNumber).contains(trimmed)
         }
@@ -269,23 +475,81 @@ struct FilteredList: View {
             .padding(.top, 8)
             .padding(.bottom, 4)
 
-            List(visiblePokemon) { pokemon in
-                if let detailURL = pokemon.detailURL(for: filter) {
-                    NavigationLink {
-                        PokemonDetailView(pokemon: pokemon, filter: filter, detailURL: detailURL)
-                    } label: {
+            if let selection {
+                // Wide layout: selection-driven rows feed the split-view detail
+                // pane. No per-row NavigationLink — the detail column observes
+                // `selection`.
+                List(selection: selection) {
+                    ForEach(visiblePokemon) { pokemon in
+                        PokemonRow(pokemon: pokemon).tag(pokemon)
+                    }
+                }
+                .scrollDismissesKeyboard(.interactively)
+            } else {
+                // Compact layout: push navigation, now value-based so the
+                // enclosing `NavigationStack`'s path drives the haptic. The
+                // destination itself is built by `monIndexDestination`, which
+                // the wide layout already shares.
+                List(visiblePokemon) { pokemon in
+                    // Rows with no detail page in this dex stay inert, exactly
+                    // as they did before — only rows that go somewhere become
+                    // links.
+                    if filter == .champions || pokemon.detailURL(for: filter) != nil {
+                        NavigationLink(value: pokemon) {
+                            PokemonRow(pokemon: pokemon)
+                        }
+                        .buttonStyle(MonRowPressStyle())
+                    } else {
                         PokemonRow(pokemon: pokemon)
                     }
-                } else {
-                    PokemonRow(pokemon: pokemon)
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
-            .scrollDismissesKeyboard(.interactively)
+        }
+    }
+}
+
+/// Detail destination for a Mon Index row — the Champions structured page, or
+/// the Serebii web view for generation dexes. Shared by the compact push rows
+/// (implicitly, via the same views) and the wide split-view detail pane.
+@ViewBuilder
+func monIndexDestination(for pokemon: PKMN, filter: PokedexFilter) -> some View {
+    let detailURL = pokemon.detailURL(for: filter)
+    if filter == .champions {
+        ChampionsPokemonDetailView(pokemon: pokemon, detailURL: detailURL)
+    } else if let detailURL {
+        PokemonDetailView(pokemon: pokemon, filter: filter, detailURL: detailURL)
+    } else {
+        ContentUnavailableView {
+            Label(pokemon.name, systemImage: "photo.on.rectangle.angled")
+        } description: {
+            Text("No detail page is available for this Pokémon in the \(filter.title) dex.")
         }
     }
 }
 
 // MARK: - Row & Detail Views
+
+/// Press highlight for Mon Index rows.
+///
+/// `NavigationLink` exposes no pressed state, so the highlight has to come
+/// from a button style applied to the link itself. The fill is grown past the
+/// label with negative padding so it reads as a full-row highlight without
+/// touching the row's layout metrics — `listRowInsets` would have shifted
+/// every row's spacing to achieve the same thing.
+private struct MonRowPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(.rect)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(configuration.isPressed ? 0.09 : 0))
+                    .padding(.vertical, -6)
+                    .padding(.horizontal, -10)
+            )
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
 
 private struct PokemonRow: View {
     let pokemon: PKMN
@@ -296,7 +560,11 @@ private struct PokemonRow: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 48, alignment: .leading)
             Text(pokemon.name)
+            // Claim the full row width so the highlight and hit target cover
+            // the whole cell rather than just the two labels.
+            Spacer(minLength: 0)
         }
+        .contentShape(.rect)
     }
 }
 
@@ -357,9 +625,31 @@ private extension PokemonWebView {
 // MARK: - URL Helper
 
 private extension PKMN {
+    /// Champions Serebii URL with live fallback. Prefers the stored
+    /// `champsLink` (populated at Pokedex sync time) but computes the URL
+    /// on the fly for species that were added to the regulation roster
+    /// after the last sync — so a newly-included species like Scovillain
+    /// gets a working tap-through without forcing the user to re-sync.
+    /// Returns nil for species that aren't in the current regulation
+    /// roster, so the `.all` fall-through path correctly skips ahead to
+    /// gen links instead of building broken champions URLs.
+    var resolvedChampsLink: String? {
+        if let stored = champsLink { return stored }
+        guard championsRoster.contains(name) else { return nil }
+        // Match the slug `pokedbPopulator` produced from PokeAPI's
+        // lowercase-hyphenated `pokemon_species.name` (e.g. "mr-rime",
+        // "kommo-o"). Apostrophes and dots get stripped, spaces become
+        // hyphens; existing hyphens are preserved.
+        let slug = name.lowercased()
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: "'", with: "")
+            .replacingOccurrences(of: " ", with: "-")
+        return "https://serebii.net/pokedex-champions/\(slug)/"
+    }
+
     func detailURL(for filter: PokedexFilter) -> URL? {
         let link: String? = switch filter {
-        case .all:       champsLink ?? genNineLink ?? genEightLink ?? genSevenLink ?? genSixLink ?? genFiveLink ?? genFourLink ?? genThreeLink ?? genTwoLink ?? genOneLink
+        case .all:       resolvedChampsLink ?? genNineLink ?? genEightLink ?? genSevenLink ?? genSixLink ?? genFiveLink ?? genFourLink ?? genThreeLink ?? genTwoLink ?? genOneLink
         case .gen1:      genOneLink
         case .gen2:      genTwoLink
         case .gen3:      genThreeLink
@@ -369,7 +659,7 @@ private extension PKMN {
         case .gen7:      genSevenLink
         case .gen8:      genEightLink
         case .gen9:      genNineLink
-        case .champions: champsLink
+        case .champions: resolvedChampsLink
         }
         guard let link else { return nil }
         return URL(string: link)

@@ -15,6 +15,14 @@ enum FinderGameVersion: String, CaseIterable, Identifiable, Hashable {
     case platinum = "Platinum"
     case heartGold = "HeartGold"
     case soulSilver = "SoulSilver"
+    case black = "Black"
+    case white = "White"
+    case black2 = "Black 2"
+    case white2 = "White 2"
+    case sword = "Sword"
+    case shield = "Shield"
+    case brilliantDiamond = "Brilliant Diamond"
+    case shiningPearl = "Shining Pearl"
 
     var id: String { rawValue }
 
@@ -22,6 +30,8 @@ enum FinderGameVersion: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .ruby, .sapphire, .emerald, .fireRed, .leafGreen: return .gen3
         case .diamond, .pearl, .platinum, .heartGold, .soulSilver: return .gen4
+        case .black, .white, .black2, .white2: return .gen5
+        case .sword, .shield, .brilliantDiamond, .shiningPearl: return .gen8
         }
     }
 
@@ -41,7 +51,23 @@ enum FinderGameVersion: String, CaseIterable, Identifiable, Hashable {
         case .platinum: return .platinum
         case .heartGold: return .heartGold
         case .soulSilver: return .soulSilver
+        case .black: return .black
+        case .white: return .white
+        case .black2: return .black2
+        case .white2: return .white2
+        case .sword: return .sword
+        case .shield: return .shield
+        case .brilliantDiamond: return .bd
+        case .shiningPearl: return .sp
         }
+    }
+
+    var isBDSP: Bool {
+        self == .brilliantDiamond || self == .shiningPearl
+    }
+
+    var isSwSh: Bool {
+        self == .sword || self == .shield
     }
 }
 
@@ -87,6 +113,10 @@ enum EncounterType: String, CaseIterable, Identifiable, Hashable {
     case goodRod = "Good Rod"
     case superRod = "Super Rod"
     case rockSmash = "Rock Smash"
+    case darkGrass = "Dark Grass"
+    case rustlingGrass = "Rustling Grass"
+    case ripplingWater = "Rippling Water"
+    case superRodRippling = "Rippling Super Rod"
 
     var id: String { rawValue }
 
@@ -98,6 +128,10 @@ enum EncounterType: String, CaseIterable, Identifiable, Hashable {
         case .goodRod: return .goodRod
         case .superRod: return .superRod
         case .rockSmash: return .rockSmash
+        case .darkGrass: return .grassDark
+        case .rustlingGrass: return .grassRustling
+        case .ripplingWater: return .surfingRippling
+        case .superRodRippling: return .superRodRippling
         }
     }
 
@@ -109,7 +143,22 @@ enum EncounterType: String, CaseIterable, Identifiable, Hashable {
         case .goodRod: self = .goodRod
         case .superRod: self = .superRod
         case .rockSmash: self = .rockSmash
+        case .grassDark: self = .darkGrass
+        case .grassRustling: self = .rustlingGrass
+        case .surfingRippling: self = .ripplingWater
+        case .superRodRippling: self = .superRodRippling
         default: return nil
+        }
+    }
+
+    static func types(for gen: FinderGeneration) -> [EncounterType] {
+        switch gen {
+        case .gen3, .gen4:
+            return [.grass, .surf, .oldRod, .goodRod, .superRod, .rockSmash]
+        case .gen5:
+            return [.grass, .darkGrass, .rustlingGrass, .surf, .ripplingWater, .superRod, .superRodRippling]
+        case .gen8:
+            return [.grass, .surf, .oldRod, .goodRod, .superRod]
         }
     }
 }
@@ -605,6 +654,10 @@ enum StaticEncounterData {
             case .roamers: all = gen4Roamers
             case .gameCorner: all = gen4GameCorner
             }
+        case .gen5:
+            all = []
+        case .gen8:
+            all = []
         }
         return all.filter { $0.gameVersions.contains(game) }
     }
@@ -635,6 +688,10 @@ private func slotRates(for type: EncounterType) -> [String] {
     case .goodRod: return goodRodRates
     case .superRod: return superRodRates
     case .rockSmash: return rockSmashRates
+    case .darkGrass: return grassRates
+    case .rustlingGrass: return grassRates
+    case .ripplingWater: return surfRates
+    case .superRodRippling: return superRodRates
     }
 }
 
@@ -650,6 +707,10 @@ enum PFEncounterDataProvider {
             areas = PFBridge.getEncounters3(encounter: pfEnc, game: pfGame)
         case .gen4:
             areas = PFBridge.getEncounters4(encounter: pfEnc, game: pfGame, tid: 0, sid: 0)
+        case .gen5:
+            areas = PFBridge.getEncounters5(encounter: pfEnc, game: pfGame, season: 0, tid: 0, sid: 0)
+        case .gen8:
+            areas = PFBridge.getEncounters8(encounter: pfEnc, game: pfGame, tid: 0, sid: 0)
         }
 
         let rates = slotRates(for: encounterType)
@@ -668,7 +729,7 @@ enum PFEncounterDataProvider {
     static func locationNames(for game: FinderGameVersion) -> [String] {
         var seen = Set<String>()
         var names: [String] = []
-        let encounterTypes: [EncounterType] = [.grass, .surf, .oldRod, .goodRod, .superRod, .rockSmash]
+        let encounterTypes = EncounterType.types(for: game.generation)
         for enc in encounterTypes {
             let routes = wildRoutes(for: game, encounterType: enc)
             for route in routes {
@@ -682,8 +743,7 @@ enum PFEncounterDataProvider {
     }
 
     static func encounterTypes(for game: FinderGameVersion, location: String) -> [EncounterType] {
-        let allTypes: [EncounterType] = [.grass, .surf, .oldRod, .goodRod, .superRod, .rockSmash]
-        return allTypes.filter { type in
+        return EncounterType.types(for: game.generation).filter { type in
             wildRoutes(for: game, encounterType: type).contains { $0.locationName == location }
         }
     }

@@ -13,13 +13,13 @@ import SwiftData
 let allTypes = ["Normal","Fire","Water","Electric","Grass","Ice","Fighting","Poison",
                 "Ground","Flying","Psychic","Bug","Rock","Ghost","Dragon","Dark","Steel","Fairy"]
 
-let typeEffectivenessChart: [String: [String: Double]] = [
+nonisolated let typeEffectivenessChart: [String: [String: Double]] = [
     "Normal":   ["Rock": 0.5, "Ghost": 0, "Steel": 0.5],
     "Fire":     ["Fire": 0.5, "Water": 0.5, "Grass": 2, "Ice": 2, "Bug": 2, "Rock": 0.5, "Dragon": 0.5, "Steel": 2],
     "Water":    ["Fire": 2, "Water": 0.5, "Grass": 0.5, "Ground": 2, "Rock": 2, "Dragon": 0.5],
     "Electric": ["Water": 2, "Electric": 0.5, "Grass": 0.5, "Ground": 0, "Flying": 2, "Dragon": 0.5],
     "Grass":    ["Fire": 0.5, "Water": 2, "Grass": 0.5, "Poison": 0.5, "Ground": 2, "Flying": 0.5, "Bug": 0.5, "Rock": 2, "Dragon": 0.5, "Steel": 0.5],
-    "Ice":      ["Water": 0.5, "Grass": 2, "Ice": 0.5, "Ground": 2, "Flying": 2, "Dragon": 2, "Steel": 0.5],
+    "Ice":      ["Fire": 0.5, "Water": 0.5, "Grass": 2, "Ice": 0.5, "Ground": 2, "Flying": 2, "Dragon": 2, "Steel": 0.5],
     "Fighting": ["Normal": 2, "Ice": 2, "Poison": 0.5, "Flying": 0.5, "Psychic": 0.5, "Bug": 0.5, "Rock": 2, "Ghost": 0, "Dark": 2, "Steel": 2, "Fairy": 0.5],
     "Poison":   ["Grass": 2, "Poison": 0.5, "Ground": 0.5, "Rock": 0.5, "Ghost": 0.5, "Steel": 0, "Fairy": 2],
     "Ground":   ["Fire": 2, "Electric": 2, "Grass": 0.5, "Poison": 2, "Flying": 0, "Bug": 0.5, "Rock": 2, "Steel": 2],
@@ -36,12 +36,12 @@ let typeEffectivenessChart: [String: [String: Double]] = [
 
 // MARK: - Damage Engine (Gen V+ formula)
 
-private func pokeFloor(_ value: Int, _ modifier: Double) -> Int {
+nonisolated private func pokeFloor(_ value: Int, _ modifier: Double) -> Int {
     if modifier == 1.0 { return value }
     return Int(floor(Double(value) * modifier))
 }
 
-func calcDamageRange(
+nonisolated func calcDamageRange(
     level: Int, movePower: Int, userAtk: Int, defenderDef: Int,
     multi: Bool,
     weatherMult: Double, glaiveRush: Bool,
@@ -81,7 +81,7 @@ func calcDamageRange(
     return (Double(applyPostRandom(minBase)), Double(applyPostRandom(maxBase)))
 }
 
-func computeTypeEffectiveness(moveType: String, defenderTypes: [String]) -> Double {
+nonisolated func computeTypeEffectiveness(moveType: String, defenderTypes: [String]) -> Double {
     var mult = 1.0
     let chart = typeEffectivenessChart[moveType] ?? [:]
     for dt in defenderTypes {
@@ -102,6 +102,15 @@ class CalcSide {
     var heldItem: HeldItem = .none
     var atFullHP: Bool = true
     var loadedSpreadName: String?
+
+    /// User intent to Mega Evolve. Effective only while `availableMegaForm`
+    /// is non-nil (right species + right Mega Stone, or Rayquaza knowing
+    /// Dragon Ascent). When the prerequisites are removed the flag remains
+    /// set but `activeMegaForm` returns nil, so toggling the item back on
+    /// re-enables the Mega without forcing the user to flip the switch
+    /// again — and the user's set (EVs, IVs, moves, nature, ability pick)
+    /// never resets when entering or leaving Mega Evolution.
+    var megaActive: Bool = false
 
     // Moves (4 slots)
     var moves: [MoveData?] = [nil, nil, nil, nil]
@@ -130,6 +139,32 @@ class CalcSide {
     var spAtkStage: Int = 0
     var spDefStage: Int = 0
     var speedStage: Int = 0
+
+    // MARK: - Showdown-port conditions (Champions path)
+    // These mirror the per-Pokemon / per-side options on calc.pokemonshowdown.com
+    // and feed the vendored `champions.ts` pipeline. They default to neutral so
+    // existing calculations are unchanged until a user opts in.
+
+    /// Non-volatile status. Drives Facade/Hex/Guts/Marvel Scale/burn, etc.
+    var status: ShowdownStatus = .none
+    /// Current HP as a percentage (Multiscale, Reversal/Flail, pinch abilities).
+    var currentHPPercent: Int = 100
+    /// Whether the Pokemon's conditional ability is currently "on"
+    /// (Flash Fire, Slow Start, Unburden, Stakeout, Electromorphosis, Intimidate…).
+    var abilityOn: Bool = false
+
+    // Side conditions applied while this Pokemon is the DEFENDER.
+    var isReflect: Bool = false
+    var isLightScreen: Bool = false
+    var isAuroraVeil: Bool = false
+    var isFriendGuard: Bool = false
+    var isProtected: Bool = false
+    var isStealthRock: Bool = false
+    var spikesLayers: Int = 0
+
+    // Side conditions applied while this Pokemon is the ATTACKER.
+    var isHelpingHand: Bool = false
+    var isTailwind: Bool = false
 
     var evPerStatMax: Int { championsMode ? championsMaxEVPerStat : maxEVPerStat }
     var evTotalMax: Int { championsMode ? championsMaxTotalEVs : maxTotalEVs }
@@ -231,36 +266,154 @@ class CalcSide {
         }
     }
 
-    var types: [String] {
+    // MARK: - Mega Evolution Gating
+
+    /// Names of moves the held Pokemon currently has slotted, used to
+    /// detect Dragon Ascent on Rayquaza. We only consult this for the
+    /// Rayquaza branch — every other Mega is keyed off the held stone.
+    private var slottedMoveNames: [String] {
+        moves.compactMap { $0?.name }
+    }
+
+    /// The Mega form the currently-selected Pokemon *could* transform into,
+    /// given its held item (or, for Rayquaza, the move slots). Returns nil
+    /// when there's no eligible form — that's the source of truth for the
+    /// UI toggle's enabled state.
+    var availableMegaForm: MegaForm? {
+        guard let p = pokemon else { return nil }
+        return MegaForms.form(forSpecies: p.name,
+                              heldItem: heldItem,
+                              moveNames: slottedMoveNames)
+    }
+
+    /// True when the Mega toggle should be enabled. Pure pass-through over
+    /// `availableMegaForm` — kept as a separate name so SwiftUI bindings
+    /// read cleanly.
+    var canMegaEvolve: Bool { availableMegaForm != nil }
+
+    /// True when the currently-selected Pokemon has *any* registered Mega
+    /// form in the table — regardless of whether the held item / move slots
+    /// currently satisfy the trigger. Used by the UI to decide whether to
+    /// surface the Mega toggle at all: an Eevee shouldn't have a disabled
+    /// "Mega Evolve" row taking up space, but a Charizard with no stone
+    /// equipped should still see the row (disabled, with hint text) so the
+    /// player can discover the feature exists.
+    var hasAnyMegaForm: Bool {
+        guard let p = pokemon else { return false }
+        let s = BattleSimSeed.normalize(p.name)
+        if s == "rayquaza" { return true }
+        return MegaForms.all.contains(where: { $0.speciesKey == s })
+    }
+
+    /// User-facing reason the toggle is disabled. nil when the toggle is
+    /// enabled, otherwise a short hint like "Hold Charizardite Y" or
+    /// "Must know Dragon Ascent". Drives the caption under the row so the
+    /// player knows what to change.
+    var megaDisabledReason: String? {
+        guard hasAnyMegaForm, availableMegaForm == nil, let p = pokemon else { return nil }
+        let s = BattleSimSeed.normalize(p.name)
+        if s == "rayquaza" {
+            return "Must know Dragon Ascent"
+        }
+        // Find which stones can trigger a Mega for this species; list them.
+        let stones = MegaForms.all
+            .filter { $0.speciesKey == s }
+            .compactMap { $0.stone?.rawValue }
+        switch stones.count {
+        case 0:  return nil
+        case 1:  return "Hold \(stones[0])"
+        default: return "Hold \(stones.joined(separator: " or "))"
+        }
+    }
+
+    /// The Mega form currently in effect for damage calc / stat display.
+    /// Returns nil unless the user has toggled `megaActive` on AND the
+    /// prerequisites still hold. Acts as the single gate read by every
+    /// `effective*` accessor below.
+    var activeMegaForm: MegaForm? {
+        megaActive ? availableMegaForm : nil
+    }
+
+    // MARK: - Effective State (Mega-aware)
+
+    /// Mega's ability when active, the user's pick otherwise. Damage calc
+    /// reads this — never `selectedAbility` directly — so a Mega
+    /// transforming into Tough Claws / Mega Launcher applies its ability
+    /// without overwriting the user's saved-spread choice.
+    var effectiveAbility: String? {
+        activeMegaForm?.ability ?? selectedAbility
+    }
+
+    /// Same idea for typing — Mega Charizard X switches to Fire/Dragon
+    /// while the user's pre-Mega "Fire/Flying" selection stays untouched
+    /// on the base species record.
+    var effectiveTypes: [String] {
+        if let m = activeMegaForm {
+            var t = [m.type1]
+            if let t2 = m.type2 { t.append(t2) }
+            return t
+        }
         guard let p = pokemon else { return ["Normal"] }
         var t = [p.type1]
         if let t2 = p.type2 { t.append(t2) }
         return t
     }
 
+    /// Effective base stats — Mega's stat block when active, base otherwise.
+    /// HP is intentionally always the base value: no canonical Mega
+    /// Evolution alters HP.
+    var effectiveBaseAtk: Int    { activeMegaForm?.baseAtk    ?? pokemon?.baseAtk    ?? 1 }
+    var effectiveBaseDef: Int    { activeMegaForm?.baseDef    ?? pokemon?.baseDef    ?? 1 }
+    var effectiveBaseSpAtk: Int  { activeMegaForm?.baseSpAtk  ?? pokemon?.baseSpAtk  ?? 1 }
+    var effectiveBaseSpDef: Int  { activeMegaForm?.baseSpDef  ?? pokemon?.baseSpDef  ?? 1 }
+    var effectiveBaseSpeed: Int  { activeMegaForm?.baseSpeed  ?? pokemon?.baseSpeed  ?? 1 }
+
+    /// Display name accounting for Mega — `"Mega Charizard Y"` when active,
+    /// base species name otherwise. Used by the side card header and the
+    /// damage summary line.
+    var effectiveDisplayName: String {
+        activeMegaForm?.displayName ?? pokemon?.name ?? "???"
+    }
+
+    /// Held item that the damage formula should see. Stone-based Megas
+    /// consume the stone on transformation, so the calc treats them as
+    /// item-less while Mega is active. Rayquaza's `MegaForm.stone` is nil
+    /// (Dragon Ascent triggers the form change instead), so a Mega Rayquaza
+    /// holding Life Orb still gets the boost.
+    var effectiveHeldItem: HeldItem {
+        if let m = activeMegaForm, m.stone != nil { return .none }
+        return heldItem
+    }
+
+    // MARK: - Public computed types / stats
+
+    /// Kept under the old name so existing call sites (type chart, etc.) pick
+    /// up the Mega switch automatically.
+    var types: [String] { effectiveTypes }
+
     var hp: Int {
         guard let p = pokemon else { return 1 }
         return calcHP(base: p.baseHP, iv: formulaIV(ivHP), ev: formulaEV(evHP), level: level)
     }
     var atk: Int {
-        guard let p = pokemon else { return 1 }
-        return Int(Double(calcStat(base: p.baseAtk, iv: formulaIV(ivAtk), ev: formulaEV(evAtk), level: level, natureMod: nature.modifier(for: .atk))) * statStageMultiplier(stage: atkStage))
+        guard pokemon != nil else { return 1 }
+        return Int(Double(calcStat(base: effectiveBaseAtk, iv: formulaIV(ivAtk), ev: formulaEV(evAtk), level: level, natureMod: nature.modifier(for: .atk))) * statStageMultiplier(stage: atkStage))
     }
     var def: Int {
-        guard let p = pokemon else { return 1 }
-        return Int(Double(calcStat(base: p.baseDef, iv: formulaIV(ivDef), ev: formulaEV(evDef), level: level, natureMod: nature.modifier(for: .def))) * statStageMultiplier(stage: defStage))
+        guard pokemon != nil else { return 1 }
+        return Int(Double(calcStat(base: effectiveBaseDef, iv: formulaIV(ivDef), ev: formulaEV(evDef), level: level, natureMod: nature.modifier(for: .def))) * statStageMultiplier(stage: defStage))
     }
     var spAtk: Int {
-        guard let p = pokemon else { return 1 }
-        return Int(Double(calcStat(base: p.baseSpAtk, iv: formulaIV(ivSpAtk), ev: formulaEV(evSpAtk), level: level, natureMod: nature.modifier(for: .spAtk))) * statStageMultiplier(stage: spAtkStage))
+        guard pokemon != nil else { return 1 }
+        return Int(Double(calcStat(base: effectiveBaseSpAtk, iv: formulaIV(ivSpAtk), ev: formulaEV(evSpAtk), level: level, natureMod: nature.modifier(for: .spAtk))) * statStageMultiplier(stage: spAtkStage))
     }
     var spDef: Int {
-        guard let p = pokemon else { return 1 }
-        return Int(Double(calcStat(base: p.baseSpDef, iv: formulaIV(ivSpDef), ev: formulaEV(evSpDef), level: level, natureMod: nature.modifier(for: .spDef))) * statStageMultiplier(stage: spDefStage))
+        guard pokemon != nil else { return 1 }
+        return Int(Double(calcStat(base: effectiveBaseSpDef, iv: formulaIV(ivSpDef), ev: formulaEV(evSpDef), level: level, natureMod: nature.modifier(for: .spDef))) * statStageMultiplier(stage: spDefStage))
     }
     var speed: Int {
-        guard let p = pokemon else { return 1 }
-        return Int(Double(calcStat(base: p.baseSpeed, iv: formulaIV(ivSpeed), ev: formulaEV(evSpeed), level: level, natureMod: nature.modifier(for: .speed))) * statStageMultiplier(stage: speedStage))
+        guard pokemon != nil else { return 1 }
+        return Int(Double(calcStat(base: effectiveBaseSpeed, iv: formulaIV(ivSpeed), ev: formulaEV(evSpeed), level: level, natureMod: nature.modifier(for: .speed))) * statStageMultiplier(stage: speedStage))
     }
 }
 
@@ -298,6 +451,11 @@ class DamageCalcVM {
     var terrain: TerrainCondition = .none
     var miscMultiplier: Double = 1.0
 
+    // Global field state (Champions/Showdown path)
+    var gravity: Bool = false
+    var wonderRoom: Bool = false
+    var magicRoom: Bool = false
+
     // MARK: Computed Results
 
     var side1Results: [MoveResult] {
@@ -315,115 +473,68 @@ class DamageCalcVM {
     }
 
     private func computeSingleResult(move: MoveData, attacker: CalcSide, defender: CalcSide) -> MoveResult {
-        let moveType = move.type
-        let movePower = move.power ?? 0
-        let isPhysical = move.damageClass == "physical"
-        let isContact = move.makesContact
-        let stab = attacker.types.contains(moveType)
-        let stabBonus = stab ? 1.5 : 1.0
-        let burnReduction = (burn && isPhysical) ? 0.5 : 1.0
-        let typeEff = computeTypeEffectiveness(moveType: moveType, defenderTypes: defender.types)
-        let weatherMult = weather.moveDamageMultiplier(moveType: moveType)
-
-        let itemMods = computeItemModifiers(
-            attackerItem: attacker.heldItem,
-            defenderItem: defender.heldItem,
-            isPhysical: isPhysical,
-            typeEffectiveness: typeEff,
-            moveType: moveType
-        )
-
-        let abilityMods = computeAbilityModifiers(
-            attackerAbility: attacker.selectedAbility,
-            defenderAbility: defender.selectedAbility,
-            moveType: moveType,
-            movePower: movePower,
-            isPhysical: isPhysical,
-            isContact: isContact,
-            isSTAB: stab,
-            typeEffectiveness: typeEff,
-            weather: weather,
-            attackerAtFullHP: attacker.atFullHP,
-            defenderAtFullHP: defender.atFullHP,
-            defenderTypes: defender.types,
-            terrain: terrain
-        )
-
-        let baseAtk = isPhysical ? attacker.atk : attacker.spAtk
-        let itemAtkMult = isPhysical ? itemMods.atkMultiplier : itemMods.spAtkMultiplier
-        let effectiveAtk = Int(floor(Double(baseAtk) * itemAtkMult))
-
-        let effectiveDef: Int
-        if isPhysical {
-            let snowMult = weather.snowDefMultiplier(defenderTypes: defender.types)
-            effectiveDef = Int(floor(Double(defender.def) * snowMult * itemMods.defMultiplier))
-        } else {
-            let sandMult = weather.sandSpDefMultiplier(defenderTypes: defender.types)
-            effectiveDef = Int(floor(Double(defender.spDef) * sandMult * itemMods.spDefMultiplier))
+        // Both engines live in `CalcEngine` so the solver can run them off the
+        // main actor, and `CalcEngine.evaluate` owns the precedence between
+        // them (Champions port first, legacy fallback). This call site only
+        // snapshots the inputs and dresses the numeric outcome for display.
+        //
+        // `snapshot()` is nil-on-no-species, but an empty side reaching here
+        // means the user hasn't picked a Pokemon yet — the old code silently
+        // computed against 1/1/1 fallback stats, so `emptyResult` preserves
+        // that "nothing to show" outcome without inventing a phantom statline.
+        guard let attackerSnap = attacker.snapshot(),
+              let defenderSnap = defender.snapshot() else {
+            return Self.emptyResult(for: move)
         }
 
-        let terrainMult = terrain.moveDamageMultiplier(moveType: moveType)
-
-        let raw = calcDamageRange(
-            level: attacker.level, movePower: movePower,
-            userAtk: effectiveAtk, defenderDef: effectiveDef,
-            multi: multi,
-            weatherMult: weatherMult, glaiveRush: glaiveRush,
-            crit: crit, critMultiplier: 1.5,
-            stabBonus: stabBonus, typeEffect: typeEff,
-            burnReduction: burnReduction, abilityMods: abilityMods,
-            zMoveBypass: zMoveBypass
+        let outcome = CalcEngine.evaluate(
+            move: move.snapshot(),
+            attacker: attackerSnap,
+            defender: defenderSnap,
+            field: fieldSnapshot()
         )
+        return Self.moveResult(from: outcome, move: move)
+    }
 
-        let im = itemMods.damageMult * terrainMult
-        let dMin = floor(raw.min * im)
-        let dMax = floor(raw.max * im)
-        let minPct = defender.hp > 0 ? min(dMin / Double(defender.hp) * 100, 999) : 0
-        let maxPct = defender.hp > 0 ? min(dMax / Double(defender.hp) * 100, 999) : 0
+    // MARK: - Outcome -> display
 
-        let hitsToKO: String = {
-            guard maxPct > 0 else { return "--" }
-            let minHits = Int(ceil(100.0 / maxPct))
-            let maxHits = minPct > 0 ? Int(ceil(100.0 / minPct)) : 0
-            if minHits == maxHits { return "\(minHits)HKO" }
-            return "\(minHits)-\(maxHits)HKO"
-        }()
-
-        let eff = abilityMods.typeEffOverride ?? typeEff
-        let effLabel: String = {
-            switch eff {
-            case 0:    return "Immune"
-            case 0.25: return "1/4x"
-            case 0.5:  return "1/2x"
-            case 1:    return "1x"
-            case 2:    return "2x"
-            case 4:    return "4x"
-            default:   return String(format: "%.2fx", eff)
-            }
-        }()
-        let effColor: Color = {
-            switch eff {
-            case 0:          return .gray
-            case 0.25, 0.5:  return .blue
-            case 1:          return .primary
-            case 2:          return .orange
-            case 4:          return .red
-            default:         return .primary
-            }
-        }()
-
-        // STAB is true if natural type match OR ability grants it (Protean/Libero)
-        let hasSTAB = stab || abilityMods.stabOverride != nil
-
-        return MoveResult(
+    /// Dresses a numeric `CalcOutcome` as the `MoveResult` the UI renders.
+    /// The label and colour tables are unchanged from when they were inline.
+    static func moveResult(from outcome: CalcOutcome, move: MoveData) -> MoveResult {
+        MoveResult(
             move: move,
-            damageMin: dMin, damageMax: dMax,
-            minPercent: minPct, maxPercent: maxPct,
-            hitsToKO: hitsToKO,
-            effectiveness: eff,
-            effectivenessLabel: effLabel,
-            effectivenessColor: effColor,
-            isSTAB: hasSTAB
+            damageMin: outcome.damageMin, damageMax: outcome.damageMax,
+            minPercent: outcome.minPercent, maxPercent: outcome.maxPercent,
+            hitsToKO: outcome.hitsToKOText,
+            effectiveness: outcome.effectiveness,
+            effectivenessLabel: outcome.effectivenessLabel,
+            effectivenessColor: effectivenessColor(outcome.effectiveness),
+            isSTAB: outcome.isSTAB
+        )
+    }
+
+    static func effectivenessColor(_ eff: Double) -> Color {
+        switch eff {
+        case 0:          return .gray
+        case 0.25, 0.5:  return .blue
+        case 1:          return .primary
+        case 2:          return .orange
+        case 4:          return .red
+        default:         return .primary
+        }
+    }
+
+    /// Placeholder for a matchup with no species selected.
+    private static func emptyResult(for move: MoveData) -> MoveResult {
+        MoveResult(
+            move: move,
+            damageMin: 0, damageMax: 0,
+            minPercent: 0, maxPercent: 0,
+            hitsToKO: "--",
+            effectiveness: 1,
+            effectivenessLabel: "1x",
+            effectivenessColor: .primary,
+            isSTAB: false
         )
     }
 
@@ -468,18 +579,38 @@ struct DamageCalculatorView: View {
     @Query(sort: \PKMNStats.name) private var allPokemon: [PKMNStats]
     @Query(sort: \MoveData.name) private var allMoves: [MoveData]
     @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
+    @Environment(\.horizontalSizeClass) private var hSize
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                Group {
                     if allPokemon.isEmpty {
                         SyncingCard()
+                    } else if hSize == .regular {
+                        // Wide layout: mon inputs on the left, result + global
+                        // modifiers on the right so the damage output stays
+                        // visible while tweaking either mon.
+                        HStack(alignment: .top, spacing: 16) {
+                            VStack(spacing: 16) {
+                                SideCard(title: "Pokemon 1", icon: "circle.fill", side: vm.side1, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
+                                SideCard(title: "Pokemon 2", icon: "circle.fill", side: vm.side2, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .top)
+                            VStack(spacing: 16) {
+                                ResultCard(vm: vm)
+                                ModifiersCard(vm: vm)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .top)
+                        }
                     } else {
-                        ResultCard(vm: vm)
-                        SideCard(title: "Pokemon 1", icon: "circle.fill", side: vm.side1, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
-                        SideCard(title: "Pokemon 2", icon: "circle.fill", side: vm.side2, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
-                        ModifiersCard(vm: vm)
+                        // Compact layout: original single column, unchanged.
+                        VStack(spacing: 16) {
+                            ResultCard(vm: vm)
+                            SideCard(title: "Pokemon 1", icon: "circle.fill", side: vm.side1, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
+                            SideCard(title: "Pokemon 2", icon: "circle.fill", side: vm.side2, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
+                            ModifiersCard(vm: vm)
+                        }
                     }
                 }
                 .padding()
@@ -534,17 +665,26 @@ private struct ResultCard: View {
                 }
                 if vm.crit { InfoBadge(text: "Crit", color: .orange) }
                 if vm.burn { InfoBadge(text: "Burn", color: .red) }
-                if let a1 = vm.side1.selectedAbility, !a1.isEmpty {
+                if vm.gravity { InfoBadge(text: "Gravity", color: .indigo) }
+                if vm.wonderRoom { InfoBadge(text: "Wonder Room", color: .indigo) }
+                if vm.magicRoom { InfoBadge(text: "Magic Room", color: .indigo) }
+                if vm.side1.status != .none {
+                    InfoBadge(text: statusLabel(vm.side1.status), color: .orange)
+                }
+                if vm.side2.status != .none {
+                    InfoBadge(text: statusLabel(vm.side2.status), color: .purple)
+                }
+                if let a1 = vm.side1.effectiveAbility, !a1.isEmpty {
                     InfoBadge(text: formatAbilityName(a1), color: .orange)
                 }
-                if let a2 = vm.side2.selectedAbility, !a2.isEmpty {
+                if let a2 = vm.side2.effectiveAbility, !a2.isEmpty {
                     InfoBadge(text: formatAbilityName(a2), color: .purple)
                 }
-                if vm.side1.heldItem != .none {
-                    InfoBadge(text: vm.side1.heldItem.rawValue, color: .green)
+                if vm.side1.effectiveHeldItem != .none {
+                    InfoBadge(text: vm.side1.effectiveHeldItem.rawValue, color: .green)
                 }
-                if vm.side2.heldItem != .none {
-                    InfoBadge(text: vm.side2.heldItem.rawValue, color: .mint)
+                if vm.side2.effectiveHeldItem != .none {
+                    InfoBadge(text: vm.side2.effectiveHeldItem.rawValue, color: .mint)
                 }
                 Spacer()
             }
@@ -727,27 +867,72 @@ private struct SideCard: View {
                 if let p = side.pokemon {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(p.name).font(.title3.bold())
-                            if p.isForm, let form = p.formName {
+                            Text(side.effectiveDisplayName).font(.title3.bold())
+                            if side.activeMegaForm != nil {
+                                Text("Mega Evolved")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.purple)
+                            } else if p.isForm, let form = p.formName {
                                 Text(form.split(separator: "-").map { $0.capitalized }.joined(separator: " "))
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }
                         Spacer()
-                        TypeBadge(type: p.type1)
-                        if let t2 = p.type2 { TypeBadge(type: t2) }
-                        Button { side.pokemon = nil; side.searchText = ""; side.selectedAbility = nil } label: {
+                        ForEach(side.effectiveTypes, id: \.self) { TypeBadge(type: $0) }
+                        Button {
+                            side.pokemon = nil
+                            side.searchText = ""
+                            side.selectedAbility = nil
+                            // Clear Mega state too — the toggle isn't meaningful
+                            // without a species, and we don't want it to silently
+                            // re-arm when the next Pokemon is picked.
+                            side.megaActive = false
+                        } label: {
                             Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                         }
                     }
 
+                    // Mega Evolve toggle — surfaces for any species with a
+                    // registered Mega form, even when the prerequisites
+                    // (stone or Dragon Ascent) aren't met. Disabling instead
+                    // of hiding makes the feature discoverable while still
+                    // enforcing the canonical trigger. Flipping it never
+                    // resets any other field on the set.
+                    if side.hasAnyMegaForm {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Toggle(isOn: $side.megaActive) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "sparkles")
+                                        .foregroundStyle(side.canMegaEvolve ? .purple : .secondary)
+                                    Text("Mega Evolve")
+                                        .font(.subheadline.bold())
+                                    if let form = side.availableMegaForm {
+                                        Text("(\(form.displayName))")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                    }
+                                }
+                            }
+                            .tint(.purple)
+                            .disabled(!side.canMegaEvolve)
+
+                            if let hint = side.megaDisabledReason {
+                                Text(hint)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
                     HStack(spacing: 12) {
-                        StatMini(label: "HP", value: p.baseHP)
-                        StatMini(label: "Atk", value: p.baseAtk)
-                        StatMini(label: "Def", value: p.baseDef)
-                        StatMini(label: "SpA", value: p.baseSpAtk)
-                        StatMini(label: "SpD", value: p.baseSpDef)
-                        StatMini(label: "Spe", value: p.baseSpeed)
+                        StatMini(label: "HP",  value: p.baseHP)
+                        StatMini(label: "Atk", value: side.effectiveBaseAtk)
+                        StatMini(label: "Def", value: side.effectiveBaseDef)
+                        StatMini(label: "SpA", value: side.effectiveBaseSpAtk)
+                        StatMini(label: "SpD", value: side.effectiveBaseSpDef)
+                        StatMini(label: "Spe", value: side.effectiveBaseSpeed)
                     }
                     .font(.caption2)
                 } else {
@@ -827,23 +1012,38 @@ private struct SideCard: View {
             if let pkmn = side.pokemon {
                 Divider()
 
-                // Ability Picker
+                // Ability Picker — when Mega is active, lock the row to the
+                // Mega's canonical ability so the UI reflects what the damage
+                // calc is actually using (`effectiveAbility`). The underlying
+                // `selectedAbility` storage is intentionally NOT mutated so
+                // toggling Mega off restores the user's pre-Mega pick.
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Ability").font(.caption).foregroundStyle(.secondary)
-                        Picker("Ability", selection: $side.selectedAbility) {
-                            Text("None").tag(String?.none)
-                            ForEach(pkmn.allAbilities, id: \.self) { a in
-                                Text(formatAbilityName(a)).tag(Optional(a))
+                        if let mega = side.activeMegaForm {
+                            HStack(spacing: 4) {
+                                Text(formatAbilityName(mega.ability))
+                                    .font(.body)
+                                Text("· Mega")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            Picker("Ability", selection: $side.selectedAbility) {
+                                Text("None").tag(String?.none)
+                                ForEach(pkmn.allAbilities, id: \.self) { a in
+                                    Text(formatAbilityName(a)).tag(Optional(a))
+                                }
+                            }
+                            .labelsHidden()
                         }
-                        .labelsHidden()
                     }
                     Spacer()
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Item").font(.caption).foregroundStyle(.secondary)
                         Picker("Item", selection: $side.heldItem) {
-                            ForEach(HeldItem.allCases) { item in
+                            ForEach(HeldItem.pickerOptions(forSpeciesNamed: pkmn.name)) { item in
                                 Text(item.rawValue).tag(item)
                             }
                         }
@@ -851,8 +1051,41 @@ private struct SideCard: View {
                     }
                 }
 
-                Toggle("At Full HP", isOn: $side.atFullHP)
+                // Status + Current HP (Showdown-parity per-Pokemon options).
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Status").font(.caption).foregroundStyle(.secondary)
+                        Picker("Status", selection: $side.status) {
+                            ForEach(statusPickerOptions, id: \.0) { opt in
+                                Text(opt.1).tag(opt.0)
+                            }
+                        }
+                        .labelsHidden()
+                    }
+                    Spacer()
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Current HP %").font(.caption).foregroundStyle(.secondary)
+                        HStack(spacing: 4) {
+                            TextField("HP", value: Binding(
+                                get: { side.currentHPPercent },
+                                set: { v in
+                                    let c = max(1, min(100, v))
+                                    side.currentHPPercent = c
+                                    side.atFullHP = c >= 100
+                                }
+                            ), format: .number)
+                            .textFieldStyle(.roundedBorder).frame(width: 54)
+                            #if os(iOS)
+                            .keyboardType(.numberPad)
+                            #endif
+                            Text("%").foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Toggle("Ability Active", isOn: $side.abilityOn)
                     .font(.subheadline)
+                    .tint(.red)
 
                 // Level + Nature
                 HStack {
@@ -944,6 +1177,30 @@ private struct SideCard: View {
                     StageRow(label: "Speed", stage: $side.speedStage)
                 }
                 .font(.subheadline)
+
+                // Per-side field conditions. When this Pokemon is attacking, the
+                // "attacking" rows apply; when defending, the "defending" rows do.
+                DisclosureGroup("Field Conditions") {
+                    Text("While attacking").font(.caption.bold()).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Toggle("Helping Hand", isOn: $side.isHelpingHand).font(.subheadline)
+                    Toggle("Tailwind", isOn: $side.isTailwind).font(.subheadline)
+
+                    Divider()
+                    Text("While defending").font(.caption.bold()).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Toggle("Reflect", isOn: $side.isReflect).font(.subheadline)
+                    Toggle("Light Screen", isOn: $side.isLightScreen).font(.subheadline)
+                    Toggle("Aurora Veil", isOn: $side.isAuroraVeil).font(.subheadline)
+                    Toggle("Friend Guard", isOn: $side.isFriendGuard).font(.subheadline)
+                    Toggle("Protect", isOn: $side.isProtected).font(.subheadline)
+                    Toggle("Stealth Rock", isOn: $side.isStealthRock).font(.subheadline)
+                    Stepper(value: $side.spikesLayers, in: 0...3) {
+                        Text("Spikes: \(side.spikesLayers)").font(.subheadline)
+                    }
+                }
+                .font(.subheadline)
+                .tint(.red)
 
                 Divider()
                 VStack(alignment: .leading, spacing: 4) {
@@ -1115,15 +1372,26 @@ private struct ModifiersCard: View {
                 }
             }
 
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Field").font(.subheadline).foregroundStyle(.secondary)
+                HStack {
+                    ToggleBadge(label: "Gravity", on: $vm.gravity)
+                    ToggleBadge(label: "Wonder Room", on: $vm.wonderRoom)
+                }
+                HStack {
+                    ToggleBadge(label: "Magic Room", on: $vm.magicRoom)
+                    ToggleBadge(label: "Doubles (Spread)", on: $vm.multi)
+                }
+            }
+
             HStack {
                 ToggleBadge(label: "Crit", on: $vm.crit)
                 ToggleBadge(label: "Burn", on: $vm.burn)
             }
             HStack {
-                ToggleBadge(label: "Multi-hit", on: $vm.multi)
                 ToggleBadge(label: "Glaive Rush", on: $vm.glaiveRush)
+                ToggleBadge(label: "Z-Move Bypass", on: $vm.zMoveBypass)
             }
-            ToggleBadge(label: "Z-Move Bypass", on: $vm.zMoveBypass)
 
             HStack {
                 Text("Misc Multiplier").font(.subheadline)
@@ -1435,8 +1703,18 @@ private struct ToggleBadge: View {
 
 // MARK: - Helpers
 
-func formatAbilityName(_ raw: String) -> String {
+nonisolated func formatAbilityName(_ raw: String) -> String {
     raw.split(separator: "-").map { $0.capitalized }.joined(separator: " ")
+}
+
+/// Ordered (value, label) pairs for the per-Pokemon Status picker.
+let statusPickerOptions: [(ShowdownStatus, String)] = [
+    (.none, "Healthy"), (.brn, "Burn"), (.psn, "Poison"), (.tox, "Badly Poisoned"),
+    (.par, "Paralysis"), (.slp, "Sleep"), (.frz, "Freeze"),
+]
+
+func statusLabel(_ status: ShowdownStatus) -> String {
+    statusPickerOptions.first { $0.0 == status }?.1 ?? "Healthy"
 }
 
 // MARK: - Preview
