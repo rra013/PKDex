@@ -117,14 +117,36 @@ struct SpeedTierTests {
         #expect(speed == 231)
     }
 
-    // Max neutral Garchomp paralyzed: 154 * 0.25 = 38.5 -> 38
-    @Test func paralysisQuartersSpeed() {
+    // Max neutral Garchomp paralyzed: 154 * 0.5 = 77 (Gen 7+ rule).
+    @Test func paralysisHalvesSpeed() {
         let speed = computeBenchmarkSpeed(
             baseSpeed: 102, level: 50,
             benchmark: .maxNeutral, championsMode: false,
             itemMod: .none, abilityMod: .paralysis
         )
-        #expect(speed == 38)
+        #expect(speed == 77)
+    }
+
+    // Speed Tiers keeps its own modifier table, so pin it to the Showdown
+    // port the solver uses. They disagreed on paralysis (0.25x vs 0.5x)
+    // until 2026-09-23.
+    @Test func paralysisMatchesShowdownPort() throws {
+        let tiers = computeBenchmarkSpeed(
+            baseSpeed: 102, level: 50,
+            benchmark: .maxNeutral, championsMode: true,
+            itemMod: .none, abilityMod: .paralysis
+        )
+        var garchomp = CalcSnapshot(
+            species: SpeciesSnapshot(name: "Garchomp", type1: "Dragon", type2: "Ground",
+                                     baseHP: 108, baseAtk: 130, baseDef: 95,
+                                     baseSpAtk: 80, baseSpDef: 85, baseSpeed: 102),
+            megaForm: nil, nature: allNatures.first { $0.id == "serious" }!,
+            level: 50, selectedAbility: "rough-skin", heldItem: .none, moves: [],
+            championsMode: true)
+        garchomp.evSpeed = SpeedBenchmark.maxNeutral.championsEV
+        garchomp.status = .par
+        let port = try #require(CalcEngine.finalSpeed(garchomp, field: FieldSnapshot()))
+        #expect(tiers == port)
     }
 
     // MARK: - Combined Modifiers

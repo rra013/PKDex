@@ -38,7 +38,7 @@ evaluations — hence the need to get off the main actor.
 | 2.2 | `EVSolver.swift` — survive / KO / outspeed solves | done, tested |
 | 2.3 | `EVSolverSheet.swift` — solver UI on the calc's move rows | done, checked in the simulator |
 
-Last full run (after the solver speed modifiers): **826 of 826 passing**, twice. The test-randomness
+Last full run (after the Speed Tiers paralysis fix): **827 of 827 passing**. The test-randomness
 fixes held for three runs in a row before that. See "Randomness in tests" below. Both
 engines are behind `CalcEngine`, so the whole damage suite exercises the
 extracted code.
@@ -206,9 +206,11 @@ a fourth copy of the speed rules. `EVSolver.minimumToOutspeed` now takes a
 measured with it. `FinalSpeedTests` checks that it matches
 `CalcSnapshot.speed` exactly when no modifiers apply.
 
-The app has several speed calculations that disagree. The Speed Tiers
-screen uses 0.25x for paralysis; the sim, the port and the solver use the
-modern 0.5x. That's flagged as a separate fix.
+The app still has several speed calculations. The Speed Tiers screen used
+0.25x for paralysis (the Gen 1–6 rule) while the sim, the port and the
+solver use 0.5x. It was fixed on 2026-09-23, and
+`SpeedTierTests.paralysisMatchesShowdownPort` now ties the two together so
+they can't drift apart again.
 
 Not yet done: goals beyond one hit (2HKO, surviving two hits) and survival
 from less than full HP.

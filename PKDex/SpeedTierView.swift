@@ -70,7 +70,7 @@ enum SpeedAbilityModifier: String, CaseIterable, Identifiable {
     case unburden = "Unburden (2x)"
     case quickFeet = "Quick Feet (1.5x)"
     case slowStart = "Slow Start (0.5x)"
-    case paralysis = "Paralysis (0.25x)"
+    case paralysis = "Paralysis (0.5x)"
 
     var id: String { rawValue }
 
@@ -80,7 +80,9 @@ enum SpeedAbilityModifier: String, CaseIterable, Identifiable {
         case .swiftSwim, .unburden: return 2.0
         case .quickFeet: return 1.5
         case .slowStart: return 0.5
-        case .paralysis: return 0.25
+        // Gen 7+ (and Champions) halve Speed; 0.25x was the Gen 1–6 rule.
+        // Matches the battle sim and the Showdown port's getFinalSpeed.
+        case .paralysis: return 0.5
         }
     }
 }
