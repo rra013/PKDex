@@ -206,6 +206,30 @@ nonisolated enum CalcEngine {
         )
     }
 
+    /// A side's final Speed as the Champions port computes it: stat stages,
+    /// Choice Scarf / Iron Ball, Tailwind, weather and terrain speed
+    /// abilities, Unburden, Quick Feet, Protosynthesis / Quark Drive, and
+    /// paralysis. Returns nil off the Champions path, for the same reason
+    /// `evaluateChampions` does: the port only has Champions data.
+    ///
+    /// Callers fall back to `CalcSnapshot.speed` (stages only) rather than a
+    /// hand-rolled copy of these rules. The app already has several speed
+    /// calculations, and they disagree.
+    static func finalSpeed(_ side: CalcSnapshot, field: FieldSnapshot) -> Int? {
+        guard side.championsMode else { return nil }
+        let gen = ShowdownGen0.shared
+        guard let species = showdownSpecies(gen, for: side) else { return nil }
+        // `moveType` only picks a Plate for the generic type-boost item, which
+        // doesn't touch Speed. Not the attacker, so the global Burn toggle
+        // stays off.
+        let pokemon = makeShowdownPokemon(gen, side: side, species: species,
+                                          moveType: "Normal", isAttacker: false,
+                                          field: field)
+        // `makeShowdownField` puts `attacker`'s Tailwind on `attackerSide`.
+        let sfield = makeShowdownField(attacker: side, defender: side, field: field)
+        return getFinalSpeed(gen, pokemon, sfield, sfield.attackerSide)
+    }
+
     /// Resolves the Showdown species for a side, honoring an active Mega. Megas
     /// are looked up through the ported `getForme`, which maps the held stone
     /// suffix (…ite / …ite Y) — or Dragon Ascent for Rayquaza — to the correct

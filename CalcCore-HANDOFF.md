@@ -38,7 +38,7 @@ evaluations — hence the need to get off the main actor.
 | 2.2 | `EVSolver.swift` — survive / KO / outspeed solves | done, tested |
 | 2.3 | `EVSolverSheet.swift` — solver UI on the calc's move rows | done, checked in the simulator |
 
-Last full run (after the downloader hardening): **820 of 820 passing**. The test-randomness
+Last full run (after the solver speed modifiers): **826 of 826 passing**, twice. The test-randomness
 fixes held for three runs in a row before that. See "Randomness in tests" below. Both
 engines are behind `CalcEngine`, so the whole damage suite exercises the
 extracted code.
@@ -195,9 +195,23 @@ Each answer has an **Apply** button that writes the EVs back to the
   0 HP / 31 Def survives at 83.1–99.5%; after Apply the calc showed exactly
   152–182 (83.1%–99.5%), 2HKO.
 
-Not yet done: a Tailwind / Scarf toggle for the speed rows (the solver
-already takes a `multiplier`), goals beyond one hit (2HKO, surviving two
-hits), and survival from less than full HP.
+**Speed rows use final Speed (2026-09-23).** `CalcEngine.finalSpeed` runs a
+side through the port's `getFinalSpeed`, so the Outspeed answers include
+Choice Scarf / Iron Ball, Tailwind, weather and terrain speed abilities,
+Unburden, Quick Feet, Protosynthesis / Quark Drive, and paralysis. It
+returns nil off the Champions path, like `evaluateChampions`. The sheet then
+falls back to the raw stat and says so in the footnote, rather than keeping
+a fourth copy of the speed rules. `EVSolver.minimumToOutspeed` now takes a
+`speedOf` function instead of a fixed multiplier, and both sides are
+measured with it. `FinalSpeedTests` checks that it matches
+`CalcSnapshot.speed` exactly when no modifiers apply.
+
+The app has several speed calculations that disagree. The Speed Tiers
+screen uses 0.25x for paralysis; the sim, the port and the solver use the
+modern 0.5x. That's flagged as a separate fix.
+
+Not yet done: goals beyond one hit (2HKO, surviving two hits) and survival
+from less than full HP.
 
 ## Design decisions worth not re-litigating
 
@@ -222,8 +236,8 @@ hits), and survival from less than full HP.
 
 ## Open items
 
-- **Randomness in tests — resolved 2026-09-23.** Four tests could fail by
-  chance; all are now deterministic or effectively so. Each fix was
+- **Randomness in tests — resolved 2026-09-23.** Five tests could fail by
+  chance (Berserk found later the same day); all are now deterministic or effectively so. Each fix was
   mutation-checked: the mechanic was broken on purpose, the test failed, and
   the source was restored.
 
@@ -233,6 +247,7 @@ hits), and survival from less than full HP.
   | `lowKickScalesWithDefenderWeight` | roll range 2–4 overlaps 80 vs 120 BP (~22%) | pinned rolls |
   | `earthquakeHitsDiggingTargetForDoubleDamage` | a crit in either run skewed the ratio (~8%) | pinned rolls; assertion tightened from `> 1.5x` to exactly `2x` |
   | `compoundEyesLandsMoreThanBaseline` | 200 samples put the 5pp threshold ~2 SD from the mean (~2%) | 1000 samples (~1 in 500k), plus a new exact test of `effectiveAccuracy` |
+  | `berserkOnlyFiresOnce` | a random crit (~4%) could KO from 60% HP and skip the trigger | pinned rolls; `berserkWindowHoldsAtBothRollExtremes` checks every non-crit roll still lands in the window |
 
   **The tool:** `BattleEngine.rollOverride`. Set
   `.init(crit: false, roll: .max)` on each engine before `executeTurn()`. It

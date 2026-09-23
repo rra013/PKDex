@@ -85,14 +85,18 @@ struct EVSolverSheet: View {
                     Section {
                         speedRow(name: attackerName, over: defenderName,
                                  targetSpeed: results.defenderSpeedStat,
-                                 result: results.attackerOutspeeds, side: attacker)
+                                 result: results.attackerOutspeeds, side: attacker,
+                                 speedOf: results.speedOf)
                         speedRow(name: defenderName, over: attackerName,
                                  targetSpeed: results.attackerSpeedStat,
-                                 result: results.defenderOutspeeds, side: defender)
+                                 result: results.defenderOutspeeds, side: defender,
+                                 speedOf: results.speedOf)
                     } header: {
                         Label("Outspeed", systemImage: "hare.fill")
                     } footer: {
-                        Text("Compares current Speed with stat stages. Items, Tailwind and paralysis aren't applied. Ties don't count.")
+                        Text(results.speedIncludesModifiers
+                             ? "Final Speed, including stat stages, items like Choice Scarf, Tailwind, weather and terrain abilities, and paralysis. Ties don't count."
+                             : "Raw Speed with stat stages only. Items, Tailwind and paralysis are applied on the Champions path only. Ties don't count.")
                     }
                 } else {
                     Section {
@@ -252,7 +256,8 @@ struct EVSolverSheet: View {
     @ViewBuilder
     private func speedRow(name: String, over other: String, targetSpeed: Int,
                           result: Result<EVSolver.Solution, EVSolver.Failure>,
-                          side: CalcSide) -> some View {
+                          side: CalcSide,
+                          speedOf: (CalcSnapshot) -> Int) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("\(name) over \(other) (\(targetSpeed))")
                 .font(.subheadline)
@@ -266,7 +271,7 @@ struct EVSolverSheet: View {
                         Image(systemName: "arrow.right").font(.caption2).foregroundStyle(.secondary)
                     }
                     Text(new == 1 ? "1 EV" : "\(new) EVs").bold()
-                    Text("(Speed \(solution.snapshot.speed))").foregroundStyle(.secondary)
+                    Text("(Speed \(speedOf(solution.snapshot)))").foregroundStyle(.secondary)
                     Spacer()
                     if now != new {
                         Button("Apply") {
@@ -313,21 +318,36 @@ private nonisolated struct SolveResults: Sendable {
     var defenderOutspeeds: Result<EVSolver.Solution, EVSolver.Failure>
     var attackerSpeedStat: Int
     var defenderSpeedStat: Int
+    /// True when both Speeds came from `CalcEngine.finalSpeed`, so items,
+    /// Tailwind and the like are included. False means raw stats.
+    var speedIncludesModifiers: Bool
+    /// The Speed a solution reaches, measured the same way.
+    var speedOf: @Sendable (CalcSnapshot) -> Int
 
     static func compute(move: MoveSnapshot, attacker: CalcSnapshot,
                         defender: CalcSnapshot, field: FieldSnapshot,
                         certainty: EVSolver.Certainty) -> SolveResults {
-        SolveResults(
+        // Final Speed where the port can compute it, the stat otherwise. Both
+        // sides go through the same function so the comparison is even.
+        let speed = { (side: CalcSnapshot) in
+            CalcEngine.finalSpeed(side, field: field) ?? side.speed
+        }
+        return SolveResults(
             survive: EVSolver.minimumToSurvive(move: move, attacker: attacker,
                                                defender: defender, field: field,
                                                certainty: certainty),
             ko: EVSolver.minimumToKO(move: move, attacker: attacker,
                                      defender: defender, field: field,
                                      certainty: certainty),
-            attackerOutspeeds: EVSolver.minimumToOutspeed(attacker, targetSpeed: defender.speed),
-            defenderOutspeeds: EVSolver.minimumToOutspeed(defender, targetSpeed: attacker.speed),
-            attackerSpeedStat: attacker.speed,
-            defenderSpeedStat: defender.speed
+            attackerOutspeeds: EVSolver.minimumToOutspeed(
+                attacker, targetSpeed: speed(defender), speedOf: speed),
+            defenderOutspeeds: EVSolver.minimumToOutspeed(
+                defender, targetSpeed: speed(attacker), speedOf: speed),
+            attackerSpeedStat: speed(attacker),
+            defenderSpeedStat: speed(defender),
+            speedIncludesModifiers: CalcEngine.finalSpeed(attacker, field: field) != nil
+                && CalcEngine.finalSpeed(defender, field: field) != nil,
+            speedOf: { CalcEngine.finalSpeed($0, field: field) ?? $0.speed }
         )
     }
 }

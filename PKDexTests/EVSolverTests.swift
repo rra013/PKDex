@@ -244,12 +244,13 @@ struct EVSolverTests {
         #expect(tie.evs[.speed]! <= spent)
     }
 
-    @Test("Speed: a multiplier (Scarf) lowers the requirement")
+    @Test("Speed: a boosted speed function (Scarf) lowers the requirement")
     func speedMultiplier() throws {
         let side = Self.side(Self.bruiser)
         let target = side.settingEV(.speed, to: 252).speed
-        let scarf = try EVSolver.minimumToOutspeed(side, targetSpeed: target,
-                                                   multiplier: 1.5).get()
+        let scarf = try EVSolver.minimumToOutspeed(
+            side, targetSpeed: target,
+            speedOf: { Int(Double($0.speed) * 1.5) }).get()
         #expect(scarf.evs[.speed]! < 252)
     }
 
@@ -322,5 +323,86 @@ struct EVSolverTests {
         let foul = Self.move("Foul Play", "Dark", "physical", 95, contact: true)
         #expect(EVSolver.minimumToKO(move: foul, attacker: atk, defender: def,
                                      field: Self.field) == .failure(.noRelevantStat))
+    }
+}
+
+// MARK: - Final Speed (Champions port)
+
+@Suite("EV Solver — Final Speed")
+struct FinalSpeedTests {
+
+    private static let garchomp = SpeciesSnapshot(
+        name: "Garchomp", type1: "Dragon", type2: "Ground",
+        baseHP: 108, baseAtk: 130, baseDef: 95,
+        baseSpAtk: 80, baseSpDef: 85, baseSpeed: 102)
+
+    private static func side(champions: Bool = true) -> CalcSnapshot {
+        CalcSnapshot(species: garchomp, megaForm: nil,
+                     nature: allNatures.first { $0.id == "jolly" }!,
+                     level: 50, selectedAbility: "rough-skin",
+                     heldItem: .none, moves: [], championsMode: champions)
+    }
+
+    private static func speed(_ side: CalcSnapshot,
+                              _ field: FieldSnapshot = FieldSnapshot()) throws -> Int {
+        try #require(CalcEngine.finalSpeed(side, field: field))
+    }
+
+    @Test("With no modifiers it matches the plain stat", arguments: [-2, 0, 1])
+    func parityWithStat(stage: Int) throws {
+        for ev in Self.side().evDomain {
+            var s = Self.side().settingEV(.speed, to: ev)
+            s.speedStage = stage
+            #expect(try Self.speed(s) == s.speed, "ev \(ev), stage \(stage)")
+        }
+    }
+
+    @Test("Choice Scarf, Tailwind and paralysis apply")
+    func modifiers() throws {
+        let plain = Self.side().settingEV(.speed, to: 32)
+        let base = try Self.speed(plain)
+
+        var scarf = plain; scarf.heldItem = .choiceScarf
+        #expect(abs(try Self.speed(scarf) - Int(Double(base) * 1.5)) <= 1)
+
+        var tailwind = plain; tailwind.isTailwind = true
+        #expect(try Self.speed(tailwind) == base * 2)
+
+        var paralyzed = plain; paralyzed.status = .par
+        #expect(try Self.speed(paralyzed) == base / 2)
+    }
+
+    @Test("Swift Swim doubles Speed only in rain")
+    func weatherAbility() throws {
+        var swimmer = Self.side().settingEV(.speed, to: 32)
+        swimmer.selectedAbility = "swift-swim"
+        let dry = try Self.speed(swimmer)
+        var rain = FieldSnapshot(); rain.weather = .rain
+        #expect(try Self.speed(swimmer, rain) == dry * 2)
+        #expect(dry == swimmer.speed)
+    }
+
+    @Test("Off the Champions path there's no final Speed")
+    func legacyIsNil() {
+        #expect(CalcEngine.finalSpeed(Self.side(champions: false), field: FieldSnapshot()) == nil)
+    }
+
+    @Test("A Scarf holder needs far fewer EVs to outspeed")
+    func solverUsesFinalSpeed() throws {
+        let field = FieldSnapshot()
+        let speedOf = { (s: CalcSnapshot) in CalcEngine.finalSpeed(s, field: field) ?? s.speed }
+        let target = speedOf(Self.side().settingEV(.speed, to: 32))
+
+        var scarfer = Self.side()
+        scarfer.heldItem = .choiceScarf
+        let withScarf = try EVSolver.minimumToOutspeed(
+            scarfer, targetSpeed: target, speedOf: speedOf).get()
+        #expect(withScarf.evs[.speed] == 0, "a Scarf Garchomp outspeeds a max-Speed one uninvested")
+
+        // Without the speed function the same Scarf holder looks like it
+        // can't outspeed at all: the old raw-stat behaviour.
+        #expect(throws: EVSolver.Failure.self) {
+            try EVSolver.minimumToOutspeed(scarfer, targetSpeed: target).get()
+        }
     }
 }

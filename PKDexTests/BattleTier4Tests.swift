@@ -233,6 +233,11 @@ struct BattleTier4SpecialTests {
         let b = T4.pkmn("Def", id: 101, ability: "berserk", hp: 200)
         let tackle = T4.mv("Tackle", id: 1, dmg: "physical", power: 80, makesContact: true)
         let e = T4.engine((a, "blaze", [tackle]), (b, "berserk", [tackle]))
+        // Berserk needs the hit to cross 50% without a KO. From 60% HP a
+        // random crit could KO outright and skip the trigger, so pin the
+        // rolls. `berserkWindowHoldsAtBothRollExtremes` checks this doesn't
+        // hide the mechanic.
+        e.rollOverride = .init(crit: false, roll: .max)
         let B = e.side2.active(at: 0)!
         B.currentHP = B.maxHP * 6 / 10
         e.setAction(side: 0, slot: 0, action: .move(moveIndex: 0, targetSide: 1, targetSlot: 0))
@@ -244,6 +249,24 @@ struct BattleTier4SpecialTests {
         e.setAction(side: 0, slot: 0, action: .move(moveIndex: 0, targetSide: 1, targetSlot: 0))
         e.executeTurn()
         #expect(B.spAtkStage == 1, "Berserk shouldn't fire twice without a switch reset")
+    }
+
+    /// Pinning `berserkOnlyFiresOnce` to one roll is only sound if the
+    /// scenario works for every non-crit roll. Check both ends of the range.
+    @Test(arguments: [BattleEngine.RollOverride.Roll.min, .max])
+    func berserkWindowHoldsAtBothRollExtremes(roll: BattleEngine.RollOverride.Roll) {
+        let a = T4.pkmn("Atk", id: 100, atk: 300)
+        let b = T4.pkmn("Def", id: 101, ability: "berserk", hp: 200)
+        let tackle = T4.mv("Tackle", id: 1, dmg: "physical", power: 80, makesContact: true)
+        let e = T4.engine((a, "blaze", [tackle]), (b, "berserk", [tackle]))
+        e.rollOverride = .init(crit: false, roll: roll)
+        let B = e.side2.active(at: 0)!
+        B.currentHP = B.maxHP * 6 / 10
+        e.setAction(side: 0, slot: 0, action: .move(moveIndex: 0, targetSide: 1, targetSlot: 0))
+        e.executeTurn()
+        #expect(!B.fainted)
+        #expect(B.currentHP < B.maxHP / 2)
+        #expect(B.spAtkStage == 1)
     }
 }
 
