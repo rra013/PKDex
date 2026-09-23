@@ -652,6 +652,7 @@ private struct SyncingCard: View {
 
 private struct ResultCard: View {
     var vm: DamageCalcVM
+    @State private var solveRequest: EVSolveRequest?
 
     var body: some View {
         CalcSection(title: "Results", icon: "bolt.fill") {
@@ -694,7 +695,8 @@ private struct ResultCard: View {
                     attackerName: vm.side1.pokemon?.name ?? "???",
                     defenderName: vm.side2.pokemon?.name ?? "???",
                     defenderHP: vm.side2.hp,
-                    results: vm.side1Results
+                    results: vm.side1Results,
+                    onSolve: { solveRequest = EVSolveRequest(move: $0, attackerIsSide1: true) }
                 )
 
                 Divider()
@@ -703,7 +705,8 @@ private struct ResultCard: View {
                     attackerName: vm.side2.pokemon?.name ?? "???",
                     defenderName: vm.side1.pokemon?.name ?? "???",
                     defenderHP: vm.side1.hp,
-                    results: vm.side2Results
+                    results: vm.side2Results,
+                    onSolve: { solveRequest = EVSolveRequest(move: $0, attackerIsSide1: false) }
                 )
             } else {
                 Text("Select two Mons to see results")
@@ -711,6 +714,9 @@ private struct ResultCard: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
             }
+        }
+        .sheet(item: $solveRequest) { request in
+            EVSolverSheet(vm: vm, request: request)
         }
     }
 }
@@ -720,6 +726,8 @@ private struct DirectionResultsView: View {
     let defenderName: String
     let defenderHP: Int
     let results: [MoveResult]
+    /// Opens the EV solver for a move in this direction.
+    var onSolve: ((MoveData) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -737,7 +745,7 @@ private struct DirectionResultsView: View {
                     .font(.caption).foregroundStyle(.tertiary)
             } else {
                 ForEach(results) { result in
-                    MoveResultRow(result: result)
+                    MoveResultRow(result: result, onSolve: onSolve.map { f in { f(result.move) } })
                 }
             }
         }
@@ -746,6 +754,7 @@ private struct DirectionResultsView: View {
 
 private struct MoveResultRow: View {
     let result: MoveResult
+    var onSolve: (() -> Void)? = nil
 
     private var isStatus: Bool { result.move.damageClass == "status" }
 
@@ -790,6 +799,14 @@ private struct MoveResultRow: View {
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                     Spacer()
+                    if let onSolve {
+                        Button(action: onSolve) {
+                            Label("Solve EVs", systemImage: "wand.and.stars")
+                                .font(.caption.bold())
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityHint("Finds the fewest EVs to survive, KO or outspeed")
+                    }
                 }
 
                 PercentageBar(minPct: result.minPercent, maxPct: result.maxPercent)

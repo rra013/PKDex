@@ -36,7 +36,7 @@ evaluations — hence the need to get off the main actor.
 | 2.1c | Vendored port made nonisolated | done, tested |
 | 2.1d | Champions/Showdown path extracted | done, tested |
 | 2.2 | `EVSolver.swift` — survive / KO / outspeed solves | done, tested |
-| 2.3 | Solver UI | **not started** |
+| 2.3 | `EVSolverSheet.swift` — solver UI on the calc's move rows | done, checked in the simulator |
 
 Last full run (after 2.2 and the test-randomness fixes): **805 of 805
 passing, three runs in a row**. See "Randomness in tests" below. Both
@@ -171,11 +171,33 @@ Things to know before building the UI on it:
 - **Unreachable goals report `best`**, the outcome at maximum investment,
   so the UI can show how close the spread gets.
 
-## Next step: 2.3 — solver UI
+## What 2.3 landed
 
-The solver runs off the main actor. From the calc screen, snapshot the
-sides with `CalcSide.snapshot()` / `DamageCalcVM.fieldSnapshot()` and run
-the solve in a detached task. The worst case is about 4k evaluations.
+Every damaging move row on the calc now has a **Solve EVs** button. It opens
+`EVSolverSheet` for that move and direction, which shows three things:
+
+- the defender's cheapest survive spread,
+- the attacker's cheapest OHKO investment,
+- each side's Speed needed to outspeed the other.
+
+Each answer has an **Apply** button that writes the EVs back to the
+`CalcSide`, and the calc updates immediately.
+
+- **Solves run in a detached task** on snapshots taken when the sheet opens.
+  `SolveResults` is `nonisolated` for that reason.
+- **"Every roll" / "Most rolls (≥ 50%)"** only appears when both sides are
+  in Champions mode. If a matchup falls back to the legacy engine anyway,
+  the sheet says the answer is the every-roll one.
+- **Rows show current → new**, so applying an answer that *lowers*
+  existing investment is visible before it happens.
+- **Mirror matches** label the sides "(P1)" / "(P2)".
+- Checked in the simulator (Garchomp vs Garchomp, Outrage). The solver said
+  0 HP / 31 Def survives at 83.1–99.5%; after Apply the calc showed exactly
+  152–182 (83.1%–99.5%), 2HKO.
+
+Not yet done: a Tailwind / Scarf toggle for the speed rows (the solver
+already takes a `multiplier`), goals beyond one hit (2HKO, surviving two
+hits), and survival from less than full HP.
 
 ## Design decisions worth not re-litigating
 
