@@ -75,13 +75,13 @@ nonisolated struct ShowdownStats: Hashable, Codable {
 /// Minimal nature model: which stat is boosted (+10%) / reduced (−10%).
 /// Neutral natures have both nil. Mirrors what `gen.natures.get()` provides to
 /// the stat formula (only `plus`/`minus` are read there).
-struct ShowdownNature {
+nonisolated struct ShowdownNature {
     let name: String
     let plus: ShowdownStat?
     let minus: ShowdownStat?
 }
 
-enum ShowdownNatures {
+nonisolated enum ShowdownNatures {
     /// name (lowercased id) -> nature. Neutral natures map to (nil, nil).
     static let byID: [ShowdownID: ShowdownNature] = {
         // (name, plus, minus) — the 25 mainline natures. Neutrals omitted from
@@ -108,7 +108,7 @@ enum ShowdownNatures {
 
 // MARK: - Stat formula (stats.ts)
 
-enum ShowdownStatsCalc {
+nonisolated enum ShowdownStatsCalc {
     /// `gen` here is the upstream generation number: 0 == Champions, 3–9 use the
     /// ADV+ formula, 1–2 use RBY. We only need Champions (0) and modern (9) for
     /// this app, but the dispatch is kept faithful.
@@ -162,12 +162,12 @@ enum ShowdownStatsCalc {
 
 // MARK: - Field (field.ts)
 
-enum ShowdownGameType: String { case singles = "Singles", doubles = "Doubles" }
-enum ShowdownWeather: String { case sun = "Sun", rain = "Rain", sand = "Sand", snow = "Snow", hail = "Hail", harshSunshine = "Harsh Sunshine", heavyRain = "Heavy Rain", strongWinds = "Strong Winds" }
-enum ShowdownTerrain: String { case electric = "Electric", grassy = "Grassy", psychic = "Psychic", misty = "Misty" }
+nonisolated enum ShowdownGameType: String { case singles = "Singles", doubles = "Doubles" }
+nonisolated enum ShowdownWeather: String { case sun = "Sun", rain = "Rain", sand = "Sand", snow = "Snow", hail = "Hail", harshSunshine = "Harsh Sunshine", heavyRain = "Heavy Rain", strongWinds = "Strong Winds" }
+nonisolated enum ShowdownTerrain: String { case electric = "Electric", grassy = "Grassy", psychic = "Psychic", misty = "Misty" }
 
 /// Reference type: the damage pipeline mutates sides in place (screens, etc.).
-final class ShowdownSide {
+nonisolated final class ShowdownSide {
     var spikes = 0
     var steelsurge = false
     var vinelash = false
@@ -207,7 +207,7 @@ final class ShowdownSide {
 }
 
 /// Reference type: `checkAirLock`, `checkSeedBoost`, etc. mutate the field.
-final class ShowdownField {
+nonisolated final class ShowdownField {
     var gameType: ShowdownGameType = .singles
     var weather: ShowdownWeather? = nil
     var terrain: ShowdownTerrain? = nil

@@ -12,7 +12,10 @@ import Foundation
 
 /// Champions ("gen 0") data provider backed by the bundled JSON. One shared
 /// instance; the ~140 KB table is parsed once and keyed by `toID`.
-final class ShowdownGen0: ShowdownGeneration {
+/// `Sendable` is sound rather than merely asserted: every stored property is
+/// an immutable `let` dictionary populated once in `init` and never mutated,
+/// so concurrent reads from the solver are safe.
+nonisolated final class ShowdownGen0: nonisolated ShowdownGeneration, @unchecked Sendable {
     static let shared = ShowdownGen0()
 
     let num = 0

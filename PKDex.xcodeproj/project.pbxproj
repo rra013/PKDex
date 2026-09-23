@@ -31,6 +31,7 @@
 		337BE9D92FC9DE0F00859F96 /* Hub in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9D82FC9DE0F00859F96 /* Hub */; };
 		337BE9DB2FC9DE0F00859F96 /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9DA2FC9DE0F00859F96 /* Tokenizers */; };
 		337BE9DD2FC9DE0F00859F96 /* Transformers in Frameworks */ = {isa = PBXBuildFile; productRef = 337BE9DC2FC9DE0F00859F96 /* Transformers */; };
+		3397EC7B305DFCF4002295C4 /* CalcCore-HANDOFF.md in Resources */ = {isa = PBXBuildFile; fileRef = 3397EC7A305DFCF4002295C4 /* CalcCore-HANDOFF.md */; };
 		33C3EAE62F946AB5004BB026 /* libzstd.1.5.7.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 33C3EAE52F946AB5004BB026 /* libzstd.1.5.7.dylib */; platformFilters = (macos, ); };
 		33C3EAE72F946AB5004BB026 /* libzstd.1.5.7.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 33C3EAE52F946AB5004BB026 /* libzstd.1.5.7.dylib */; platformFilters = (macos, ); settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		33C3ECA62F947399004BB026 /* entropy_common.c in Sources */ = {isa = PBXBuildFile; fileRef = 33C3EC6C2F947399004BB026 /* entropy_common.c */; settings = {COMPILER_FLAGS = "-w"; }; };
@@ -103,6 +104,7 @@
 		337BE9C52FC9A25700859F96 /* champions-m-a-learnsets.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-a-learnsets.json"; sourceTree = "<group>"; };
 		337BE9C62FC9A25700859F96 /* champions-m-a.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "champions-m-a.json"; sourceTree = "<group>"; };
 		337BE9C92FC9D8EF00859F96 /* move_categories.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = move_categories.json; sourceTree = "<group>"; };
+		3397EC7A305DFCF4002295C4 /* CalcCore-HANDOFF.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "CalcCore-HANDOFF.md"; sourceTree = "<group>"; };
 		33C3DE292F946A84004BB026 /* absl */ = {isa = PBXFileReference; lastKnownFileType = text; path = absl; sourceTree = "<group>"; };
 		33C3DE2A2F946A84004BB026 /* OpenSSL */ = {isa = PBXFileReference; lastKnownFileType = text; path = OpenSSL; sourceTree = "<group>"; };
 		33C3DE2B2F946A84004BB026 /* protobuf */ = {isa = PBXFileReference; lastKnownFileType = text; path = protobuf; sourceTree = "<group>"; };
@@ -8902,6 +8904,7 @@
 				33C6C9A12F8D3CFB005FFCCC /* Products */,
 				3366A45C2FE2D49B00DB0528 /* champions-m-b.json */,
 				3366A45E2FE2D49D00DB0528 /* champions-m-b-learnsets.json */,
+				3397EC7A305DFCF4002295C4 /* CalcCore-HANDOFF.md */,
 			);
 			sourceTree = "<group>";
 		};
@@ -9043,6 +9046,7 @@
 				33178D072FCCF1E700FE0B46 /* stat_nature_vocab.json in Resources */,
 				337BE9CA2FC9D8EF00859F96 /* move_categories.json in Resources */,
 				337BE9C72FC9A25700859F96 /* champions-m-a-learnsets.json in Resources */,
+				3397EC7B305DFCF4002295C4 /* CalcCore-HANDOFF.md in Resources */,
 				337BE9C82FC9A25700859F96 /* champions-m-a.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

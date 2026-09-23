@@ -11,7 +11,7 @@ import Foundation
 
 // MARK: - Shared enums
 
-enum ShowdownType: String, Hashable, Codable {
+nonisolated enum ShowdownType: String, Hashable, Codable {
     case normal = "Normal", fire = "Fire", water = "Water", electric = "Electric"
     case grass = "Grass", ice = "Ice", fighting = "Fighting", poison = "Poison"
     case ground = "Ground", flying = "Flying", psychic = "Psychic", bug = "Bug"
@@ -19,13 +19,13 @@ enum ShowdownType: String, Hashable, Codable {
     case steel = "Steel", fairy = "Fairy", stellar = "Stellar", typeless = "???"
 }
 
-enum ShowdownCategory: String, Codable { case physical = "Physical", special = "Special", status = "Status" }
+nonisolated enum ShowdownCategory: String, Codable { case physical = "Physical", special = "Special", status = "Status" }
 nonisolated enum ShowdownStatus: String, Sendable { case slp = "slp", psn = "psn", brn = "brn", frz = "frz", par = "par", tox = "tox", none = "" }
 
 // MARK: - Data model (decoded from vendored JSON; populated by ShowdownData)
 
 /// Species record — the fields `@smogon/calc` reads off `gen.species.get()`.
-struct ShowdownSpecies: Codable, Hashable {
+nonisolated struct ShowdownSpecies: Codable, Hashable {
     var name: String
     var types: [ShowdownType]              // 1 or 2
     var baseStats: ShowdownStats
@@ -39,7 +39,7 @@ struct ShowdownSpecies: Codable, Hashable {
 }
 
 /// Move record — mirrors the @pkmn `Move` fields the calc consumes.
-struct ShowdownMoveData: Codable, Hashable {
+nonisolated struct ShowdownMoveData: Codable, Hashable {
     var name: String
     var basePower: Int
     var type: ShowdownType
@@ -75,7 +75,7 @@ struct ShowdownMoveData: Codable, Hashable {
 
 /// Data access the mechanics need. `num` is the upstream generation number
 /// (0 == Champions, 9 == SV). Backed by vendored JSON in `ShowdownData`.
-protocol ShowdownGeneration {
+nonisolated protocol ShowdownGeneration {
     var num: Int { get }
     func species(_ id: ShowdownID) -> ShowdownSpecies?
     func move(_ id: ShowdownID) -> ShowdownMoveData?
@@ -85,15 +85,19 @@ protocol ShowdownGeneration {
 }
 
 extension ShowdownGeneration {
-    func nature(_ name: String?) -> ShowdownNature? { ShowdownNatures.get(name) }
+    /// `nonisolated` explicitly: this is the default witness for `nature(_:)`,
+    /// and an unannotated extension member picks up the module's main-actor
+    /// default — which would drag the whole conformance onto the main actor
+    /// even for a nonisolated conformer.
+    nonisolated func nature(_ name: String?) -> ShowdownNature? { ShowdownNatures.get(name) }
 }
 
 // MARK: - Move (move.ts)
 
-private let SPECIAL_TYPES: Set<ShowdownType> = [.fire, .water, .grass, .electric, .ice, .psychic, .dark, .dragon]
+nonisolated private let SPECIAL_TYPES: Set<ShowdownType> = [.fire, .water, .grass, .electric, .ice, .psychic, .dark, .dragon]
 
 /// Reference type: the pipeline mutates `move.type`/`move.category`/flags in place.
-final class ShowdownMove {
+nonisolated final class ShowdownMove {
     var gen: Int
     var name: String
     var originalName: String
@@ -234,7 +238,7 @@ final class ShowdownMove {
 // MARK: - Pokemon (pokemon.ts)
 
 /// Reference type: `check*`/`computeFinalStats` mutate boosts/stats/types in place.
-final class ShowdownPokemon {
+nonisolated final class ShowdownPokemon {
     var gen: Int
     var name: String
     var species: ShowdownSpecies

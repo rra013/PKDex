@@ -130,8 +130,13 @@ struct BattleTier9WeightedDamageTests {
     @Test func lowKickScalesWithDefenderWeight() {
         let atk = T9.pkmn("Atk", id: 100, atk: 100)
         // Both targets carry huge HP / matching Def so the damage formula
-        // doesn't saturate — what we're checking is that 120 BP > 60 BP.
-        let tiny = T9.pkmn("Wisp", id: 50, hp: 600, def: 100)     // unknown → 50 kg → 60 BP
+        // doesn't saturate — what we're checking is that 120 BP > 80 BP.
+        //
+        // Known flaky (~22%): the damage roll happens before the weight
+        // multiplier, so at `power: 1` the two outcome sets overlap at 240.
+        // See "Known flaky tests" in CalcCore-HANDOFF.md — the fix is a roll
+        // override on the engine, not a looser assertion here.
+        let tiny = T9.pkmn("Wisp", id: 50, hp: 600, def: 100)     // unknown → 50 kg → 80 BP
         let huge = T9.pkmn("Snorlax", id: 143, hp: 600, def: 100) // 460 kg → 120 BP
         let lk = T9.mv("Low Kick", id: 1, type: "Fighting", dmg: "physical",
                         power: 1, makesContact: true)

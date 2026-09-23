@@ -16,7 +16,7 @@ import Foundation
 /// Dispatches to the per-generation mechanics like upstream `MECHANICS[gen.num]`,
 /// cloning inputs so callers keep their originals. Phase 1 wires Champions
 /// (gen 0); other gens are not yet ported (see ShowdownPort-NOTES.md).
-func calculateShowdown(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
+nonisolated func calculateShowdown(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
                        _ defender: ShowdownPokemon, _ move: ShowdownMove,
                        _ field: ShowdownField? = nil) -> ShowdownResult {
     let f = field?.clone() ?? ShowdownField()
@@ -30,7 +30,7 @@ func calculateShowdown(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
 
 // MARK: - calculateChampions
 
-func calculateChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
+nonisolated func calculateChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
                         _ defender: ShowdownPokemon, _ move: ShowdownMove,
                         _ field: ShowdownField) -> ShowdownResult {
     // #region Initial
@@ -360,7 +360,7 @@ func calculateChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
 
 // MARK: - Base Power
 
-func calculateBasePowerChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
+nonisolated func calculateBasePowerChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
                                  _ defender: ShowdownPokemon, _ move: ShowdownMove,
                                  _ field: ShowdownField, _ hasAteAbilityTypeChange: Bool,
                                  hit: Int = 1) -> Int {
@@ -436,7 +436,7 @@ func calculateBasePowerChampions(_ gen: ShowdownGeneration, _ attacker: Showdown
     return OF16(max(1, pokeRound(Double(basePower * chainMods(bpMods, 41, 2097152)) / 4096)))
 }
 
-func calculateBPModsChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
+nonisolated func calculateBPModsChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
                               _ defender: ShowdownPokemon, _ move: ShowdownMove,
                               _ field: ShowdownField, _ basePower: Int,
                               _ hasAteAbilityTypeChange: Bool, _ turnOrder: String,
@@ -568,7 +568,7 @@ func calculateBPModsChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPok
 
 // MARK: - Attack
 
-func calculateAttackChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
+nonisolated func calculateAttackChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
                               _ defender: ShowdownPokemon, _ move: ShowdownMove,
                               _ field: ShowdownField, _ isCritical: Bool = false) -> Int {
     var attack: Int
@@ -594,7 +594,7 @@ func calculateAttackChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPok
     return OF16(max(1, pokeRound(Double(attack * chainMods(atMods, 410, 131072)) / 4096)))
 }
 
-func calculateAtModsChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
+nonisolated func calculateAtModsChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
                               _ defender: ShowdownPokemon, _ move: ShowdownMove,
                               _ field: ShowdownField) -> [Int] {
     var atMods = [Int]()
@@ -639,7 +639,7 @@ func calculateAtModsChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPok
 
 // MARK: - Defense
 
-func calculateDefenseChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
+nonisolated func calculateDefenseChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
                                _ defender: ShowdownPokemon, _ move: ShowdownMove,
                                _ field: ShowdownField, _ isCritical: Bool = false) -> Int {
     var defense: Int
@@ -669,7 +669,7 @@ func calculateDefenseChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPo
     return OF16(max(1, pokeRound(Double(defense * chainMods(dfMods, 410, 131072)) / 4096)))
 }
 
-func calculateDfModsChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
+nonisolated func calculateDfModsChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
                               _ defender: ShowdownPokemon, _ move: ShowdownMove,
                               _ field: ShowdownField, _ isCritical: Bool = false,
                               _ hitsPhysical: Bool = false) -> [Int] {
@@ -686,7 +686,7 @@ func calculateDfModsChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPok
 
 // MARK: - Base Damage
 
-func calculateBaseDamageChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
+nonisolated func calculateBaseDamageChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
                                   _ defender: ShowdownPokemon, _ basePower: Int,
                                   _ attack: Int, _ defense: Int, _ move: ShowdownMove,
                                   _ field: ShowdownField, _ isCritical: Bool = false) -> Int {
@@ -719,7 +719,7 @@ func calculateBaseDamageChampions(_ gen: ShowdownGeneration, _ attacker: Showdow
 
 // MARK: - Final Mods
 
-func calculateFinalModsChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
+nonisolated func calculateFinalModsChampions(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
                                  _ defender: ShowdownPokemon, _ move: ShowdownMove,
                                  _ field: ShowdownField, _ isCritical: Bool = false,
                                  _ typeEffectiveness: Double, hitCount: Int = 0) -> [Int] {

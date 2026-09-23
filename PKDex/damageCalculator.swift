@@ -473,14 +473,9 @@ class DamageCalcVM {
     }
 
     private func computeSingleResult(move: MoveData, attacker: CalcSide, defender: CalcSide) -> MoveResult {
-        // Prefer the faithful Showdown port for Champions-mode matchups it can
-        // represent; fall back to the legacy engine for everything else.
-        if let showdown = showdownResult(move: move, attacker: attacker, defender: defender) {
-            return showdown
-        }
-
-        // Legacy engine. The arithmetic lives in `CalcEngine.evaluateLegacy`
-        // so the solver can run it off the main actor; this call site only
+        // Both engines live in `CalcEngine` so the solver can run them off the
+        // main actor, and `CalcEngine.evaluate` owns the precedence between
+        // them (Champions port first, legacy fallback). This call site only
         // snapshots the inputs and dresses the numeric outcome for display.
         //
         // `snapshot()` is nil-on-no-species, but an empty side reaching here
@@ -492,7 +487,7 @@ class DamageCalcVM {
             return Self.emptyResult(for: move)
         }
 
-        let outcome = CalcEngine.evaluateLegacy(
+        let outcome = CalcEngine.evaluate(
             move: move.snapshot(),
             attacker: attackerSnap,
             defender: defenderSnap,
@@ -541,250 +536,6 @@ class DamageCalcVM {
             effectivenessColor: .primary,
             isSTAB: false
         )
-    }
-
-    // MARK: - Showdown port bridge
-
-    /// Computes a `MoveResult` via the vendored @smogon/calc Champions port
-    /// (`calculateShowdown`, gen 0). Returns nil — signalling the caller to use
-    /// the legacy engine — whenever the matchup can't be faithfully represented:
-    /// a side not in Champions mode, an active Mega (name-mapping not wired), a
-    /// status move, or a species/move absent from the bundled Champions data.
-    private func showdownResult(move: MoveData, attacker: CalcSide, defender: CalcSide) -> MoveResult? {
-        guard attacker.championsMode, defender.championsMode else { return nil }
-        guard move.damageClass != "status" else { return nil }
-        guard attacker.pokemon != nil, defender.pokemon != nil else { return nil }
-
-        let gen = ShowdownGen0.shared
-        guard let atkSpecies = showdownSpecies(for: attacker),
-              let defSpecies = showdownSpecies(for: defender),
-              gen.move(toID(move.name)) != nil else { return nil }
-
-        let atk = makeShowdownPokemon(side: attacker, species: atkSpecies,
-                                      moveType: move.type, isAttacker: true)
-        let def = makeShowdownPokemon(side: defender, species: defSpecies,
-                                      moveType: move.type, isAttacker: false)
-        let smove = ShowdownMove(gen, move.name, ability: atk.ability, item: atk.item, isCrit: crit)
-        let field = makeShowdownField(attacker: attacker, defender: defender)
-
-        let result = calculateShowdown(gen, atk, def, smove, field)
-        let (rawMin, rawMax) = damageRange(result.damage)
-        guard rawMax > 0 else { return nil }
-
-        // Apply the toggles the Champions pipeline doesn't model itself.
-        let post = (glaiveRush ? 2.0 : 1.0) * (zMoveBypass ? 0.25 : 1.0) * miscMultiplier
-        let dMin = floor(Double(rawMin) * post)
-        let dMax = floor(Double(rawMax) * post)
-
-        let defHP = def.rawStats.hp
-        let minPct = defHP > 0 ? min(dMin / Double(defHP) * 100, 999) : 0
-        let maxPct = defHP > 0 ? min(dMax / Double(defHP) * 100, 999) : 0
-
-        let hitsToKO: String = {
-            guard maxPct > 0 else { return "--" }
-            let minHits = Int(ceil(100.0 / maxPct))
-            let maxHits = minPct > 0 ? Int(ceil(100.0 / minPct)) : 0
-            if minHits == maxHits { return "\(minHits)HKO" }
-            return "\(minHits)-\(maxHits)HKO"
-        }()
-
-        let eff = computeTypeEffectiveness(moveType: move.type, defenderTypes: defender.types)
-        let effLabel: String = {
-            switch eff {
-            case 0:    return "Immune"
-            case 0.25: return "1/4x"
-            case 0.5:  return "1/2x"
-            case 1:    return "1x"
-            case 2:    return "2x"
-            case 4:    return "4x"
-            default:   return String(format: "%.2fx", eff)
-            }
-        }()
-        let effColor: Color = {
-            switch eff {
-            case 0:          return .gray
-            case 0.25, 0.5:  return .blue
-            case 1:          return .primary
-            case 2:          return .orange
-            case 4:          return .red
-            default:         return .primary
-            }
-        }()
-
-        return MoveResult(
-            move: move,
-            damageMin: dMin, damageMax: dMax,
-            minPercent: minPct, maxPercent: maxPct,
-            hitsToKO: hitsToKO,
-            effectiveness: eff,
-            effectivenessLabel: effLabel,
-            effectivenessColor: effColor,
-            isSTAB: attacker.types.contains(move.type)
-        )
-    }
-
-    /// Resolves the Showdown species for a side, honoring an active Mega. Megas
-    /// are looked up through the ported `getForme`, which maps the held stone
-    /// suffix (…ite / …ite Y) — or Dragon Ascent for Rayquaza — to the correct
-    /// forme in the base species' `otherFormes`. Returns nil (→ legacy fallback)
-    /// when the resolved species isn't in the bundled Champions data, e.g. a
-    /// restricted Mega like Mewtwo/Rayquaza that isn't in the regulation set.
-    private func showdownSpecies(for side: CalcSide) -> ShowdownSpecies? {
-        guard let p = side.pokemon else { return nil }
-        let gen = ShowdownGen0.shared
-
-        // Damage-calc UI path: base species + a `megaActive` toggle + held stone.
-        if side.activeMegaForm != nil {
-            let stone = side.heldItem != .none ? side.heldItem.rawValue : nil
-            return resolveMegaSpecies(gen, baseName: p.name, stone: stone, moves: side.moves)
-        }
-
-        // Normal case: the name is a base (or already-correct) species.
-        if let s = gen.species(toID(p.name)) { return s }
-
-        // Battle-sim path: participants are fed as a synthetic Mega `PKMNStats`
-        // (e.g. "Mega Charizard Y") with no `megaActive` flag. Recover the real
-        // Showdown forme from the app's MegaForms table via the triggering stone.
-        if let mf = MegaForms.all.first(where: { $0.displayName == p.name }) {
-            return resolveMegaSpecies(gen, baseName: mf.speciesKey,
-                                      stone: mf.stone?.rawValue, moves: side.moves)
-        }
-        return nil
-    }
-
-    /// Resolves a Mega's Showdown species record by running the ported `getForme`
-    /// off the base species and its triggering stone (or Dragon Ascent). Returns
-    /// nil when the base or forme isn't in the bundled Champions data.
-    private func resolveMegaSpecies(_ gen: ShowdownGeneration, baseName: String,
-                                    stone: String?, moves: [MoveData?]) -> ShowdownSpecies? {
-        guard let base = gen.species(toID(baseName)) else { return nil }
-        let hasDragonAscent = moves.contains { $0?.name == "Dragon Ascent" }
-        let formeName = ShowdownPokemon.getForme(
-            gen, base.name, item: stone, moveName: hasDragonAscent ? "Dragon Ascent" : nil)
-        return gen.species(toID(formeName))
-    }
-
-    /// Collapses a `ShowdownDamageValue` into a total (min, max) range. Multi-hit
-    /// and Parental Bond matrices sum each hit's per-roll min/max.
-    private func damageRange(_ value: ShowdownDamageValue) -> (Int, Int) {
-        switch value {
-        case .fixed(let v):
-            return (v, v)
-        case .rolls(let rolls):
-            return (rolls.min() ?? 0, rolls.max() ?? 0)
-        case .matrix(let rows):
-            var mn = 0, mx = 0
-            for row in rows {
-                mn += row.min() ?? 0
-                mx += row.max() ?? 0
-            }
-            return (mn, mx)
-        }
-    }
-
-    /// Builds a Champions (`gen 0`) `ShowdownPokemon` from a `CalcSide`. EVs pass
-    /// through as the 0–32 stat-point value the Champions formula expects; stat
-    /// stages become boosts; a global Burn toggle is applied to the attacker.
-    private func makeShowdownPokemon(side: CalcSide, species: ShowdownSpecies,
-                                     moveType: String, isAttacker: Bool) -> ShowdownPokemon {
-        let gen = ShowdownGen0.shared
-        let evs = ShowdownStats(hp: side.evHP, atk: side.evAtk, def: side.evDef,
-                                spa: side.evSpAtk, spd: side.evSpDef, spe: side.evSpeed)
-        let boosts = ShowdownStats(hp: 0, atk: side.atkStage, def: side.defStage,
-                                   spa: side.spAtkStage, spd: side.spDefStage, spe: side.speedStage)
-        let ability = side.effectiveAbility.map { formatAbilityName($0) }
-        let item = showdownItemName(side.effectiveHeldItem, moveType: moveType)
-        // Per-mon status wins; the legacy global Burn toggle still applies to the
-        // attacker for back-compat when no explicit status is set.
-        let status: ShowdownStatus = side.status != .none
-            ? side.status
-            : ((isAttacker && burn) ? .brn : .none)
-
-        // Champions Pokemon are always level 50 with 31 IVs, so max HP is fixed.
-        let maxHP = calcHP(base: species.baseStats.hp, iv: 31, ev: 0, level: 50)
-        let pct = max(1, min(100, side.currentHPPercent))
-        let curHP = pct >= 100 ? nil : max(1, maxHP * pct / 100)
-
-        return ShowdownPokemon(
-            gen, species.name, species: species,
-            ability: ability, abilityOn: side.abilityOn, item: item, nature: side.nature.name,
-            evs: evs, boosts: boosts, curHP: curHP, status: status)
-    }
-
-    /// Maps the app's `HeldItem` to the Showdown item name the port recognises.
-    /// The generic "Type-Boost (1.2x)" resolves to the Plate matching the move's
-    /// type so the port's 1.2× same-type boost applies to this move.
-    private func showdownItemName(_ item: HeldItem, moveType: String) -> String? {
-        guard item != .none else { return nil }
-        if item == .typeBoost { return typePlateName(moveType) }
-        return item.rawValue
-    }
-
-    private func typePlateName(_ type: String) -> String {
-        switch type {
-        case "Normal":   return "Silk Scarf"
-        case "Fire":     return "Flame Plate"
-        case "Water":    return "Splash Plate"
-        case "Electric": return "Zap Plate"
-        case "Grass":    return "Meadow Plate"
-        case "Ice":      return "Icicle Plate"
-        case "Fighting": return "Fist Plate"
-        case "Poison":   return "Toxic Plate"
-        case "Ground":   return "Earth Plate"
-        case "Flying":   return "Sky Plate"
-        case "Psychic":  return "Mind Plate"
-        case "Bug":      return "Insect Plate"
-        case "Rock":     return "Stone Plate"
-        case "Ghost":    return "Spooky Plate"
-        case "Dragon":   return "Draco Plate"
-        case "Dark":     return "Dread Plate"
-        case "Steel":    return "Iron Plate"
-        case "Fairy":    return "Pixie Plate"
-        default:         return "Silk Scarf"
-        }
-    }
-
-    /// Builds a `ShowdownField` from the global modifiers plus each side's
-    /// conditions. The Multi-hit toggle switches to Doubles so genuinely-spread
-    /// moves take the 0.75× reduction. `attacker`/`defender` map to the field's
-    /// attacker/defender sides so screens, Helping Hand, hazards, etc. land on
-    /// the correct half.
-    private func makeShowdownField(attacker: CalcSide, defender: CalcSide) -> ShowdownField {
-        let field = ShowdownField()
-        field.gameType = multi ? .doubles : .singles
-        field.isGravity = gravity
-        field.isWonderRoom = wonderRoom
-        field.isMagicRoom = magicRoom
-
-        switch weather {
-        case .none: field.weather = nil
-        case .sun:  field.weather = .sun
-        case .rain: field.weather = .rain
-        case .sand: field.weather = .sand
-        case .snow: field.weather = .snow
-        }
-        switch terrain {
-        case .none:     field.terrain = nil
-        case .electric: field.terrain = .electric
-        case .grassy:   field.terrain = .grassy
-        case .misty:    field.terrain = .misty
-        case .psychic:  field.terrain = .psychic
-        }
-
-        // Attacker-side conditions.
-        field.attackerSide.isHelpingHand = attacker.isHelpingHand
-        field.attackerSide.isTailwind = attacker.isTailwind
-
-        // Defender-side conditions (reduce/condition the incoming hit).
-        let d = field.defenderSide
-        d.isReflect = defender.isReflect
-        d.isLightScreen = defender.isLightScreen
-        d.isAuroraVeil = defender.isAuroraVeil
-        d.isFriendGuard = defender.isFriendGuard
-        d.isProtected = defender.isProtected
-        d.isSR = defender.isStealthRock
-        d.spikes = max(0, min(3, defender.spikesLayers))
-        return field
     }
 
     // MARK: Move Search
@@ -1952,7 +1703,7 @@ private struct ToggleBadge: View {
 
 // MARK: - Helpers
 
-func formatAbilityName(_ raw: String) -> String {
+nonisolated func formatAbilityName(_ raw: String) -> String {
     raw.split(separator: "-").map { $0.capitalized }.joined(separator: " ")
 }
 

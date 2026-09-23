@@ -14,36 +14,36 @@ import Foundation
 
 /// `result.damage` union: a fixed amount, the 16 damage rolls, or a matrix
 /// (multi-hit / Parental Bond `[parent, child]`).
-enum ShowdownDamageValue {
+nonisolated enum ShowdownDamageValue {
     case fixed(Int)
     case rolls([Int])
     case matrix([[Int]])
 }
 
-struct ShowdownResult {
+nonisolated struct ShowdownResult {
     var damage: ShowdownDamageValue = .fixed(0)
 }
 
 // MARK: - Rounding / overflow (util.ts)
 
 /// Game Freak rounds DOWN on .5.
-func pokeRound(_ num: Double) -> Int {
+nonisolated func pokeRound(_ num: Double) -> Int {
     num.truncatingRemainder(dividingBy: 1) > 0.5 ? Int(num.rounded(.up)) : Int(num.rounded(.down))
 }
-func OF16(_ n: Int) -> Int { n > 65535 ? n % 65536 : n }
-func OF32(_ n: Int) -> Int { n > 4294967295 ? n % 4294967296 : n }
+nonisolated func OF16(_ n: Int) -> Int { n > 65535 ? n % 65536 : n }
+nonisolated func OF32(_ n: Int) -> Int { n > 4294967295 ? n % 4294967296 : n }
 
 // MARK: - Small helpers
 
 private func clampBoost(_ v: Int) -> Int { min(6, max(-6, v)) }
 
-func sdIsGrounded(_ p: ShowdownPokemon, _ field: ShowdownField) -> Bool {
+nonisolated func sdIsGrounded(_ p: ShowdownPokemon, _ field: ShowdownField) -> Bool {
     field.isGravity || p.hasItem("Iron Ball") ||
         (!p.hasType(.flying) && !p.hasAbility("Levitate", "Eelevate") && !p.hasItem("Air Balloon"))
 }
 
 /// Modern-gen stat boost table (gens 3+; Champions uses this path).
-func getModifiedStat(_ stat: Int, _ mod: Int) -> Int {
+nonisolated func getModifiedStat(_ stat: Int, _ mod: Int) -> Int {
     let table = [[2, 8], [2, 7], [2, 6], [2, 5], [2, 4], [2, 3], [2, 2],
                  [3, 2], [4, 2], [5, 2], [6, 2], [7, 2], [8, 2]]
     var s = OF16(stat * table[6 + mod][0])
@@ -51,7 +51,7 @@ func getModifiedStat(_ stat: Int, _ mod: Int) -> Int {
     return s
 }
 
-func chainMods(_ mods: [Int], _ lowerBound: Int, _ upperBound: Int) -> Int {
+nonisolated func chainMods(_ mods: [Int], _ lowerBound: Int, _ upperBound: Int) -> Int {
     var M = 4096
     for mod in mods where mod != 4096 {
         M = (M * mod + 2048) >> 12
@@ -59,7 +59,7 @@ func chainMods(_ mods: [Int], _ lowerBound: Int, _ upperBound: Int) -> Int {
     return max(min(M, upperBound), lowerBound)
 }
 
-func getBaseDamage(_ level: Int, _ basePower: Int, _ attack: Int, _ defense: Int) -> Int {
+nonisolated func getBaseDamage(_ level: Int, _ basePower: Int, _ attack: Int, _ defense: Int) -> Int {
     Int(floor(
         Double(OF32(
             Int(floor(
@@ -70,7 +70,7 @@ func getBaseDamage(_ level: Int, _ basePower: Int, _ attack: Int, _ defense: Int
     ))
 }
 
-func getFinalDamage(_ baseAmount: Int, _ i: Int, _ effectiveness: Double, _ isBurned: Bool,
+nonisolated func getFinalDamage(_ baseAmount: Int, _ i: Int, _ effectiveness: Double, _ isBurned: Bool,
                     _ stabMod: Int, _ finalMod: Int, _ protect: Bool) -> Int {
     var d = Double(Int(floor(Double(OF32(baseAmount * (85 + i))) / 100)))
     if stabMod != 4096 { d = Double(OF32(Int(d) * stabMod)) / 4096 }
@@ -82,13 +82,13 @@ func getFinalDamage(_ baseAmount: Int, _ i: Int, _ effectiveness: Double, _ isBu
     return OF16(pokeRound(max(1, Double(OF32(damageAmount * finalMod)) / 4096)))
 }
 
-func countBoosts(_ boosts: ShowdownStats) -> Int {
+nonisolated func countBoosts(_ boosts: ShowdownStats) -> Int {
     var sum = 0
     for stat in [ShowdownStat.atk, .def, .spa, .spd, .spe] where boosts[stat] > 0 { sum += boosts[stat] }
     return sum
 }
 
-func getWeight(_ p: ShowdownPokemon) -> Double {
+nonisolated func getWeight(_ p: ShowdownPokemon) -> Double {
     var weightHG = p.weightkg * 10
     let factor = p.hasAbility("Heavy Metal") ? 2.0 : p.hasAbility("Light Metal") ? 0.5 : 1.0
     if factor != 1 { weightHG = max(Double(Int(weightHG * factor)), 1) }
@@ -96,7 +96,7 @@ func getWeight(_ p: ShowdownPokemon) -> Double {
     return weightHG / 10
 }
 
-func getStabMod(_ p: ShowdownPokemon, _ move: ShowdownMove) -> Int {
+nonisolated func getStabMod(_ p: ShowdownPokemon, _ move: ShowdownMove) -> Int {
     var stabMod = 4096
     if p.hasOriginalType(move.type) {
         stabMod += 2048
@@ -110,14 +110,14 @@ func getStabMod(_ p: ShowdownPokemon, _ move: ShowdownMove) -> Int {
     return stabMod
 }
 
-func handleFixedDamageMoves(_ attacker: ShowdownPokemon, _ move: ShowdownMove) -> Int {
+nonisolated func handleFixedDamageMoves(_ attacker: ShowdownPokemon, _ move: ShowdownMove) -> Int {
     if move.named("Seismic Toss", "Night Shade") { return attacker.level }
     if move.named("Dragon Rage") { return 40 }
     if move.named("Sonic Boom") { return 20 }
     return 0
 }
 
-func getShellSideArmCategory(_ source: ShowdownPokemon, _ target: ShowdownPokemon,
+nonisolated func getShellSideArmCategory(_ source: ShowdownPokemon, _ target: ShowdownPokemon,
                              _ wonderRoomActive: Bool = false) -> ShowdownCategory {
     var physical = Double(source.stats.atk) / Double(target.stats.def)
     var special = Double(source.stats.spa) / Double(target.stats.spd)
@@ -128,7 +128,7 @@ func getShellSideArmCategory(_ source: ShowdownPokemon, _ target: ShowdownPokemo
     return physical > special ? .physical : .special
 }
 
-func getQPBoostedStat(_ p: ShowdownPokemon) -> ShowdownStat {
+nonisolated func getQPBoostedStat(_ p: ShowdownPokemon) -> ShowdownStat {
     if let b = p.boostedStat, b != "auto", let s = ShowdownStat(rawValue: b) { return s }
     var best: ShowdownStat = .atk
     for stat in [ShowdownStat.def, .spa, .spd, .spe] {
@@ -139,7 +139,7 @@ func getQPBoostedStat(_ p: ShowdownPokemon) -> ShowdownStat {
     return best
 }
 
-func isQPActive(_ p: ShowdownPokemon, _ field: ShowdownField) -> Bool {
+nonisolated func isQPActive(_ p: ShowdownPokemon, _ field: ShowdownField) -> Bool {
     guard let boosted = p.boostedStat else { return false }
     let weatherSun = field.weather == .sun || field.weather == .harshSunshine
     return (p.hasAbility("Protosynthesis") && (weatherSun || p.hasItem("Booster Energy")))
@@ -147,7 +147,7 @@ func isQPActive(_ p: ShowdownPokemon, _ field: ShowdownField) -> Bool {
         || (boosted != "auto")
 }
 
-func getMoveEffectiveness(_ gen: ShowdownGeneration, _ move: ShowdownMove, _ type: ShowdownType,
+nonisolated func getMoveEffectiveness(_ gen: ShowdownGeneration, _ move: ShowdownMove, _ type: ShowdownType,
                           isGhostRevealed: Bool, isGravity: Bool, isRingTarget: Bool) -> Double {
     if isGhostRevealed && type == .ghost && move.hasType(.normal, .fighting) { return 1 }
     if isGravity && type == .flying && move.hasType(.ground) { return 1 }
@@ -160,12 +160,12 @@ func getMoveEffectiveness(_ gen: ShowdownGeneration, _ move: ShowdownMove, _ typ
 
 // MARK: - Speed / final stats (util.ts)
 
-private let EV_ITEMS: Set<String> = [
+nonisolated private let EV_ITEMS: Set<String> = [
     "Macho Brace", "Power Anklet", "Power Band", "Power Belt",
     "Power Bracer", "Power Lens", "Power Weight",
 ]
 
-func getFinalSpeed(_ gen: ShowdownGeneration, _ p: ShowdownPokemon,
+nonisolated func getFinalSpeed(_ gen: ShowdownGeneration, _ p: ShowdownPokemon,
                    _ field: ShowdownField, _ side: ShowdownSide) -> Int {
     var speed = getModifiedStat(p.rawStats.spe, p.boosts.spe)
     var speedMods: [Int] = []
@@ -207,7 +207,7 @@ func getFinalSpeed(_ gen: ShowdownGeneration, _ p: ShowdownPokemon,
     return max(0, speed)
 }
 
-func computeFinalStats(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
+nonisolated func computeFinalStats(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
                        _ defender: ShowdownPokemon, _ field: ShowdownField, _ stats: [ShowdownStat]) {
     let sides: [(ShowdownPokemon, ShowdownSide)] =
         [(attacker, field.attackerSide), (defender, field.defenderSide)]
@@ -224,11 +224,11 @@ func computeFinalStats(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
 
 // MARK: - Pre-damage checks (util.ts)
 
-func checkAirLock(_ p: ShowdownPokemon, _ field: ShowdownField) {
+nonisolated func checkAirLock(_ p: ShowdownPokemon, _ field: ShowdownField) {
     if p.hasAbility("Air Lock", "Cloud Nine") { field.weather = nil }
 }
 
-func checkForecast(_ p: ShowdownPokemon, _ weather: ShowdownWeather?) {
+nonisolated func checkForecast(_ p: ShowdownPokemon, _ weather: ShowdownWeather?) {
     guard p.hasAbility("Forecast") && p.named("Castform") else { return }
     switch weather {
     case .sun, .harshSunshine: p.types = [.fire]
@@ -238,19 +238,19 @@ func checkForecast(_ p: ShowdownPokemon, _ weather: ShowdownWeather?) {
     }
 }
 
-func checkItem(_ p: ShowdownPokemon, _ magicRoomActive: Bool) {
+nonisolated func checkItem(_ p: ShowdownPokemon, _ magicRoomActive: Bool) {
     if (p.hasAbility("Klutz") && !EV_ITEMS.contains(p.item ?? "")) || magicRoomActive {
         p.disabledItem = p.item
         p.item = nil
     }
 }
 
-func checkRawStatChanges(_ p: ShowdownPokemon, _ powerTrick: Bool, _ wonderRoom: Bool) {
+nonisolated func checkRawStatChanges(_ p: ShowdownPokemon, _ powerTrick: Bool, _ wonderRoom: Bool) {
     if powerTrick { swap(&p.rawStats.atk, &p.rawStats.def) }
     if wonderRoom { swap(&p.rawStats.def, &p.rawStats.spd) }
 }
 
-func checkIntimidate(_ gen: ShowdownGeneration, _ source: ShowdownPokemon, _ target: ShowdownPokemon) {
+nonisolated func checkIntimidate(_ gen: ShowdownGeneration, _ source: ShowdownPokemon, _ target: ShowdownPokemon) {
     let blocked = target.hasAbility("Clear Body", "White Smoke", "Hyper Cutter", "Full Metal Body")
         || target.hasAbility("Inner Focus", "Own Tempo", "Oblivious", "Scrappy")   // gen0/8+
         || target.hasItem("Clear Amulet")
@@ -265,13 +265,13 @@ func checkIntimidate(_ gen: ShowdownGeneration, _ source: ShowdownPokemon, _ tar
     if target.hasAbility("Competitive") { target.boosts.spa = min(6, target.boosts.spa + 2) }
 }
 
-func checkInfiltrator(_ p: ShowdownPokemon, _ affected: ShowdownSide) {
+nonisolated func checkInfiltrator(_ p: ShowdownPokemon, _ affected: ShowdownSide) {
     if p.hasAbility("Infiltrator") {
         affected.isReflect = false; affected.isLightScreen = false; affected.isAuroraVeil = false
     }
 }
 
-func checkSeedBoost(_ p: ShowdownPokemon, _ field: ShowdownField) {
+nonisolated func checkSeedBoost(_ p: ShowdownPokemon, _ field: ShowdownField) {
     guard let item = p.item, item.contains("Seed"), field.terrain != nil else { return }
     let prefix = String(item.prefix(upTo: item.firstIndex(of: " ") ?? item.endIndex))
     let seedTerrain = ShowdownTerrain(rawValue: prefix)
@@ -286,7 +286,7 @@ func checkSeedBoost(_ p: ShowdownPokemon, _ field: ShowdownField) {
 
 /// Multi-hit / repeated-use boost bookkeeping (Champions subset, faithful to util.ts).
 @discardableResult
-func checkMultihitBoost(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
+nonisolated func checkMultihitBoost(_ gen: ShowdownGeneration, _ attacker: ShowdownPokemon,
                         _ defender: ShowdownPokemon, _ move: ShowdownMove, _ field: ShowdownField,
                         _ attackerUsedItem: Bool = false, _ defenderUsedItem: Bool = false) -> (Bool, Bool) {
     // This Champions subset never consumes White Herb/berries, so the "used

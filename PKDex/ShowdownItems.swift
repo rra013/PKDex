@@ -9,7 +9,7 @@
 
 import Foundation
 
-enum ShowdownItems {
+nonisolated enum ShowdownItems {
     /// Which defensive stat a terrain seed boosts.
     static let seedBoostedStat: [String: ShowdownStat] = [
         "Electric Seed": .def, "Grassy Seed": .def, "Misty Seed": .spd, "Psychic Seed": .spd,
