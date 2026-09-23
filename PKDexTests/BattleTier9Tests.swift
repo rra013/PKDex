@@ -117,6 +117,11 @@ struct BattleTier9WeightedDamageTests {
                         power: 1, makesContact: true)
         let e1 = T9.engine((mg, "blaze", [hs]), (tyr, "blaze", [hs]))
         let e2 = T9.engine((mg, "blaze", [hs]), (mk, "blaze", [hs]))
+        // Pin the rolls. At `power: 1` the pre-multiplier range is 2–6, a 3x
+        // swing that swamps the 2x power difference under test (e.g. a 6 x 60
+        // BP beats a 2 x 120 BP). Same roll on both sides, no crit.
+        e1.rollOverride = .init(crit: false, roll: .max)
+        e2.rollOverride = .init(crit: false, roll: .max)
         e1.setAction(side: 0, slot: 0, action: .move(moveIndex: 0, targetSide: 1, targetSlot: 0))
         e2.setAction(side: 0, slot: 0, action: .move(moveIndex: 0, targetSide: 1, targetSlot: 0))
         e1.executeTurn()
@@ -131,17 +136,17 @@ struct BattleTier9WeightedDamageTests {
         let atk = T9.pkmn("Atk", id: 100, atk: 100)
         // Both targets carry huge HP / matching Def so the damage formula
         // doesn't saturate — what we're checking is that 120 BP > 80 BP.
-        //
-        // Known flaky (~22%): the damage roll happens before the weight
-        // multiplier, so at `power: 1` the two outcome sets overlap at 240.
-        // See "Known flaky tests" in CalcCore-HANDOFF.md — the fix is a roll
-        // override on the engine, not a looser assertion here.
         let tiny = T9.pkmn("Wisp", id: 50, hp: 600, def: 100)     // unknown → 50 kg → 80 BP
         let huge = T9.pkmn("Snorlax", id: 143, hp: 600, def: 100) // 460 kg → 120 BP
         let lk = T9.mv("Low Kick", id: 1, type: "Fighting", dmg: "physical",
                         power: 1, makesContact: true)
         let e1 = T9.engine((atk, "blaze", [lk]), (tiny, "blaze", [lk]))
         let e2 = T9.engine((atk, "blaze", [lk]), (huge, "blaze", [lk]))
+        // Pin the rolls. At `power: 1` the pre-multiplier range is 2–4, so
+        // unpinned outcomes {160, 240, 320} vs {240, 360, 480} overlap and a
+        // high roll on the light target beat a low one on Snorlax (~22%).
+        e1.rollOverride = .init(crit: false, roll: .max)
+        e2.rollOverride = .init(crit: false, roll: .max)
         e1.setAction(side: 0, slot: 0, action: .move(moveIndex: 0, targetSide: 1, targetSlot: 0))
         e2.setAction(side: 0, slot: 0, action: .move(moveIndex: 0, targetSide: 1, targetSlot: 0))
         e1.executeTurn()

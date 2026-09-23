@@ -87,12 +87,31 @@ struct BattleCompoundEyesTests {
         return Double(hits) / Double(trials)
     }
 
+    @Test func compoundEyesScalesAccuracyExactly() {
+        // The arithmetic, checked directly: 50 → 65 with Compound Eyes, and
+        // unchanged without it. The sampled test below only confirms the
+        // battle loop actually uses this value.
+        let move = halfHitMove()
+        let withCE = engine(side1: butterfree(), ab1: "compound-eyes", moves1: [move],
+                            side2: chansey(), ab2: "natural-cure", moves2: [])
+        let withoutCE = engine(side1: butterfree(ability: "shield-dust"), ab1: "shield-dust",
+                               moves1: [move], side2: chansey(), ab2: "natural-cure", moves2: [])
+        #expect(withCE.effectiveAccuracy(move, attacker: withCE.side1.active(at: 0),
+                                         against: withCE.side2.active(at: 0)) == 65)
+        #expect(withoutCE.effectiveAccuracy(move, attacker: withoutCE.side1.active(at: 0),
+                                            against: withoutCE.side2.active(at: 0)) == 50)
+    }
+
     @Test func compoundEyesLandsMoreThanBaseline() {
         // Sanity: with Compound Eyes the hit rate should be visibly higher than
-        // without. Expected: ~50% without, ~65% with. Allow generous slack so
-        // RNG noise doesn't flake the suite.
-        let withCE = hitRate(attackerAbility: "compound-eyes", trials: 200)
-        let withoutCE = hitRate(attackerAbility: "shield-dust", trials: 200)
+        // without. Expected: ~50% without, ~65% with.
+        //
+        // 1000 trials a side puts the difference's standard deviation at
+        // ~2.2pp, so the 5pp threshold sits ~4.6 SD below the expected 15pp
+        // gap: a false failure is about 1 in 500,000. At the previous 200
+        // trials it was ~2 SD, failing about 1 run in 50.
+        let withCE = hitRate(attackerAbility: "compound-eyes", trials: 1000)
+        let withoutCE = hitRate(attackerAbility: "shield-dust", trials: 1000)
         #expect(withCE > withoutCE + 0.05,
                 "Compound Eyes (\(withCE)) should beat baseline (\(withoutCE)) by >5pp")
     }

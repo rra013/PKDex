@@ -652,6 +652,7 @@ private struct SyncingCard: View {
 
 private struct ResultCard: View {
     var vm: DamageCalcVM
+    @State private var solveRequest: EVSolveRequest?
 
     var body: some View {
         CalcSection(title: "Results", icon: "bolt.fill") {
@@ -694,7 +695,8 @@ private struct ResultCard: View {
                     attackerName: vm.side1.pokemon?.name ?? "???",
                     defenderName: vm.side2.pokemon?.name ?? "???",
                     defenderHP: vm.side2.hp,
-                    results: vm.side1Results
+                    results: vm.side1Results,
+                    onSolve: { solveRequest = EVSolveRequest(move: $0, attackerIsSide1: true) }
                 )
 
                 Divider()
@@ -703,7 +705,8 @@ private struct ResultCard: View {
                     attackerName: vm.side2.pokemon?.name ?? "???",
                     defenderName: vm.side1.pokemon?.name ?? "???",
                     defenderHP: vm.side1.hp,
-                    results: vm.side2Results
+                    results: vm.side2Results,
+                    onSolve: { solveRequest = EVSolveRequest(move: $0, attackerIsSide1: false) }
                 )
             } else {
                 Text("Select two Mons to see results")
@@ -711,6 +714,9 @@ private struct ResultCard: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
             }
+        }
+        .sheet(item: $solveRequest) { request in
+            EVSolverSheet(vm: vm, request: request)
         }
     }
 }
@@ -720,6 +726,8 @@ private struct DirectionResultsView: View {
     let defenderName: String
     let defenderHP: Int
     let results: [MoveResult]
+    /// Opens the EV solver for a move in this direction.
+    var onSolve: ((MoveData) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -737,7 +745,7 @@ private struct DirectionResultsView: View {
                     .font(.caption).foregroundStyle(.tertiary)
             } else {
                 ForEach(results) { result in
-                    MoveResultRow(result: result)
+                    MoveResultRow(result: result, onSolve: onSolve.map { f in { f(result.move) } })
                 }
             }
         }
@@ -746,6 +754,7 @@ private struct DirectionResultsView: View {
 
 private struct MoveResultRow: View {
     let result: MoveResult
+    var onSolve: (() -> Void)? = nil
 
     private var isStatus: Bool { result.move.damageClass == "status" }
 
@@ -790,6 +799,14 @@ private struct MoveResultRow: View {
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                     Spacer()
+                    if let onSolve {
+                        Button(action: onSolve) {
+                            Label("Solve EVs", systemImage: "wand.and.stars")
+                                .font(.caption.bold())
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityHint("Finds the fewest EVs to survive, KO or outspeed")
+                    }
                 }
 
                 PercentageBar(minPct: result.minPercent, maxPct: result.maxPercent)
@@ -853,6 +870,53 @@ private struct SideCard: View {
     @Environment(\.modelContext) private var modelContext
     @State private var showSaveSheet = false
     @State private var showLoadSheet = false
+    @State private var showPasteSheet = false
+
+    @ViewBuilder
+    private var spreadButtons: some View {
+        Button { showSaveSheet = true } label: {
+            Label("Save Spread", systemImage: "square.and.arrow.down")
+                .font(.caption).lineLimit(1)
+        }
+        .buttonStyle(.bordered).tint(.red)
+
+        Button { showLoadSheet = true } label: {
+            Label("Load", systemImage: "tray.and.arrow.up")
+                .font(.caption).lineLimit(1)
+        }
+        .buttonStyle(.bordered).tint(.secondary)
+        .disabled(savedSpreads.isEmpty)
+    }
+
+    /// Showdown paste import, plus export once there's a set to export.
+    /// Export leads with Copy: pasting into Showdown is the common case, and
+    /// not every share sheet offers Copy up front.
+    @ViewBuilder
+    private var pasteButtons: some View {
+        Button { showPasteSheet = true } label: {
+            Label("Paste", systemImage: "doc.on.clipboard")
+                .font(.caption).lineLimit(1)
+        }
+        .buttonStyle(.bordered).tint(.secondary)
+
+        if let set = side.showdownPasteSet() {
+            let text = set.showdownText()
+            Menu {
+                Button {
+                    UIPasteboard.general.string = text
+                } label: {
+                    Label("Copy Paste", systemImage: "doc.on.doc")
+                }
+                ShareLink(item: text, preview: SharePreview("\(set.species) set")) {
+                    Label("Share…", systemImage: "square.and.arrow.up")
+                }
+            } label: {
+                Label("Export", systemImage: "square.and.arrow.up")
+                    .font(.caption).lineLimit(1)
+            }
+            .buttonStyle(.bordered).tint(.secondary)
+        }
+    }
 
     private var filteredPokemon: [PKMNStats] {
         let q = side.searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -994,19 +1058,14 @@ private struct SideCard: View {
                     }
                 }
             }
-            HStack {
-                Button { showSaveSheet = true } label: {
-                    Label("Save Spread", systemImage: "square.and.arrow.down")
-                        .font(.caption)
+            // Four buttons don't fit one row on a phone without wrapping
+            // "Save Spread", so fall back to two rows when they won't.
+            ViewThatFits(in: .horizontal) {
+                HStack { spreadButtons; pasteButtons }
+                VStack(alignment: .leading) {
+                    HStack { spreadButtons }
+                    HStack { pasteButtons }
                 }
-                .buttonStyle(.bordered).tint(.red)
-
-                Button { showLoadSheet = true } label: {
-                    Label("Load", systemImage: "tray.and.arrow.up")
-                        .font(.caption)
-                }
-                .buttonStyle(.bordered).tint(.secondary)
-                .disabled(savedSpreads.isEmpty)
             }
 
             if let pkmn = side.pokemon {
@@ -1219,6 +1278,9 @@ private struct SideCard: View {
         }
         .sheet(isPresented: $showSaveSheet) {
             SaveSpreadSheet(side: side, modelContext: modelContext, isPresented: $showSaveSheet)
+        }
+        .sheet(isPresented: $showPasteSheet) {
+            PasteImportSheet(side: side, allPokemon: allPokemon, allMoves: allMoves)
         }
         .sheet(isPresented: $showLoadSheet) {
             LoadSpreadSheet(side: side, spreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves, modelContext: modelContext, isPresented: $showLoadSheet)
