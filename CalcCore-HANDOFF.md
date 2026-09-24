@@ -38,7 +38,7 @@ evaluations — hence the need to get off the main actor.
 | 2.2 | `EVSolver.swift` — survive / KO / outspeed solves | done, tested |
 | 2.3 | `EVSolverSheet.swift` — solver UI on the calc's move rows | done, checked in the simulator |
 
-Last full run (after the Speed Tiers paralysis fix): **827 of 827 passing**. The test-randomness
+Last full run (after team paste import): **835 of 835 passing**. The test-randomness
 fixes held for three runs in a row before that. See "Randomness in tests" below. Both
 engines are behind `CalcEngine`, so the whole damage suite exercises the
 extracted code.
@@ -286,9 +286,18 @@ from less than full HP.
     stat points, which is what the parser expects for Champions pastes. It is
     *not* converted to mainline EVs for use in a mainline Showdown format.
     If that's wanted, `showdownText(scale: .mainline)` already does it.
-  - Only one set is loaded per side. A pasted team shows a picker for which
-    set to load. Importing a whole team into `SavedTeam` isn't wired up,
-    though `PasteImporter.teamSlot(for:)` exists for it.
+  - Only one set is loaded per calc side; a pasted team shows a picker.
+    **Whole teams import from the Teams screen** (`TeamPasteImport.swift`,
+    the clipboard button next to +). Each set becomes a `SavedSpread` named
+    "Team · Pokemon", and the `SavedTeam`'s slots point at those spreads, so
+    `resolvedSlots` and the calc's Load list both see them. Spread names are
+    made unique against existing spreads **and** team-slot references, since
+    AI slots like "Garchomp (AI)" have no spread and a new spread with that
+    name would take the slot over. Blocked sets are skipped, only the first
+    six are imported, and a blocked set shows just its blocking reason
+    because its legality warnings all follow from the unknown species.
+    `TeamPasteImportTests` cover the planning, which builds the models
+    without inserting them, so no SwiftData container is needed.
 - **Model downloader hardening — done 2026-09-23** (`05_PokiiModelDownloader.swift`,
   tests in `ModelFileSafetyTests`). Both audit items are fixed, plus a gap
   found next to them:
