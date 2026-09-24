@@ -14,7 +14,10 @@ struct SettingsView: View {
     @AppStorage("defaultTab") private var defaultTabRaw: String = AppTab.monIndex.rawValue
     @AppStorage("appAccentColor") private var accentColorRaw: String = AppAccentColor.blue.rawValue
     @AppStorage("appAppearance") private var appearanceRaw: String = AppAppearance.system.rawValue
-    @AppStorage(ChampionsRegulation.userDefaultsKey) private var championsRegulationRaw: String = ChampionsRegulation.mA.rawValue
+    /// Defaults to `latest`, the same fallback `ChampionsRegulation.current`
+    /// uses, so before anything is stored the picker shows the format the
+    /// app is actually using.
+    @AppStorage(ChampionsRegulation.userDefaultsKey) private var championsRegulationRaw: String = ChampionsRegulation.latest.rawValue
     @Environment(\.modelContext) private var modelContext
 
     @State private var showResetConfirmation = false
