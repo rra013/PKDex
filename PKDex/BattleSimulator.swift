@@ -1719,6 +1719,17 @@ final class BattleEngine {
         return max(1, n * maxHP / 24)
     }
 
+    /// Whether `move` goes through the spread path for `attacker`: a spread
+    /// move in doubles, or Expanding Force in Psychic Terrain with a grounded
+    /// user. Both move paths use this, so a redirect (Encore, a charged move)
+    /// lands on the right path and they can't hand a move back and forth.
+    private func usesSpreadPath(_ move: MoveData, attacker: BattleParticipant) -> Bool {
+        guard format == .doubles, move.damageClass != "status" else { return false }
+        if SpreadMoves.isSpread(move.name) { return true }
+        return BattleSimSeed.normalize(move.name) == "expandingforce"
+            && terrain == .psychic && isGrounded(attacker)
+    }
+
     /// Whether `p` is on the ground: always under Gravity or after Smack Down,
     /// otherwise not if it's Flying-type or floats (Levitate, Eelevate). Air
     /// Balloon and Iron Ball aren't modelled.
@@ -1953,7 +1964,7 @@ final class BattleEngine {
         // grounded. Decided here, when the move is used, because terrain can
         // change earlier in the turn. The Showdown port applies its 1.5x
         // boost; the spread path applies 0.75x when two foes remain.
-        if format == .doubles, terrain == .psychic, isGrounded(attacker),
+        if usesSpreadPath(move, attacker: attacker),
            BattleSimSeed.normalize(move.name) == "expandingforce" {
             performSpreadMove(attackerSide: attackerSide, attackerSlot: attackerSlot,
                               moveIndex: moveIndex)
@@ -2001,6 +2012,15 @@ final class BattleEngine {
            attacker.moves.indices.contains(chargedIdx) {
             resolvedMoveIndex = chargedIdx
             move = attacker.moves[resolvedMoveIndex]
+        }
+
+        // Encore or a charge swapped in a spread move: run it on the spread
+        // path, which repeats these checks for the new move. The index is
+        // passed as-is; the spread path resolves the same redirect to it.
+        if resolvedMoveIndex != moveIndex, usesSpreadPath(move, attacker: attacker) {
+            performSpreadMove(attackerSide: attackerSide, attackerSlot: attackerSlot,
+                              moveIndex: resolvedMoveIndex)
+            return
         }
 
         // Destiny Bond clears when the user takes their next action.
@@ -2278,7 +2298,7 @@ final class BattleEngine {
            locked != moveIndex, attacker.moves.indices.contains(locked) {
             resolvedMoveIndex = locked
         }
-        let move = attacker.moves[resolvedMoveIndex]
+        var move = attacker.moves[resolvedMoveIndex]
 
         if attacker.status == .freeze && move.type == "Fire" {
             attacker.status = .none
@@ -2290,6 +2310,40 @@ final class BattleEngine {
             return
         }
 
+        // The same Disable / Encore / charge handling as performMove.
+        if attacker.disableTurns > 0, attacker.disabledMoveIndex == resolvedMoveIndex {
+            log.append(BattleLogEntry(text: "\(attacker.displayName)'s \(move.name) is disabled!"))
+            return
+        }
+        if attacker.encoreTurns > 0,
+           let locked = attacker.encoreLockedIndex,
+           locked != resolvedMoveIndex,
+           attacker.moves.indices.contains(locked),
+           attacker.pp.indices.contains(locked),
+           attacker.pp[locked] > 0 {
+            resolvedMoveIndex = locked
+            move = attacker.moves[resolvedMoveIndex]
+        }
+        if let chargedIdx = attacker.chargedMoveIndex,
+           attacker.moves.indices.contains(chargedIdx) {
+            resolvedMoveIndex = chargedIdx
+            move = attacker.moves[resolvedMoveIndex]
+        }
+        // Redirected to a single-target move: run it on the single-target
+        // path, aimed at the first live foe.
+        if !usesSpreadPath(move, attacker: attacker) {
+            let foeSide = 1 - attackerSide
+            let foeSlot = (0..<format.activeSlots).first {
+                side(at: foeSide).active(at: $0).map { !$0.fainted } ?? false
+            } ?? 0
+            performMove(attackerSide: attackerSide, attackerSlot: attackerSlot,
+                        moveIndex: resolvedMoveIndex, defenderSide: foeSide, defenderSlot: foeSlot)
+            return
+        }
+
+        // Destiny Bond clears when the user takes their next action.
+        attacker.destinyBondActive = false
+
         if !preMoveStatusCheck(attacker) { return }
 
         if attacker.pp.indices.contains(resolvedMoveIndex), attacker.pp[resolvedMoveIndex] <= 0 {
@@ -2298,7 +2352,18 @@ final class BattleEngine {
         }
 
         log.append(BattleLogEntry(text: "\(attacker.displayName) used \(move.name)!"))
-        if attacker.pp.indices.contains(resolvedMoveIndex) { attacker.pp[resolvedMoveIndex] -= 1 }
+        if attacker.pp.indices.contains(resolvedMoveIndex) {
+            attacker.pp[resolvedMoveIndex] -= 1
+            // Pressure, as in performMove: an extra PP if any active foe has it.
+            for slot in 0..<format.activeSlots {
+                if let t = dSide.active(at: slot), !t.fainted, t.activeAbility == "pressure" {
+                    attacker.pp[resolvedMoveIndex] = max(0, attacker.pp[resolvedMoveIndex] - 1)
+                    break
+                }
+            }
+        }
+        // Track the move for Encore / Disable lookup on the next use.
+        attacker.lastMoveIndex = resolvedMoveIndex
 
         // Bump the first-turn-only counter so a Pokemon that used a spread
         // move on turn 1 can't then Fake Out on turn 2.

@@ -232,3 +232,85 @@ struct ExpandingForceTests {
         #expect(e.isGrounded(bird), "Gravity")
     }
 }
+
+/// A spread move must go through the same checks and bookkeeping as a
+/// single-target move. The spread path used to skip Disable, Encore,
+/// Pressure, Destiny Bond clearing and last-move tracking.
+@MainActor
+@Suite("Spread Moves — Same Rules as Single-Target Moves")
+struct SpreadMoveRulesTests {
+    private static let tackle = TS.mv("Tackle", id: 7, type: "Normal", dmg: "physical", power: 40, contact: true)
+    private static let quake = TS.mv("Earthquake", id: 2, type: "Ground", dmg: "physical", power: 100)
+
+    /// Doubles; P1 knows [Tackle, Earthquake].
+    private static func battle() -> BattleEngine {
+        TS.engine(.doubles,
+                  [(TS.pkmn("A", id: 1), [tackle, quake]), (TS.pkmn("P", id: 2), [])],
+                  [(TS.pkmn("F", id: 3), []), (TS.pkmn("G", id: 4), [])])
+    }
+
+    private static func useQuake(_ e: BattleEngine) {
+        e.setAction(side: 0, slot: 0, action: .spreadMove(moveIndex: 1))
+        e.executeTurn()
+    }
+
+    @Test("A disabled spread move fails")
+    func disableBlocks() {
+        let e = Self.battle()
+        let a = e.side1.active(at: 0)!
+        a.disableTurns = 3
+        a.disabledMoveIndex = 1
+        Self.useQuake(e)
+        #expect(TS.damageTaken(e.side2.active(at: 0)!) == 0)
+        #expect(a.pp[1] == 16, "no PP spent on a disabled move")
+    }
+
+    @Test("Encore overrides a chosen spread move")
+    func encoreRedirects() {
+        let e = Self.battle()
+        let a = e.side1.active(at: 0)!
+        a.encoreTurns = 3
+        a.encoreLockedIndex = 0
+        Self.useQuake(e)
+        #expect(a.pp[0] == 15, "Tackle was used")
+        #expect(a.pp[1] == 16, "Earthquake wasn't")
+        #expect(TS.damageTaken(e.side1.active(at: 1)!) == 0, "no Earthquake, so the ally is untouched")
+    }
+
+    @Test("Encore into a spread move makes a single-target pick spread")
+    func encoreIntoSpread() {
+        let e = Self.battle()
+        let a = e.side1.active(at: 0)!
+        a.encoreTurns = 3
+        a.encoreLockedIndex = 1   // Earthquake
+        e.setAction(side: 0, slot: 0, action: .move(moveIndex: 0, targetSide: 1, targetSlot: 0))
+        e.executeTurn()
+        #expect(a.pp[1] == 15, "Earthquake was used")
+        #expect(TS.damageTaken(e.side2.active(at: 1)!) > 0, "both foes hit")
+        #expect(TS.damageTaken(e.side1.active(at: 1)!) > 0, "and the ally")
+    }
+
+    @Test("Using a spread move records it as the last move")
+    func tracksLastMove() {
+        let e = Self.battle()
+        Self.useQuake(e)
+        #expect(e.side1.active(at: 0)!.lastMoveIndex == 1)
+    }
+
+    @Test("Pressure costs an extra PP")
+    func pressureCostsPP() {
+        let e = Self.battle()
+        e.side2.active(at: 0)!.tracedAbility = "pressure"
+        Self.useQuake(e)
+        #expect(e.side1.active(at: 0)!.pp[1] == 14)
+    }
+
+    @Test("Using a spread move ends Destiny Bond")
+    func clearsDestinyBond() {
+        let e = Self.battle()
+        let a = e.side1.active(at: 0)!
+        a.destinyBondActive = true
+        Self.useQuake(e)
+        #expect(!a.destinyBondActive)
+    }
+}
