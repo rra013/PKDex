@@ -544,6 +544,40 @@ struct BattleHazardRemovalTests {
         #expect(switchIntoSpikes(type: "Flying", gravity: true) == grounded)
     }
 
+    // Entry hazard amounts, checked against Pokemon Showdown's formulas
+    // (floor, minimum 1). The HP values are ones where rounding to nearest
+    // gives a different answer.
+    @Test(arguments: [(175, 1, 21), (175, 2, 29), (175, 3, 43), (7, 1, 1), (100, 1, 12)])
+    func spikesDamageRoundsDown(maxHP: Int, layers: Int, expected: Int) {
+        #expect(BattleEngine.spikesDamage(maxHP: maxHP, layers: layers) == expected)
+    }
+
+    @Test(arguments: [(175, 1.0, 21), (175, 2.0, 43), (175, 0.5, 10), (175, 0.25, 5),
+                      (175, 4.0, 87), (20, 0.25, 1)])
+    func stealthRockDamageRoundsDown(maxHP: Int, effectiveness: Double, expected: Int) {
+        #expect(BattleEngine.stealthRockDamage(maxHP: maxHP, effectiveness: effectiveness) == expected)
+    }
+
+    @Test func spikesSwitchInUsesTheFormula() {
+        // End to end: a grounded switch-in loses exactly spikesDamage.
+        let m = T1.pkmn("MonA", id: 100)
+        let n = T1.pkmn("MonB", id: 101)
+        let incoming = T1.pkmn("Incoming", id: 102)
+        let allP = [m, n, incoming]
+        let bs1 = BattleSide(label: "Side 1", slots: [T1.slot(m, ability: "blaze", moves: [])],
+                             format: .singles, allPokemon: allP, allMoves: [])
+        let bs2 = BattleSide(label: "Side 2",
+                             slots: [T1.slot(n, ability: "blaze", moves: []),
+                                     T1.slot(incoming, ability: "blaze", moves: [])],
+                             format: .singles, allPokemon: allP, allMoves: [])
+        let e = BattleEngine(format: .singles, side1: bs1, side2: bs2,
+                             allPokemon: allP, allMoves: [])
+        e.side2.spikesLayers = 1
+        e.forceSwitch(side: 1, slot: 0, benchIndex: 1)
+        let p = e.side2.active(at: 0)!
+        #expect(p.maxHP - p.currentHP == BattleEngine.spikesDamage(maxHP: p.maxHP, layers: 1))
+    }
+
     @Test func toxicSpikesAbsorbedByPoisonType() {
         let m = T1.pkmn("MonA", id: 100)
         let poison = T1.pkmn("PoisonMon", id: 102, type1: "Poison")
