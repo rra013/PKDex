@@ -157,6 +157,13 @@ nonisolated struct CalcSnapshot: Equatable, Sendable {
                ev: formulaEV(evHP), level: level)
     }
 
+    /// Current HP when below full, as the same percentage-of-max conversion
+    /// the Champions bridge uses. nil at full HP.
+    var currentHP: Int? {
+        let pct = max(1, min(100, currentHPPercent))
+        return pct >= 100 ? nil : max(1, hp * pct / 100)
+    }
+
     var atk: Int { stat(.atk) }
     var def: Int { stat(.def) }
     var spAtk: Int { stat(.spAtk) }
@@ -269,6 +276,14 @@ nonisolated struct CalcOutcome: Equatable, Sendable {
     /// Champions path only, and the solver has to fall back to the
     /// guaranteed-KO / guaranteed-survival predicates elsewhere.
     var rolls: [Int]?
+    /// The defender's HP before this hit, when it isn't at full. nil means
+    /// full HP, so outcomes built without it behave exactly as before.
+    var defenderCurrentHP: Int? = nil
+
+    /// HP the hit has to get through: current HP when known, else max HP.
+    /// Percentages stay relative to max HP, as the calc displays them; only
+    /// the KO / survival checks use this.
+    var hpBeforeHit: Int { defenderCurrentHP ?? defenderHP }
 
     var minPercent: Double {
         defenderHP > 0 ? min(damageMin / Double(defenderHP) * 100, 999) : 0
@@ -277,19 +292,19 @@ nonisolated struct CalcOutcome: Equatable, Sendable {
         defenderHP > 0 ? min(damageMax / Double(defenderHP) * 100, 999) : 0
     }
 
-    /// True when even the lowest roll KOs — the "guaranteed KO" predicate.
+    /// True when even the lowest roll KOs from the defender's current HP.
     var isGuaranteedOHKO: Bool {
-        defenderHP > 0 && damageMin >= Double(defenderHP)
+        hpBeforeHit > 0 && damageMin >= Double(hpBeforeHit)
     }
-    /// True when even the highest roll fails to KO — "survives worst case".
+    /// True when even the highest roll leaves the defender standing.
     var isGuaranteedSurvival: Bool {
-        defenderHP > 0 && damageMax < Double(defenderHP)
+        hpBeforeHit > 0 && damageMax < Double(hpBeforeHit)
     }
 
-    /// Fraction of rolls that KO. nil when the engine didn't supply rolls.
+    /// Fraction of rolls that KO from current HP. nil without rolls.
     var ohkoChance: Double? {
-        guard let rolls, !rolls.isEmpty, defenderHP > 0 else { return nil }
-        return Double(rolls.filter { $0 >= defenderHP }.count) / Double(rolls.count)
+        guard let rolls, !rolls.isEmpty, hpBeforeHit > 0 else { return nil }
+        return Double(rolls.filter { $0 >= hpBeforeHit }.count) / Double(rolls.count)
     }
 
     /// The hit-count label the calc UI displays, e.g. "2HKO" or "2-3HKO".
