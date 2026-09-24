@@ -38,7 +38,7 @@ evaluations — hence the need to get off the main actor.
 | 2.2 | `EVSolver.swift` — survive / KO / outspeed solves | done, tested |
 | 2.3 | `EVSolverSheet.swift` — solver UI on the calc's move rows | done, checked in the simulator |
 
-Last full run (after the Speed Tiers parity fixes): **867 of 867 passing**. The test-randomness
+Last full run (after the spread-move rules fix): **873 of 873 passing**. The test-randomness
 fixes held for three runs in a row before that. See "Randomness in tests" below. Both
 engines are behind `CalcEngine`, so the whole damage suite exercises the
 extracted code.
@@ -302,6 +302,14 @@ Follow-ups (2026-09-23):
   `stealthRockDamage` (`maxHP * effectiveness / 8`) match. Tests use HP
   values where the two rounding rules differ. No other chip damage in the
   sim used round-to-nearest.
+- **Spread moves follow the same rules as single-target moves
+  (2026-09-23).** `performSpreadMove` skipped Disable, Encore, Pressure,
+  Destiny Bond clearing and `lastMoveIndex` tracking (so a later Encore or
+  Disable hit the *previous* move). It now runs the same steps in the same
+  order. Both paths use `usesSpreadPath(_:attacker:)` to decide where a move
+  runs, so Encore or a charged move redirecting between spread and
+  single-target moves lands on the right path without looping.
+  `SpreadMoveRulesTests` (6) all failed on the old code.
 - **The battle AI is unaffected by the new spread list.** The policy model's
   inputs are species indices and 105 continuous features. `isSpread` is only
   used after the model picks a move, to route the action. No retraining is
