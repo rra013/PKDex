@@ -14,9 +14,10 @@
 //  data's 39 spread moves and wrongly included Earth Power (single-target).
 //  Moves missing from the Champions data fall back to a short canonical list.
 //
-//  Not modelled: Expanding Force, which becomes spread only in Psychic
-//  Terrain when the user is grounded. The port handles it for damage; the sim
-//  and this helper treat it as single-target.
+//  Expanding Force is single-target here: it only becomes spread in Psychic
+//  Terrain when the user is grounded, which depends on battle state. The port
+//  handles it for damage, and the battle sim reroutes it at the moment it's
+//  used (`BattleEngine.performMove`).
 //
 
 import Foundation

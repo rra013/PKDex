@@ -173,3 +173,62 @@ struct SpreadLegacyCalcTests {
         #expect(Self.damage("Tri Attack", doubles: true) == Self.damage("Tri Attack", doubles: false))
     }
 }
+
+@MainActor
+@Suite("Spread Moves — Expanding Force & Grounding")
+struct ExpandingForceTests {
+    private static let force = TS.mv("Expanding Force", id: 5, type: "Psychic", dmg: "special", power: 80)
+
+    /// Doubles, P1 uses Expanding Force at foe slot 0. Returns damage taken by
+    /// both foes.
+    private static func useForce(terrain: TerrainCondition, userType: String = "Psychic",
+                                 gravity: Bool = false) -> (Int, Int) {
+        let e = TS.engine(.doubles,
+                          [(TS.pkmn("A", id: 1, type1: userType), [force]), (TS.pkmn("P", id: 2), [])],
+                          [(TS.pkmn("F", id: 3), []), (TS.pkmn("G", id: 4), [])])
+        e.terrain = terrain
+        e.terrainTurns = terrain == .none ? 0 : 5
+        if gravity { e.gravityTurns = 5 }
+        e.setAction(side: 0, slot: 0, action: .move(moveIndex: 0, targetSide: 1, targetSlot: 0))
+        e.executeTurn()
+        return (TS.damageTaken(e.side2.active(at: 0)!), TS.damageTaken(e.side2.active(at: 1)!))
+    }
+
+    @Test("Psychic Terrain, grounded user: both foes are hit")
+    func spreadsInPsychicTerrain() {
+        let (a, b) = Self.useForce(terrain: .psychic)
+        #expect(a > 0 && b > 0)
+    }
+
+    @Test("No terrain: only the chosen foe is hit")
+    func singleWithoutTerrain() {
+        let (a, b) = Self.useForce(terrain: .none)
+        #expect(a > 0 && b == 0)
+    }
+
+    @Test("Flying-type user isn't grounded, so it stays single-target")
+    func flyingUserStaysSingle() {
+        let (a, b) = Self.useForce(terrain: .psychic, userType: "Flying")
+        #expect(a > 0 && b == 0)
+    }
+
+    @Test("Gravity grounds a Flying-type user")
+    func gravityGrounds() {
+        let (a, b) = Self.useForce(terrain: .psychic, userType: "Flying", gravity: true)
+        #expect(a > 0 && b > 0)
+    }
+
+    @Test("isGrounded: Flying and Levitate float; Gravity and Smack Down ground")
+    func groundedRules() {
+        let e = TS.engine(.singles, [(TS.pkmn("Bird", id: 1, type1: "Flying"), [])],
+                          [(TS.pkmn("Rock", id: 2, type1: "Rock"), [])])
+        let bird = e.side1.active(at: 0)!, rock = e.side2.active(at: 0)!
+        #expect(!e.isGrounded(bird))
+        #expect(e.isGrounded(rock))
+        bird.grounded = true
+        #expect(e.isGrounded(bird), "Smack Down")
+        bird.grounded = false
+        e.gravityTurns = 5
+        #expect(e.isGrounded(bird), "Gravity")
+    }
+}
