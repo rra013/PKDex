@@ -225,3 +225,73 @@ struct SpeedTierTests {
         #expect(speed == 277)
     }
 }
+
+// MARK: - Parity with the Showdown port
+
+/// Speed Tiers keeps its own modifier table so it can apply "what if"
+/// modifiers to every Pokemon. This checks every benchmark x item x ability
+/// combination against the port's `getFinalSpeed`, which the EV solver and
+/// the damage calc use, so the two can't drift apart. (The paralysis
+/// multiplier did, until 2026-09-23.)
+@Suite("Speed Tiers — Parity with the Showdown Port")
+struct SpeedTierPortParityTests {
+
+    /// Species in the Champions data with different base Speeds.
+    static let species = ["Garchomp", "Snorlax", "Dragapult"]
+
+    /// Builds the port's version of one Speed Tiers row.
+    private static func portSpeed(species name: String, benchmark: SpeedBenchmark,
+                                  item: SpeedItemModifier,
+                                  ability: SpeedAbilityModifier) throws -> Int {
+        let gen = ShowdownGen0.shared
+        let species = try #require(gen.species(toID(name)))
+        let nature: String = switch benchmark {
+        case .maxBoosted, .uninvBoosted: "Jolly"
+        case .maxNeutral, .uninvNeutral: "Serious"
+        case .minHindered: "Brave"
+        }
+        let field = ShowdownField()
+        var abilityName: String? = "Pressure"   // speed-neutral placeholder
+        var abilityOn = false
+        var status: ShowdownStatus = .none
+        switch ability {
+        case .none: break
+        case .swiftSwim: abilityName = "Swift Swim"; field.weather = .rain
+        case .unburden: abilityName = "Unburden"; abilityOn = true
+        case .quickFeet: abilityName = "Quick Feet"; status = .brn
+        case .slowStart: abilityName = "Slow Start"; abilityOn = true
+        case .paralysis: status = .par
+        }
+        let itemName: String? = switch item {
+        case .none: nil
+        case .choiceScarf: "Choice Scarf"
+        case .ironBall: "Iron Ball"
+        }
+        let p = ShowdownPokemon(gen, species.name, species: species,
+                                ability: abilityName, abilityOn: abilityOn,
+                                item: itemName, nature: nature,
+                                evs: ShowdownStats(hp: 0, atk: 0, def: 0, spa: 0, spd: 0,
+                                                   spe: benchmark.championsEV),
+                                status: status)
+        return getFinalSpeed(gen, p, field, field.attackerSide)
+    }
+
+    @Test("Every combination matches the port", arguments: species)
+    func allCombinations(name: String) throws {
+        let base = try #require(ShowdownGen0.shared.species(toID(name))).baseStats.spe
+        for benchmark in SpeedBenchmark.allCases {
+            for item in SpeedItemModifier.allCases {
+                for ability in SpeedAbilityModifier.allCases {
+                    let tiers = computeBenchmarkSpeed(baseSpeed: base, level: 50,
+                                                      benchmark: benchmark, championsMode: true,
+                                                      itemMod: item, abilityMod: ability)
+                    let port = try Self.portSpeed(species: name, benchmark: benchmark,
+                                                  item: item, ability: ability)
+                    #expect(tiers == port,
+                            "\(name) \(benchmark.rawValue) + \(item.rawValue) + \(ability.rawValue): tiers \(tiers), port \(port)")
+                }
+            }
+        }
+    }
+}
+
