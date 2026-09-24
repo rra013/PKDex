@@ -282,12 +282,9 @@ abilities and moves are limited to the species' legal options, and stat
 points are rebalanced to the 66-point budget. `pokii_parity_samples.json`
 lets the tests check the Swift inference against the training outputs.
 
-The repository also includes an on-device **LLM set builder**, the
-`02_`–`06_` files. It uses a 4-bit, 3-billion-parameter "Pokii" model run
-with MLX Swift and downloaded on demand from Hugging Face
-(`rra013/pokii-mlx-q4-3b`). It combines a prompt normalizer, the model, and a
-Champions validator in a retry loop. The small set predictor has replaced it
-in the UI, so the code is currently not reachable from any screen.
+The set predictor replaced an earlier on-device LLM set builder, which ran a
+4-bit "Pokii" model with MLX Swift. That code has been removed; it's still in
+the git history.
 
 ---
 
@@ -329,7 +326,7 @@ file-by-file reference),
 
 **Requirements:** Xcode 27, with the iOS 26.4 SDK or later. The deployment
 target is iOS 26.4, and the device families are iPhone, iPad and Apple
-Vision. Swift packages resolve automatically when the project is opened.
+Vision. The project has no Swift package dependencies.
 
 1. Open `PKDex.xcodeproj` and select the **PKDex** scheme.
 2. Run on a simulator or a device. The first launch downloads Pokémon and move
@@ -409,22 +406,10 @@ RNG Reporter, PPRNG and 3DSRNG Tool. The LCRNG reversal techniques
 (meet-in-the-middle and Euclidean-divisor methods) follow discussions on
 crypto.stackexchange.com.
 
-### Swift packages
+### Models
 
-| Package | Author | Used for |
-|---|---|---|
-| [mlx-swift](https://github.com/ml-explore/mlx-swift), [mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm) | Apple (ML Explore) | Running the Pokii LLM on device |
-| [swift-transformers](https://github.com/huggingface/swift-transformers), [swift-huggingface](https://github.com/huggingface/swift-huggingface), [swift-jinja](https://github.com/huggingface/swift-jinja) | Hugging Face | Tokenizers, Hub access and chat templates for the LLM |
-| [EventSource](https://github.com/mattt/EventSource) | Mattt | Server-sent events (used by swift-huggingface) |
-| [yyjson](https://github.com/ibireme/yyjson) | ibireme | Fast JSON parsing (used by swift-transformers) |
-| [swift-collections](https://github.com/apple/swift-collections), [swift-numerics](https://github.com/apple/swift-numerics), [swift-atomics](https://github.com/apple/swift-atomics), [swift-nio](https://github.com/apple/swift-nio), [swift-crypto](https://github.com/apple/swift-crypto), [swift-asn1](https://github.com/apple/swift-asn1), [swift-system](https://github.com/apple/swift-system), [swift-syntax](https://github.com/swiftlang/swift-syntax) | Apple / Swift project | Supporting libraries for the packages above |
-| [PokemonAPI](https://github.com/kinkofer/PokemonAPI) | kinkofer | A Swift PokeAPI wrapper. It's linked into the app target, though the app calls PokeAPI directly |
-
-### Hosting and models
-
-- **Hugging Face** hosts the Pokii LLM weights (`rra013/pokii-mlx-q4-3b`).
-- The on-device models were trained in a separate training repository by the
-  author of this app.
+The on-device models were trained in a separate training repository by the
+author of this app.
 
 ### Pokémon
 

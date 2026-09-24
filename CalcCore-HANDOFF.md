@@ -399,7 +399,8 @@ Follow-ups (2026-09-23):
     `TeamPasteImportTests` cover the planning, which builds the models
     without inserting them, so no SwiftData container is needed.
 - **Model downloader hardening — done 2026-09-23** (`05_PokiiModelDownloader.swift`,
-  tests in `ModelFileSafetyTests`). Both audit items are fixed, plus a gap
+  tests in `ModelFileSafetyTests`). *Both were removed on 2026-09-24 along
+  with the unused LLM set builder; this entry is kept for history.* Both audit items are fixed, plus a gap
   found next to them:
   - **Manifest names are validated** before anything touches disk. Only
     plain relative paths made of `[A-Za-z0-9._-]` components are allowed,

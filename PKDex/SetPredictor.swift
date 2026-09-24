@@ -243,7 +243,7 @@ final class SetPredictor {
 
 // MARK: - UI
 
-/// Drop-in replacement for the old AIBuilderButton (single set mode). Opens
+/// Replaced the earlier on-device LLM builder's single-set button. Opens
 /// a much simpler sheet — name + qualifier, no free-text prompt, no retries.
 ///
 /// `initialSpecies` is the local Pokedex name of whatever the user has already
