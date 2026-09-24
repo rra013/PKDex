@@ -510,6 +510,40 @@ struct BattleHazardRemovalTests {
                 "Toxic Spikes (1 layer) should poison a grounded incoming non-Poison mon")
     }
 
+    /// Side 2 has one layer of Spikes; its bench mon of `type` switches in.
+    /// Returns the HP it lost on entry.
+    private func switchIntoSpikes(type: String, gravity: Bool) -> Int {
+        let m = T1.pkmn("MonA", id: 100)
+        let n = T1.pkmn("MonB", id: 101)
+        let bird = T1.pkmn("Incoming", id: 102, type1: type)
+        let allP = [m, n, bird]
+        let bs1 = BattleSide(label: "Side 1", slots: [T1.slot(m, ability: "blaze", moves: [])],
+                             format: .singles, allPokemon: allP, allMoves: [])
+        let bs2 = BattleSide(label: "Side 2",
+                             slots: [T1.slot(n, ability: "blaze", moves: []),
+                                     T1.slot(bird, ability: "blaze", moves: [])],
+                             format: .singles, allPokemon: allP, allMoves: [])
+        let e = BattleEngine(format: .singles, side1: bs1, side2: bs2,
+                             allPokemon: allP, allMoves: [])
+        e.side2.spikesLayers = 1
+        if gravity { e.gravityTurns = 5 }
+        e.forceSwitch(side: 1, slot: 0, benchIndex: 1)
+        let entered = e.side2.active(at: 0)!
+        return entered.maxHP - entered.currentHP
+    }
+
+    @Test func spikesSkipFlyingTypes() {
+        #expect(switchIntoSpikes(type: "Flying", gravity: false) == 0)
+    }
+
+    @Test func gravityLetsSpikesHitFlyingTypes() {
+        // Gravity grounds everything: a Flying type takes exactly what a
+        // grounded Pokemon with the same HP takes.
+        let grounded = switchIntoSpikes(type: "Normal", gravity: false)
+        #expect(grounded > 0, "premise: Spikes hurt a grounded Pokemon")
+        #expect(switchIntoSpikes(type: "Flying", gravity: true) == grounded)
+    }
+
     @Test func toxicSpikesAbsorbedByPoisonType() {
         let m = T1.pkmn("MonA", id: 100)
         let poison = T1.pkmn("PoisonMon", id: 102, type1: "Poison")
