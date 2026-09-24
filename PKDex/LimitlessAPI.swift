@@ -72,7 +72,11 @@ struct LimitlessStanding: Decodable, Identifiable, Sendable {
     let player: String
     let name: String
     let country: String?
-    let placing: Int
+    /// nil for players Limitless didn't rank — in practice, players who
+    /// dropped (`drop` is set). Common: 11 of 22 sampled events had some, and
+    /// a non-optional `Int` failed to decode those events entirely. The API
+    /// lists these players before first place; see `sortedByPlacing`.
+    let placing: Int?
     let record: Record?
     let deck: Deck?
     let decklist: [TeamMember]?
@@ -101,6 +105,19 @@ struct LimitlessStanding: Decodable, Identifiable, Sendable {
         let ability: String?
         let attacks: [String]?
         let tera: String?
+    }
+
+    /// Ranked players by placing, then unranked players in the order the
+    /// API sent them. The API puts unranked players first, which would put
+    /// dropped players above the winner.
+    static func sortedByPlacing(_ standings: [LimitlessStanding]) -> [LimitlessStanding] {
+        standings.enumerated()
+            .sorted { lhs, rhs in
+                let l = lhs.element.placing ?? .max
+                let r = rhs.element.placing ?? .max
+                return l != r ? l < r : lhs.offset < rhs.offset
+            }
+            .map(\.element)
     }
 }
 

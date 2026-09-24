@@ -72,6 +72,37 @@ struct TeamPasteImportTests {
         #expect(taken == ["Saved one", "Garchomp (AI)"])
     }
 
+    @Test("Spread names are unique against taken names and each other")
+    func spreadNames() {
+        let names = TeamPasteImport.spreadNames(
+            teamName: "Rain", memberNames: ["Garchomp", "Garchomp", "Incineroar"],
+            taken: ["Rain · Garchomp"])
+        #expect(names == ["Rain · Garchomp 2", "Rain · Garchomp 3", "Rain · Incineroar"])
+    }
+
+    /// Regression: tournament saves named every spread after its species, and
+    /// team slots find spreads by name, so a second team with Incineroar
+    /// took over the first team's Incineroar slot.
+    @Test("Two saved teams sharing a species get separate spreads")
+    func teamsSharingASpecies() {
+        let first = TeamPasteImport.spreadNames(
+            teamName: "Alex's Team", memberNames: ["Incineroar"], taken: [])
+        let firstTeam = SavedTeam(name: "Alex's Team", slots: [
+            TeamSlotInfo(spreadName: first[0], pokemonID: 1, pokemonName: "Incineroar",
+                         type1: "Fire", moveSlots: [])
+        ])
+        let taken = TeamPasteImport.takenNames(spreads: [], teams: [firstTeam])
+
+        // Same player saved twice, and a different player with the same species.
+        let again = TeamPasteImport.spreadNames(
+            teamName: "Alex's Team", memberNames: ["Incineroar"], taken: taken)
+        let other = TeamPasteImport.spreadNames(
+            teamName: "Sam's Team", memberNames: ["Incineroar"], taken: taken)
+        #expect(again == ["Alex's Team · Incineroar 2"])
+        #expect(other == ["Sam's Team · Incineroar"])
+        #expect(taken.isDisjoint(with: again + other))
+    }
+
     // MARK: - Plans
 
     @Test("Every slot points at a spread the plan creates, in order")
