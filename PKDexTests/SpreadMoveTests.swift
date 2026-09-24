@@ -10,7 +10,7 @@
 //    * `allAdjacent` moves (Earthquake, Surf) also hit the user's ally;
 //    * the calc's legacy engine applies the doubles toggle to spread moves only.
 //
-//  Battle runs pin rolls so damage comparisons
+//  Battle runs pin rolls and suppress chance events so damage comparisons
 //  are exact.
 //
 
@@ -56,7 +56,7 @@ private enum TS {
                             format: format, allPokemon: allP, allMoves: allM)
         let e = BattleEngine(format: format, side1: s1, side2: s2,
                              allPokemon: allP, allMoves: allM)
-        e.rollOverride = .init(crit: false, roll: .max)
+        e.rollOverride = .init(crit: false, roll: .max, suppressChanceEvents: true)
         return e
     }
 

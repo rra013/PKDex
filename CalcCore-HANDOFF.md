@@ -38,7 +38,7 @@ evaluations — hence the need to get off the main actor.
 | 2.2 | `EVSolver.swift` — survive / KO / outspeed solves | done, tested |
 | 2.3 | `EVSolverSheet.swift` — solver UI on the calc's move rows | done, checked in the simulator |
 
-Last full run (after survive-from-current-HP): **842 of 842 passing**. The test-randomness
+Last full run (after two-hit goals and the spread fixes): **856 of 856 passing**. The test-randomness
 fixes held for three runs in a row before that. See "Randomness in tests" below. Both
 engines are behind `CalcEngine`, so the whole damage suite exercises the
 extracted code.
@@ -233,9 +233,43 @@ varies HP EVs, current HP stays the same percentage of the new max, so the
 answer is "cheapest spread to survive from 60%". The sheet's headings add
 "from N% HP" when the defender isn't full. Nothing changes at full HP.
 
-Not yet done: goals beyond one hit (2HKO, surviving two hits). Effects that
-change between hits (Multiscale, Sitrus Berry, Stamina, Weak Armor…) make a
-naive sum wrong, so it needs a design pass first.
+**Two-hit goals (2026-09-23), `TwoHitSolver.swift`.** "Survive two hits"
+and "guaranteed 2HKO" are played out in the **battle simulator**, not summed:
+the attacker uses the move on two consecutive turns (end-of-turn effects
+apply between hits) against a passive defender. Sitrus Berry, Multiscale,
+Stamina, Weak Armor, Leftovers, HP-scaling moves and so on come from the
+sim's own rules. Design points:
+- **"Guaranteed" = pinned rolls:** max for surviving, min for KOing. Crits
+  only if the calc's Crit toggle is on. `RollOverride.suppressChanceEvents`
+  turns off misses and every luck-based effect (secondary effects, Focus
+  Band, contact abilities, Quick Claw…); all engine chance draws now go
+  through `luck(_:)` / `accuracyRoll()`.
+- **HP berries break "max roll is worst".** A bigger first hit can trigger
+  Sitrus sooner and leave more HP. With an HP berry, the first hit is
+  scanned across 17 points of its range (`RollOverride.Roll.fraction`), and
+  the goal must hold at every one. Mutation-checked: without the scan, the
+  answer faints at the lowest first-hit rolls.
+- **Sim/calc parity:** `singleHitParity` asserts a single simulated hit
+  equals `CalcEngine.evaluate` at min and max rolls.
+- **Refuses** what the sim can't reproduce: Helping Hand, Friend Guard,
+  Protect, Glaive Rush, Z-bypass, the misc multiplier, mainline IVs ≠ 31,
+  and a sleeping or frozen attacker.
+- **Doubles spread:** with the calc's doubles toggle and a spread move, the
+  run is a doubles battle with a very bulky placeholder partner next to the
+  defender, so both hits take 0.75x.
+- Runs on the main actor (the sim's damage path uses `DamageCalcVM`), about
+  0.4 ms per two-hit simulation, and yields between runs.
+
+**Spread moves fixed at the same time.** `SpreadMoves.swift` reads each
+move's `target` from the Showdown data, replacing the sim's hand-written
+list (19 of 39 spread moves, and it wrongly included Earth Power). The sim
+applies 0.75x only when a move has more than one target at the time it's
+used, so a lone surviving foe takes full damage. `allAdjacent` moves
+(Earthquake, Surf, Explosion) now also hit the user's ally. Wide Guard
+still blocks per side by move type. The calc's legacy engine applied the
+doubles toggle to *every* move and now applies it to spread moves only; the
+Champions port already did. Not modelled: Expanding Force turning spread
+in Psychic Terrain (the port handles it for damage, the sim doesn't).
 
 ## Design decisions worth not re-litigating
 

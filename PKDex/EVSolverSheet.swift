@@ -34,6 +34,9 @@ struct EVSolverSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var certainty: CertaintyChoice = .guaranteed
     @State private var results: SolveResults?
+    /// Two-hit answers, played out in the battle simulator. Computed once
+    /// per sheet: they're every-roll only, so the goal picker doesn't apply.
+    @State private var twoHit: (survive: TwoHitSolver.Answer, ko: TwoHitSolver.Answer)?
 
     private var attacker: CalcSide { request.attackerIsSide1 ? vm.side1 : vm.side2 }
     private var defender: CalcSide { request.attackerIsSide1 ? vm.side2 : vm.side1 }
@@ -89,6 +92,7 @@ struct EVSolverSheet: View {
                         title: "\(attackerName) OHKOs\(fromHP)",
                         icon: "bolt.fill",
                         result: results.ko, side: attacker, goalIsKO: true)
+                    twoHitSection
                     Section {
                         speedRow(name: attackerName, over: defenderName,
                                  targetSpeed: results.defenderSpeedStat,
@@ -124,6 +128,7 @@ struct EVSolverSheet: View {
                 }
             }
             .task(id: certainty) { await solve() }
+            .task { await solveTwoHits() }
         }
     }
 
@@ -141,6 +146,79 @@ struct EVSolverSheet: View {
         }.value
         guard !Task.isCancelled else { return }
         results = solved
+    }
+
+    private func solveTwoHits() async {
+        guard twoHit == nil else { return }
+        let survive = await TwoHitSolver.solve(.survive, vm: vm, attacker: attacker,
+                                               defender: defender, move: request.move)
+        guard !Task.isCancelled else { return }
+        let ko = await TwoHitSolver.solve(.ko, vm: vm, attacker: attacker,
+                                          defender: defender, move: request.move)
+        guard !Task.isCancelled else { return }
+        twoHit = (survive, ko)
+    }
+
+    // MARK: - Two hits
+
+    @ViewBuilder
+    private var twoHitSection: some View {
+        Section {
+            if let twoHit {
+                twoHitRows(twoHit.survive, side: defender, goalIsKO: false,
+                           label: "\(defenderName) survives two hits\(fromHP)")
+                twoHitRows(twoHit.ko, side: attacker, goalIsKO: true,
+                           label: "\(attackerName) 2HKOs\(fromHP)")
+            } else {
+                HStack {
+                    ProgressView()
+                    Text("Simulating two hits…").foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Label("Two hits, consecutive turns", systemImage: "repeat")
+        } footer: {
+            Text(twoHitFooter)
+        }
+    }
+
+    private var twoHitFooter: String {
+        var text = "Played out in the battle simulator: the move is used on two turns in a row, so end-of-turn effects like Leftovers apply between hits, as do Sitrus Berry, Multiscale, Stamina and Weak Armor. Every roll; crits only with Crit on; misses and secondary effects are ignored."
+        if vm.multi && SpreadMoves.isSpread(request.move.name) {
+            text += " Spread move into two targets, so both hits take the 0.75x reduction."
+        }
+        return text
+    }
+
+    @ViewBuilder
+    private func twoHitRows(_ answer: TwoHitSolver.Answer, side: CalcSide,
+                            goalIsKO: Bool, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.subheadline.bold())
+            switch answer.result {
+            case .success(let solution):
+                spreadRows(solution, side: side)
+                if !goalIsKO, let left = answer.defenderHPLeftPercent {
+                    Text("Worst case: \(left)% HP left after both hits")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                applyButton(solution, side: side)
+            case .failure(.unreachable):
+                Text(goalIsKO ? "Can't 2HKO within the EV budget" : "Can't survive two hits within the EV budget")
+                    .foregroundStyle(.orange)
+                if goalIsKO, let left = answer.defenderHPLeftPercent {
+                    Text("At maximum investment it's left on \(left)% HP on the best rolls")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            case .failure(.noRelevantStat):
+                Text("This move's damage doesn't depend on the attacker's EVs.")
+                    .foregroundStyle(.secondary)
+            case .failure(.notApplicable(let reason)):
+                Text("Not solvable over two hits: \(reason).")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
     }
 
     // MARK: - Damage goals
