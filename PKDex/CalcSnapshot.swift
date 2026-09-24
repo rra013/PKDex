@@ -241,7 +241,8 @@ nonisolated struct FieldSnapshot: Equatable, Sendable {
     var terrain: TerrainCondition = .none
     var crit = false
     var burn = false
-    /// Spread move (doubles), which halves damage.
+    /// Doubles with both foes present: spread moves (per `SpreadMoves`) take
+    /// the 0.75x spread reduction. Single-target moves are unaffected.
     var multi = false
     var glaiveRush = false
     var zMoveBypass = false

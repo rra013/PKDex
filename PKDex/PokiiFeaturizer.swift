@@ -438,8 +438,7 @@ enum PokiiFeaturizer {
     private static func moveAction(engine: BattleEngine, side sIdx: Int, slot: Int,
                                    actor: BattleParticipant, moveIndex mi: Int) -> BattleAction {
         let move = actor.moves[mi]
-        let normalized = BattleSimSeed.normalize(move.name)
-        let isSpread = BattleMoveEffects.spreadMoves.contains(normalized)
+        let isSpread = BattleMoveEffects.isSpread(move.name)
         if engine.format == .doubles && isSpread && move.damageClass != "status" {
             return .spreadMove(moveIndex: mi)
         }

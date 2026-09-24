@@ -62,12 +62,13 @@ enum BattleHazard {
 /// whether `MoveData.name` arrives as "Swords Dance", "swords-dance", or "SwordsDance".
 enum BattleMoveEffects {
 
-    static let spreadMoves: Set<String> = [
-        "earthquake", "surf", "rockslide", "discharge", "heatwave",
-        "blizzard", "muddywater", "lavaplume", "eruption", "icywind",
-        "dazzlinggleam", "hypervoice", "snarl", "boomburst", "earthpower",
-        "sludgewave", "bulldoze", "explosion", "selfdestruct",
-    ]
+    /// Whether a move hits more than one Pokemon in doubles. Reads the move's
+    /// target from the Showdown data via `SpreadMoves`; this used to be a
+    /// hand-written list that was missing half the spread moves and wrongly
+    /// included Earth Power.
+    static func isSpread(_ moveName: String) -> Bool {
+        SpreadMoves.isSpread(moveName)
+    }
 
     /// Moves that only succeed on the user's first action since switching in.
     /// Mirrors Showdown's `onTry { if (source.activeMoveActions > 1) return false }`
@@ -1334,11 +1335,36 @@ final class BattleEngine {
     var rollOverride: RollOverride?
 
     struct RollOverride {
-        enum Roll { case min, max }
+        enum Roll {
+            case min, max
+            /// A point in the damage range: 0 is the minimum, 1 the maximum.
+            case fraction(Double)
+        }
         /// Whether every crit check succeeds.
         var crit: Bool
-        /// Which end of each damage range to take.
+        /// Which part of each damage range to take. A two-hit solve changes it
+        /// between turns to give each hit its own roll.
         var roll: Roll
+        /// When true, luck-based events don't happen and accuracy always
+        /// hits: secondary effects, full paralysis, confusion self-hits,
+        /// infatuation, Quick Claw, Focus Band, King's Rock, contact abilities,
+        /// Harvest. Multi-hit counts follow `roll` (min → 2 hits, else 5).
+        /// This is the standard damage-calc reading of "guaranteed". Off by
+        /// default so existing pinned tests keep their behaviour.
+        var suppressChanceEvents: Bool = false
+    }
+
+    /// A luck-based event with probability `p`. Never happens when a pinned
+    /// run suppresses chance events.
+    private func luck(_ p: Double) -> Bool {
+        if rollOverride?.suppressChanceEvents == true { return false }
+        return Double.random(in: 0..<1) < p
+    }
+
+    /// An accuracy roll on the 1...100 scale; always 1 (a hit) when chance
+    /// events are suppressed.
+    private func accuracyRoll() -> Int {
+        rollOverride?.suppressChanceEvents == true ? 1 : Int.random(in: 1...100)
     }
 
     /// When true for a given [side][slot], that actor will Mega Evolve at the start of
@@ -1477,7 +1503,7 @@ final class BattleEngine {
         var quickClawWinners: Set<ActorKey> = []
         for action in actions {
             guard let actor = side(at: action.sideIndex).active(at: action.actorSlot) else { continue }
-            if actor.effectiveHeldItem == .quickClaw, Double.random(in: 0..<1) < 0.2 {
+            if actor.effectiveHeldItem == .quickClaw, luck(0.2) {
                 quickClawWinners.insert(action.key)
                 log.append(BattleLogEntry(text: "\(actor.displayName)'s Quick Claw activated!"))
             }
@@ -1739,7 +1765,7 @@ final class BattleEngine {
         }
         if p.status == .freeze {
             // 20% thaw-and-act each turn.
-            if Double.random(in: 0..<1) < 0.2 {
+            if luck(0.2) {
                 p.status = .none
                 log.append(BattleLogEntry(text: "\(p.displayName) thawed out!"))
             } else {
@@ -1747,14 +1773,14 @@ final class BattleEngine {
                 return false
             }
         }
-        if p.status == .paralysis && Double.random(in: 0..<1) < 0.25 {
+        if p.status == .paralysis && luck(0.25) {
             log.append(BattleLogEntry(text: "\(p.displayName) is fully paralyzed! It can't move!"))
             return false
         }
         if p.infatuated {
             // 50% chance to fizzle the move ("immobilized by love"). No turn
             // counter — infatuation lasts until the holder switches.
-            if Double.random(in: 0..<1) < 0.5 {
+            if luck(0.5) {
                 log.append(BattleLogEntry(text: "\(p.displayName) is immobilized by love!"))
                 return false
             }
@@ -1767,7 +1793,7 @@ final class BattleEngine {
                 log.append(BattleLogEntry(text: "\(p.displayName) snapped out of confusion!"))
             } else {
                 log.append(BattleLogEntry(text: "\(p.displayName) is confused!"))
-                if Double.random(in: 0..<1) < (1.0 / 3.0) {
+                if luck(1.0 / 3.0) {
                     let dmg = confusionSelfDamage(p)
                     p.currentHP = max(0, p.currentHP - dmg)
                     log.append(BattleLogEntry(text: "\(p.displayName) hurt itself in its confusion! (-\(dmg) HP)"))
@@ -2021,7 +2047,7 @@ final class BattleEngine {
         }
 
         if let acc = effectiveAccuracy(move, attacker: attacker, against: defender) {
-            let roll = Int.random(in: 1...100)
+            let roll = accuracyRoll()
             if roll > acc {
                 log.append(BattleLogEntry(text: "It missed!"))
                 attacker.consecutiveProtectCount = 0
@@ -2255,7 +2281,7 @@ final class BattleEngine {
         let liveDefender = firstLiveDefender(in: dSide)
 
         if let acc = effectiveAccuracy(move, attacker: attacker, against: liveDefender) {
-            let roll = Int.random(in: 1...100)
+            let roll = accuracyRoll()
             if roll > acc {
                 log.append(BattleLogEntry(text: "It missed!"))
                 return
@@ -2269,12 +2295,25 @@ final class BattleEngine {
             return
         }
 
-        // Wide Guard blocks the whole spread hit when it lands on the foe side.
-        if dSide.wideGuardActive {
-            log.append(BattleLogEntry(text: "\(dSide.label)'s Wide Guard blocked \(move.name)!"))
-            attacker.consecutiveProtectCount = 0
-            return
+        // Targets are fixed when the move is used: every live foe, plus the
+        // user's ally for `allAdjacent` moves (Earthquake, Surf, Explosion).
+        // The 0.75x spread reduction applies only when that's more than one
+        // Pokemon. With one foe left and no ally, Hyper Voice is single-target
+        // and does full damage. As in Showdown, a target that then protects or
+        // is immune still counts.
+        let targeting = SpreadMoves.targeting(of: move.name)
+        var targets: [(participant: BattleParticipant, side: BattleSide)] =
+            (0..<format.activeSlots).compactMap { slot in
+                guard let foe = dSide.active(at: slot), !foe.fainted else { return nil }
+                return (foe, dSide)
+            }
+        if targeting.hitsAlly {
+            for slot in 0..<format.activeSlots where slot != attackerSlot {
+                if let ally = aSide.active(at: slot), !ally.fainted { targets.append((ally, aSide)) }
+            }
         }
+        let isSpreadHit = targets.count > 1
+
         // Quick Guard catches priority spread moves (rare — e.g. Quick Attack
         // isn't spread, but a future priority spread move would route here too).
         if move.priority > 0, dSide.quickGuardActive {
@@ -2283,14 +2322,23 @@ final class BattleEngine {
             return
         }
 
-        for slot in 0..<format.activeSlots {
-            guard let defender = dSide.active(at: slot), !defender.fainted else { continue }
+        for target in targets {
+            // Wide Guard shields its own side, so the ally can be covered by
+            // the attacker's side's Wide Guard. It keys off the move's target
+            // type, not the live target count, so it still blocks a spread
+            // move with one foe left.
+            if target.side.wideGuardActive {
+                log.append(BattleLogEntry(text: "\(target.side.label)'s Wide Guard blocked \(move.name)!"))
+                continue
+            }
+            let defender = target.participant
             if defender.protectedThisTurn {
                 log.append(BattleLogEntry(text: "\(defender.displayName) protected itself from \(move.name)!"))
                 applyProtectContactPenalty(attacker: attacker, defender: defender, move: move)
                 continue
             }
-            applyDamageHit(attacker: attacker, defender: defender, move: move, isSpread: true)
+            applyDamageHit(attacker: attacker, defender: defender, move: move, isSpread: isSpreadHit)
+            if attacker.fainted { break }
         }
         // Damage pivots that happen to be spread moves (none currently in our
         // pool, but the bookkeeping is identical).
@@ -2376,6 +2424,10 @@ final class BattleEngine {
         let minV = minH ?? maxV
         if minV == maxV { return maxV }
         if attacker.activeAbility == "skill-link" { return maxV }
+        if rollOverride?.suppressChanceEvents == true {
+            if case .min = rollOverride?.roll { return minV }
+            return maxV
+        }
         // Gen V+ 2–5 distribution: 35/35/15/15.
         let r = Double.random(in: 0..<1)
         switch r {
@@ -2598,7 +2650,7 @@ final class BattleEngine {
                     defender.currentHP = 1
                     defender.consumedItem = true
                     log.append(BattleLogEntry(text: "\(defender.displayName) hung on with its Focus Sash!"))
-                } else if defender.effectiveHeldItem == .focusBand && Double.random(in: 0..<1) < 0.1 {
+                } else if defender.effectiveHeldItem == .focusBand && luck(0.1) {
                     defender.currentHP = 1
                     log.append(BattleLogEntry(text: "\(defender.displayName) hung on using Focus Band!"))
                 }
@@ -2664,7 +2716,7 @@ final class BattleEngine {
         // King's Rock — 10% chance to flinch the defender per move use.
         if !defender.fainted,
            attacker.effectiveHeldItem == .kingsRock,
-           Double.random(in: 0..<1) < 0.1 {
+           luck(0.1) {
             setFlinch(defender)
             log.append(BattleLogEntry(text: "\(defender.displayName) is going to flinch!"))
         }
@@ -2803,21 +2855,21 @@ final class BattleEngine {
         guard let ab = defender.activeAbility else { return }
         switch ab {
         case "flame-body":
-            if Int.random(in: 1...100) <= 30 {
+            if luck(0.3) {
                 tryInflictStatus(.burn, on: attacker, inflicter: defender)
             }
         case "static":
-            if Int.random(in: 1...100) <= 30 {
+            if luck(0.3) {
                 tryInflictStatus(.paralysis, on: attacker, inflicter: defender)
             }
         case "poison-point":
-            if Int.random(in: 1...100) <= 30 {
+            if luck(0.3) {
                 tryInflictStatus(.poison, on: attacker, inflicter: defender)
             }
         case "effect-spore":
             // Canon Gen V+: 9% sleep, 11% poison, 10% paralysis (total 30%).
             // Roll one number; pick the band it lands in.
-            let r = Int.random(in: 1...100)
+            let r = rollOverride?.suppressChanceEvents == true ? 100 : Int.random(in: 1...100)
             switch r {
             case 1...9:   tryInflictStatus(.sleep,     on: attacker, inflicter: defender)
             case 10...20: tryInflictStatus(.poison,    on: attacker, inflicter: defender)
@@ -2836,7 +2888,7 @@ final class BattleEngine {
         guard !defender.fainted else { return }
         guard isContactMove(move) else { return }
         guard attacker.activeAbility == "poison-touch" else { return }
-        if Int.random(in: 1...100) <= 30 {
+        if luck(0.3) {
             tryInflictStatus(.poison, on: defender, inflicter: attacker)
         }
     }
@@ -2944,7 +2996,7 @@ final class BattleEngine {
 
         var chance = sec.chance
         if attacker.activeAbility == "serene-grace" { chance = min(100, chance * 2) }
-        guard Int.random(in: 1...100) <= chance else { return }
+        guard luck(Double(chance) / 100) else { return }
 
         // Burning Jealousy — only fires if the target had a positive stat stage.
         if sec.requiresTargetBoost {
@@ -4300,7 +4352,7 @@ final class BattleEngine {
         case "cursed-body":
             if let last = attacker.lastMoveIndex,
                attacker.disableTurns == 0,
-               Int.random(in: 1...100) <= 30 {
+               luck(0.3) {
                 attacker.disabledMoveIndex = last
                 attacker.disableTurns = 4
                 log.append(BattleLogEntry(text: "\(attacker.displayName)'s \(move.name) was disabled by Cursed Body!"))
@@ -4317,7 +4369,7 @@ final class BattleEngine {
         case "cute-charm":
             // Canon: 30% chance; only fires on opposite-gender contact. We don't
             // track gender, so the gender check is skipped (always eligible).
-            if !attacker.infatuated, Int.random(in: 1...100) <= 30 {
+            if !attacker.infatuated, luck(0.3) {
                 attacker.infatuated = true
                 log.append(BattleLogEntry(text: "\(attacker.displayName) became infatuated with \(defender.displayName)!"))
             }
@@ -4367,7 +4419,7 @@ final class BattleEngine {
             return
         }
         let acc = 30 + (attacker.slot.level - defender.slot.level)
-        if Int.random(in: 1...100) > acc {
+        if accuracyRoll() > acc {
             log.append(BattleLogEntry(text: "\(attacker.displayName)'s \(move.name) missed!"))
             return
         }
@@ -4528,10 +4580,13 @@ final class BattleEngine {
     /// end when `rollOverride` is set.
     private func rollDamage(_ dMin: Int, _ dMax: Int) -> Int {
         guard dMin < dMax else { return dMin }
-        switch rollOverride?.roll {
-        case .min?: return dMin
-        case .max?: return dMax
-        case nil:   return Int.random(in: dMin...dMax)
+        guard let override = rollOverride else { return Int.random(in: dMin...dMax) }
+        switch override.roll {
+        case .min: return dMin
+        case .max: return dMax
+        case .fraction(let f):
+            let clamped = Swift.max(0, Swift.min(1, f))
+            return dMin + Int((Double(dMax - dMin) * clamped).rounded())
         }
     }
 
@@ -4668,7 +4723,7 @@ final class BattleEngine {
                    p.activeAbility == "harvest",
                    p.consumedItem, p.heldItem.isBerry, !p.knockedOff {
                     let chance = weather == .sun ? 1.0 : 0.5
-                    if Double.random(in: 0..<1) < chance {
+                    if luck(chance) {
                         p.consumedItem = false
                         log.append(BattleLogEntry(text: "\(p.displayName)'s Harvest restored its \(p.heldItem.rawValue)!"))
                     }
@@ -5915,8 +5970,7 @@ private struct ActorActionCard: View {
     private func chooseMove(_ moveIndex: Int) {
         guard moveIndex < actor.moves.count else { return }
         let move = actor.moves[moveIndex]
-        let normalized = BattleSimSeed.normalize(move.name)
-        let isSpread = BattleMoveEffects.spreadMoves.contains(normalized)
+        let isSpread = BattleMoveEffects.isSpread(move.name)
 
         // Doubles + spread → auto-target both opponents, no picker.
         if engine.format == .doubles && isSpread && move.damageClass != "status" {

@@ -65,6 +65,10 @@ nonisolated enum CalcEngine {
         let movePower = move.power ?? 0
         let isPhysical = move.isPhysical
         let isContact = move.makesContact
+        // The doubles toggle only reduces moves that actually hit more than
+        // one target. The Champions port already checks the move's target;
+        // this used to apply 0.75x to single-target moves too.
+        let isSpreadHit = field.multi && SpreadMoves.isSpread(move.name)
         let stab = attacker.types.contains(moveType)
         let stabBonus = stab ? 1.5 : 1.0
         let burnReduction = (field.burn && isPhysical) ? 0.5 : 1.0
@@ -97,7 +101,7 @@ nonisolated enum CalcEngine {
             defenderAtFullHP: defender.atFullHP,
             defenderTypes: defender.types,
             terrain: field.terrain,
-            isSpread: field.multi,
+            isSpread: isSpreadHit,
             moldBreaker: moldBreaker
         )
 
@@ -119,7 +123,7 @@ nonisolated enum CalcEngine {
         let raw = calcDamageRange(
             level: attacker.level, movePower: movePower,
             userAtk: effectiveAtk, defenderDef: effectiveDef,
-            multi: field.multi,
+            multi: isSpreadHit,
             weatherMult: weatherMult, glaiveRush: field.glaiveRush,
             crit: field.crit, critMultiplier: 1.5,
             stabBonus: stabBonus, typeEffect: typeEff,
