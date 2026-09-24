@@ -41,7 +41,9 @@ struct TwoHitSolverTests {
     private static let midHit = move("Test Strike", type: "Dragon", "physical", 50)
 
     /// A Champions-mode calc: Garchomp (P1, 32 Atk / 32 SpA) vs Garchomp (P2).
-    private static func calc(attackerMove: MoveData = claw) -> DamageCalcVM {
+    /// The move defaults to Dragon Claw. The default is nil, not `claw`,
+    /// because default arguments are evaluated off the main actor.
+    private static func calc(attackerMove: MoveData? = nil) -> DamageCalcVM {
         let vm = DamageCalcVM()
         for side in [vm.side1, vm.side2] {
             side.pokemon = garchomp
@@ -52,7 +54,7 @@ struct TwoHitSolverTests {
         }
         vm.side1.evAtk = 32
         vm.side1.evSpAtk = 32
-        vm.side1.moves = [attackerMove, nil, nil, nil]
+        vm.side1.moves = [attackerMove ?? claw, nil, nil, nil]
         return vm
     }
 
