@@ -48,6 +48,13 @@ struct EVSolverSheet: View {
         return mirror ? "\(name) (\(isSide1 ? "P1" : "P2"))" : name
     }
 
+    /// " from 60% HP" when the defender isn't at full, else empty. Both damage
+    /// goals are measured from the calc's current HP, so the headings say so.
+    private var fromHP: String {
+        let pct = max(1, min(100, defender.currentHPPercent))
+        return pct < 100 ? " from \(pct)% HP" : ""
+    }
+
     /// Roll-level goals only mean something on the Champions path, the only
     /// engine that reports individual rolls.
     private var rollsPossible: Bool { attacker.championsMode && defender.championsMode }
@@ -75,11 +82,11 @@ struct EVSolverSheet: View {
 
                 if let results {
                     damageSection(
-                        title: "\(defenderName) survives",
+                        title: "\(defenderName) survives\(fromHP)",
                         icon: "shield.lefthalf.filled",
                         result: results.survive, side: defender, goalIsKO: false)
                     damageSection(
-                        title: "\(attackerName) OHKOs",
+                        title: "\(attackerName) OHKOs\(fromHP)",
                         icon: "bolt.fill",
                         result: results.ko, side: attacker, goalIsKO: true)
                     Section {

@@ -224,6 +224,79 @@ struct EVSolverTests {
         #expect(!chance.usedRolls)
     }
 
+    // MARK: - Current HP
+
+    @Test("KO and survival checks use current HP when it's set")
+    func predicatesUseCurrentHP() {
+        let full = CalcOutcome(damageMin: 60, damageMax: 80, defenderHP: 200,
+                               effectiveness: 1, isSTAB: false, rolls: [60, 70, 80])
+        #expect(full.isGuaranteedSurvival && !full.isGuaranteedOHKO)
+        #expect(full.ohkoChance == 0)
+
+        var half = full; half.defenderCurrentHP = 70
+        #expect(!half.isGuaranteedSurvival && !half.isGuaranteedOHKO)
+        #expect(half.ohkoChance == 2.0 / 3.0)
+        #expect(half.maxPercent == full.maxPercent, "percentages stay relative to max HP")
+
+        var low = full; low.defenderCurrentHP = 50
+        #expect(low.isGuaranteedOHKO)
+    }
+
+    @Test("Survive from half HP needs more, and is still minimal")
+    func surviveFromHalfHP() throws {
+        let atk = Self.side(Self.bruiser).settingEV(.atk, to: 252)
+        // A lighter hit than `quake`, so surviving from half is still possible.
+        let hit = Self.move("Test Strike", "Normal", "physical", 90)
+        var def = Self.side(Self.wall)
+        let fromFull = try EVSolver.minimumToSurvive(
+            move: hit, attacker: atk, defender: def, field: Self.field).get()
+        def.currentHPPercent = 50
+        let fromHalf = try EVSolver.minimumToSurvive(
+            move: hit, attacker: atk, defender: def, field: Self.field).get()
+
+        #expect(fromHalf.cost > fromFull.cost, "premise: half HP must need more bulk")
+        let outcome = try #require(fromHalf.outcome)
+        #expect(outcome.defenderCurrentHP != nil)
+        #expect(outcome.isGuaranteedSurvival)
+        for hp in def.evDomain {
+            for d in def.evDomain where hp + d < fromHalf.cost {
+                let probe = def.settingHPEV(to: hp).settingEV(.def, to: d)
+                #expect(!Self.evaluate(hit, atk, probe).isGuaranteedSurvival,
+                        "cheaper spread \(hp) HP / \(d) Def also survives from 50%")
+            }
+        }
+    }
+
+    @Test("KO from half HP needs less")
+    func koFromHalfHP() throws {
+        let atk = Self.side(Self.bruiser)
+        var def = Self.side(Self.sturdy)
+        let fromFull = try EVSolver.minimumToKO(
+            move: Self.hammer, attacker: atk, defender: def, field: Self.field).get()
+        def.currentHPPercent = 50
+        let fromHalf = EVSolver.minimumToKO(
+            move: Self.hammer, attacker: atk, defender: def, field: Self.field)
+        let cost = (try? fromHalf.get())?.cost ?? Int.max
+        #expect(cost < fromFull.cost)
+    }
+
+    @Test("Champions outcomes carry the port's current HP")
+    func championsCurrentHP() throws {
+        let garchomp = Self.species("Garchomp", "Dragon", "Ground", (108, 130, 95, 80, 85, 102))
+        let quake = Self.move("Earthquake", "Ground", "physical", 100)
+        let atk = Self.side(garchomp, champions: true)
+        var def = Self.side(garchomp, champions: true).settingHPEV(to: 32)
+
+        let full = try #require(CalcEngine.evaluateChampions(
+            move: quake, attacker: atk, defender: def, field: Self.field))
+        #expect(full.defenderCurrentHP == nil)
+
+        def.currentHPPercent = 50
+        let half = try #require(CalcEngine.evaluateChampions(
+            move: quake, attacker: atk, defender: def, field: Self.field))
+        #expect(half.defenderCurrentHP == half.defenderHP * 50 / 100)
+    }
+
     // MARK: - Speed
 
     @Test("Speed: outspeeds by the smallest step, and ties only when allowed")

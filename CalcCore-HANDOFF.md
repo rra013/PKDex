@@ -38,7 +38,7 @@ evaluations — hence the need to get off the main actor.
 | 2.2 | `EVSolver.swift` — survive / KO / outspeed solves | done, tested |
 | 2.3 | `EVSolverSheet.swift` — solver UI on the calc's move rows | done, checked in the simulator |
 
-Last full run (after the current-HP fix): **838 of 838 passing**. The test-randomness
+Last full run (after survive-from-current-HP): **842 of 842 passing**. The test-randomness
 fixes held for three runs in a row before that. See "Randomness in tests" below. Both
 engines are behind `CalcEngine`, so the whole damage suite exercises the
 extracted code.
@@ -223,8 +223,19 @@ solver use 0.5x. It was fixed on 2026-09-23, and
 `SpeedTierTests.paralysisMatchesShowdownPort` now ties the two together so
 they can't drift apart again.
 
-Not yet done: goals beyond one hit (2HKO, surviving two hits) and survival
-from less than full HP.
+**Survive / KO from current HP (2026-09-23).** `CalcOutcome` has an
+optional `defenderCurrentHP` (nil = full). `isGuaranteedOHKO`,
+`isGuaranteedSurvival` and `ohkoChance` measure against it. Percentages
+stay relative to max HP, as the calc displays them. Both engines fill it
+in: the Champions path from the port's `curHP()`, the legacy path from
+`CalcSnapshot.currentHP` (same percentage-of-max conversion). As the solver
+varies HP EVs, current HP stays the same percentage of the new max, so the
+answer is "cheapest spread to survive from 60%". The sheet's headings add
+"from N% HP" when the defender isn't full. Nothing changes at full HP.
+
+Not yet done: goals beyond one hit (2HKO, surviving two hits). Effects that
+change between hits (Multiscale, Sitrus Berry, Stamina, Weak Armor…) make a
+naive sum wrong, so it needs a design pass first.
 
 ## Design decisions worth not re-litigating
 

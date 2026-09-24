@@ -143,7 +143,8 @@ nonisolated enum CalcEngine {
             effectiveness: eff,
             isSTAB: hasSTAB,
             // The legacy formula yields a min/max pair, never per-roll values.
-            rolls: nil
+            rolls: nil,
+            defenderCurrentHP: defender.currentHP
         )
     }
 
@@ -202,7 +203,9 @@ nonisolated enum CalcEngine {
             effectiveness: computeTypeEffectiveness(moveType: move.type,
                                                     defenderTypes: defender.types),
             isSTAB: attacker.types.contains(move.type),
-            rolls: damage.rolls.map { $0.map { Int(floor(Double($0) * post)) } }
+            rolls: damage.rolls.map { $0.map { Int(floor(Double($0) * post)) } },
+            // The port's own current HP, converted against its real max.
+            defenderCurrentHP: def.curHP() < def.maxHP() ? def.curHP() : nil
         )
     }
 
