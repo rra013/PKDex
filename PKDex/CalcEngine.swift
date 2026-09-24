@@ -315,11 +315,18 @@ nonisolated enum CalcEngine {
             ? side.status
             : ((isAttacker && field.burn) ? .brn : .none)
 
-        // Champions Pokemon are always level 50 with 31 IVs, so max HP is fixed.
-        let maxHP = calcHP(base: species.baseStats.hp, iv: 31, ev: 0, level: 50)
-        let pct = max(1, min(100, side.currentHPPercent))
-        let curHP = pct >= 100 ? nil : max(1, maxHP * pct / 100)
+        let full = ShowdownPokemon(
+            gen, species.name, species: species,
+            ability: ability, abilityOn: side.abilityOn, item: item, nature: side.nature.name,
+            evs: evs, boosts: boosts, curHP: nil, status: status)
 
+        // The calc stores current HP as a percentage. Convert it against the
+        // port's own max HP, which includes HP stat points. (It used to use a
+        // 0-point max, so HP investment below 100% handed the port too little
+        // HP: Eruption weaker, Flail stronger, pinch abilities early.)
+        let pct = max(1, min(100, side.currentHPPercent))
+        guard pct < 100 else { return full }
+        let curHP = max(1, full.maxHP() * pct / 100)
         return ShowdownPokemon(
             gen, species.name, species: species,
             ability: ability, abilityOn: side.abilityOn, item: item, nature: side.nature.name,

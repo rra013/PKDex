@@ -38,7 +38,7 @@ evaluations — hence the need to get off the main actor.
 | 2.2 | `EVSolver.swift` — survive / KO / outspeed solves | done, tested |
 | 2.3 | `EVSolverSheet.swift` — solver UI on the calc's move rows | done, checked in the simulator |
 
-Last full run (after team paste import): **835 of 835 passing**. The test-randomness
+Last full run (after the current-HP fix): **838 of 838 passing**. The test-randomness
 fixes held for three runs in a row before that. See "Randomness in tests" below. Both
 engines are behind `CalcEngine`, so the whole damage suite exercises the
 extracted code.
@@ -132,6 +132,17 @@ Three things to know before building on it:
   its own `pokemon != nil` guard), so this is a no-op — but it's the only
   behavioural difference, and `DamageCalcMegaEvolutionTests` plus the
   `BattleTier` files are where a mistake would surface.
+
+**Current-HP bug fixed (2026-09-23).** `makeShowdownPokemon` converted the
+calc's current-HP percentage against a max HP computed with 0 HP points
+(its comment claimed Champions max HP is fixed; HP stat points change it).
+With HP investment below 100%, the port got too little HP: at "50%" with 32
+HP points it saw 76/185 (41%), and Eruption did 29–35 instead of 35–42.
+That affected Eruption, Water Spout, Flail, Reversal, Wring Out, Crush Grip,
+the ⅓-HP pinch abilities, and Pain Split / Endeavor / Final Gambit. It hit
+both the calc and the battle sim, which feeds current HP through the same
+bridge. It now converts against the port's own `maxHP()`.
+`CurrentHPBridgeTests` failed on the old code and pass now.
 
 ## What 2.2 landed
 
