@@ -1701,6 +1701,24 @@ final class BattleEngine {
         }
     }
 
+    /// Stealth Rock entry damage: maxHP x effectiveness / 8, rounded down,
+    /// at least 1. Matches Pokemon Showdown's `damage(maxhp * 2^typeMod / 8)`,
+    /// whose `damage()` floors and clamps to 1. (This used to round to
+    /// nearest, which was off by one for many HP values.)
+    static func stealthRockDamage(maxHP: Int, effectiveness: Double) -> Int {
+        guard effectiveness > 0 else { return 0 }
+        return max(1, Int((Double(maxHP) * effectiveness / 8).rounded(.down)))
+    }
+
+    /// Spikes entry damage for 1 / 2 / 3 layers: 1/8, 1/6, 1/4 of max HP,
+    /// rounded down, at least 1. Showdown: `[0, 3, 4, 6][layers] * maxhp / 24`.
+    static func spikesDamage(maxHP: Int, layers: Int) -> Int {
+        let amounts = [0, 3, 4, 6]
+        let n = amounts[max(0, min(3, layers))]
+        guard n > 0 else { return 0 }
+        return max(1, n * maxHP / 24)
+    }
+
     /// Whether `p` is on the ground: always under Gravity or after Smack Down,
     /// otherwise not if it's Flying-type or floats (Levitate, Eelevate). Air
     /// Balloon and Iron Ball aren't modelled.
@@ -1720,15 +1738,14 @@ final class BattleEngine {
 
         if side.stealthRock, !magicGuard {
             let rockEff = computeTypeEffectiveness(moveType: "Rock", defenderTypes: p.types)
-            let dmg = Int((Double(p.maxHP) / 8.0 * rockEff).rounded())
+            let dmg = Self.stealthRockDamage(maxHP: p.maxHP, effectiveness: rockEff)
             if dmg > 0 {
                 p.currentHP = max(0, p.currentHP - dmg)
                 log.append(BattleLogEntry(text: "\(p.displayName) is hurt by Stealth Rock! (-\(dmg) HP)"))
             }
         }
         if side.spikesLayers > 0 && grounded && !magicGuard {
-            let denom: Double = side.spikesLayers == 1 ? 8 : (side.spikesLayers == 2 ? 6 : 4)
-            let dmg = max(1, Int((Double(p.maxHP) / denom).rounded()))
+            let dmg = Self.spikesDamage(maxHP: p.maxHP, layers: side.spikesLayers)
             p.currentHP = max(0, p.currentHP - dmg)
             log.append(BattleLogEntry(text: "\(p.displayName) is hurt by Spikes! (-\(dmg) HP)"))
         }

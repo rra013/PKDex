@@ -38,7 +38,7 @@ evaluations — hence the need to get off the main actor.
 | 2.2 | `EVSolver.swift` — survive / KO / outspeed solves | done, tested |
 | 2.3 | `EVSolverSheet.swift` — solver UI on the calc's move rows | done, checked in the simulator |
 
-Last full run (after the Gravity hazard tests): **863 of 863 passing**. The test-randomness
+Last full run (after the hazard rounding fix): **866 of 866 passing**. The test-randomness
 fixes held for three runs in a row before that. See "Randomness in tests" below. Both
 engines are behind `CalcEngine`, so the whole damage suite exercises the
 extracted code.
@@ -281,9 +281,13 @@ Follow-ups (2026-09-23):
   Spikes and Sticky Web. Air Balloon and Iron Ball aren't modelled.
   `BattleHazardRemovalTests` covers it: a Flying type skips Spikes normally
   and takes exactly what a grounded Pokemon takes under Gravity.
-- **Known issue, flagged separately:** hazard damage in the sim rounds to
-  the nearest HP (175 max HP → 22 from one layer of Spikes). The games round
-  down (21). Stealth Rock does the same.
+- **Hazard damage rounding fixed (2026-09-23).** The sim rounded Spikes and
+  Stealth Rock damage to the nearest HP. Pokemon Showdown's `damage()`
+  rounds down and deals at least 1 (`clampIntRange` → `Math.floor`). Now
+  `BattleEngine.spikesDamage` (`[0,3,4,6][layers] * maxHP / 24`) and
+  `stealthRockDamage` (`maxHP * effectiveness / 8`) match. Tests use HP
+  values where the two rounding rules differ. No other chip damage in the
+  sim used round-to-nearest.
 - **The battle AI is unaffected by the new spread list.** The policy model's
   inputs are species indices and 105 continuous features. `isSpread` is only
   used after the model picks a move, to route the action. No retraining is
