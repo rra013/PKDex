@@ -31,7 +31,9 @@ import Foundation
 /// but Champions reports always mean the Eternal Flower form.
 ///
 /// Regional forms, gendered forms and default forms don't need entries here;
-/// `LimitlessSpeciesResolver` handles them by rule.
+/// `LimitlessSpeciesResolver` handles them by rule. That includes
+/// Basculegion: Limitless labels the female form "Basculegion ♀" (slug
+/// "basculegion-f"), so a plain "Basculegion" is the male default form.
 nonisolated enum TournamentSpeciesAlias {
     /// Maps a base species name (or canonical English name) to one or more
     /// canonical row names, in priority order. The first hit wins; the raw name
@@ -68,22 +70,6 @@ nonisolated enum TournamentSpeciesAlias {
             result.append(rawName)
         }
         return result
-    }
-
-    /// Basculegion's two forms can't be told apart by Limitless's "Basculegion"
-    /// label, but their stat focuses are mirror images: Male leans physical
-    /// (Atk 112 vs SpA 80), Female leans special (Atk 92 vs SpA 100). Pick the
-    /// form whose stat focus matches the team's actual moveset. Strictly more
-    /// physical moves than special → Male; tie / mostly special / mostly status
-    /// → Female (per the requested rule: "if using mostly attacking moves,
-    /// assume male. otherwise female").
-    static func basculegionFormCandidates(physicalCount: Int,
-                                          specialCount: Int) -> [String] {
-        if physicalCount > specialCount {
-            return ["Basculegion-Male", "Basculegion-Female", "Basculegion"]
-        } else {
-            return ["Basculegion-Female", "Basculegion-Male", "Basculegion"]
-        }
     }
 }
 
@@ -227,7 +213,6 @@ struct LimitlessTeamImporter {
     private let pasteImporter: PasteImporter
     private let species: LimitlessSpeciesResolver
     private let statsByName: [String: PKMNStats]
-    private let movesByID: [ShowdownID: MoveData]
 
     init(allPokemon: [PKMNStats], allMoves: [MoveData]) {
         // No validator: nothing here shows legality, and building one parses
@@ -239,34 +224,14 @@ struct LimitlessTeamImporter {
         })
         statsByName = Dictionary(allPokemon.map { ($0.name, $0) },
                                  uniquingKeysWith: { first, _ in first })
-        movesByID = Dictionary(allMoves.map { (toID($0.name), $0) },
-                               uniquingKeysWith: { first, _ in first })
     }
 
     // MARK: Resolution
 
     /// The Pokedex row a member resolves to, or nil.
     func pokemon(for member: LimitlessStanding.TeamMember) -> PKMNStats? {
-        speciesName(for: member).flatMap { statsByName[$0] }
-    }
-
-    private func speciesName(for member: LimitlessStanding.TeamMember) -> String? {
-        // Plain "Basculegion" doesn't say which form; the moveset decides.
-        // ("Basculegion ♀" does say, and goes through the resolver.)
-        if member.name.lowercased() == "basculegion" {
-            var physical = 0, special = 0
-            for attack in member.attacks ?? [] {
-                switch movesByID[toID(attack)]?.damageClass {
-                case "physical": physical += 1
-                case "special":  special += 1
-                default:         break
-                }
-            }
-            return TournamentSpeciesAlias.basculegionFormCandidates(
-                physicalCount: physical, specialCount: special)
-                .first { statsByName[$0] != nil }
-        }
-        return species.resolve(name: member.name, slug: member.limitlessID)
+        species.resolve(name: member.name, slug: member.limitlessID)
+            .flatMap { statsByName[$0] }
     }
 
     /// The species' own spelling of the ability ("psychic-surge") when it has

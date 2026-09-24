@@ -46,7 +46,6 @@ in the UI. That is decision #1 below.
 | `MegaForms.form(forSpecies:heldItem:moveNames:)` | `MegaForms.swift:32` | Post-Mega ability for archetype tags (Charizardite Y → Drought) |
 | `ChampionsRegulation.current`, `speciesWhitelist()` | `ChampionsRegulation.swift:158` | Default format, parser vocabulary |
 | `ChampionsValidator` (learnsets, abilities) | `03_ChampionsValidator.swift` | Move/ability vocabulary for the parser |
-| `02_PromptNormalizer.swift` | the Trick Room negation window at line 129 | **Borrow the approach, don't edit the file.** Its functions are private, it returns only one species, and it must stay in step with the Python training script. |
 | `FlowLayout` | `TeamBuilder.swift:742` | Species chips |
 | `AppTab` registry | `ContentView.swift` | New tab. `onAppear` (line 150) turns new tabs on for existing users automatically. |
 
@@ -111,7 +110,7 @@ Version 1 is deterministic:
 - **Species:** find every whitelist match, longest first, marking matched text as used so shorter names can't match inside it. `mega X` sets the mega flag. A small table covers common shorthand (`chomp`, `incin`, `rilla`, `gambit`, `zard`, …). Regional adjectives are handled (`hisuian arcanine` → `Arcanine-Hisui`). Fuzzy matching through `NameIndex.closestName` applies only to tokens of 5+ characters.
 - **Moves:** multi-word learnset moves plus a short list of team-defining single-word moves. Moves nearly every team has, such as Protect, are ignored.
 - **Archetypes:** keywords come from `team_archetypes.json` (§4.3), so the parser and the tagger share one list.
-- **Negation** (`no`, `without`, `not`, `except`, `avoid`) applies only to the *next* entity. This uses a look-back window like `02_PromptNormalizer.swift:129`, not a greedy regex. For example, *"no Incineroar but Trick Room"* excludes Incineroar and includes Trick Room.
+- **Negation** (`no`, `without`, `not`, `except`, `avoid`) applies only to the *next* entity. This looks back a few words from each entity for a negation word, rather than using a greedy regex. (The removed LLM prompt normalizer did the same for "trick room".) For example, *"no Incineroar but Trick Room"* excludes Incineroar and includes Trick Room.
 
 The UI shows the parsed query as editable chips: tap a chip to remove it or flip it between include and exclude. Letting users fix a misparse matters more than parser cleverness.
 

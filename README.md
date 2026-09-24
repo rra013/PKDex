@@ -51,7 +51,7 @@ The Xcode project and target are named `PKDex`, and the app's display name is
 | **Battle Sim** | Singles and doubles battle engine using your saved teams, with Mega Evolution and an on-device AI that can play either side. |
 | **RNG Tools** | Timer, seed finder, wild and static encounters, eggs, TID/SID, GameCube (Colosseum/XD), IV calculator, IV→PID and Hidden Power, for Gen 3–5, plus Sword/Shield raid dens. |
 | **Tournaments** | Tournaments, standings and team sheets from Limitless, with one-tap import of any team. |
-| **Settings** | Appearance, accent color, visible tabs, default tab and generation, active Champions regulation, and data management. |
+| **Settings** | Appearance, accent color, visible tabs, default tab and generation, active Champions regulation, data management, and acknowledgements and licenses. |
 
 **Team Search** is in development. You describe a team idea in plain words,
 and it finds matching popular teams from real tournaments. The data layer is
@@ -233,6 +233,8 @@ lists every name that failed.
   newest regulation.
 - **Data management:** re-download the Pokémon and move data, or reset all
   data.
+- **Acknowledgements & Licenses:** the data sources and open-source
+  components the app uses, with each license's full text.
 
 ---
 
@@ -282,12 +284,9 @@ abilities and moves are limited to the species' legal options, and stat
 points are rebalanced to the 66-point budget. `pokii_parity_samples.json`
 lets the tests check the Swift inference against the training outputs.
 
-The repository also includes an on-device **LLM set builder**, the
-`02_`–`06_` files. It uses a 4-bit, 3-billion-parameter "Pokii" model run
-with MLX Swift and downloaded on demand from Hugging Face
-(`rra013/pokii-mlx-q4-3b`). It combines a prompt normalizer, the model, and a
-Champions validator in a retry loop. The small set predictor has replaced it
-in the UI, so the code is currently not reachable from any screen.
+The set predictor replaced an earlier on-device LLM set builder, which ran a
+4-bit "Pokii" model with MLX Swift. That code has been removed; it's still in
+the git history.
 
 ---
 
@@ -329,14 +328,14 @@ file-by-file reference),
 
 **Requirements:** Xcode 27, with the iOS 26.4 SDK or later. The deployment
 target is iOS 26.4, and the device families are iPhone, iPad and Apple
-Vision. Swift packages resolve automatically when the project is opened.
+Vision. The project has no Swift package dependencies.
 
 1. Open `PKDex.xcodeproj` and select the **PKDex** scheme.
 2. Run on a simulator or a device. The first launch downloads Pokémon and move
    data from PokeAPI, so it needs a network connection; later launches work
    offline, except for Tournaments.
 
-**Tests:** 912 tests written with Swift Testing. They cover the damage engines
+**Tests:** 903 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
 tools, ML parity, and the tournament import and data store. None of them need
@@ -375,6 +374,8 @@ xcodebuild test -project PKDex.xcodeproj -scheme PKDex -destination 'platform=iO
 | `move_categories.json` | Move damage classes (physical, special, status) |
 | `*.npz`, `*_vocab.json`, `pokii_battler.safetensors`, `feature_config.json` | On-device model weights and vocabularies |
 | `zstd/` | Zstandard sources, compiled into the app for PokéFinder's compressed resources |
+| `PKDex/Licenses/` | License and notice texts for the bundled third-party code, shipped in the app |
+| `THIRD_PARTY_NOTICES.md` | Every third-party component, its copyright and its license |
 | `tools/` | Regulation scrapers, the Showdown data generator, and vendored upstream sources |
 
 ---
@@ -398,33 +399,21 @@ PK Reference is built on the work of many people and projects. Thank you all.
 |---|---|---|---|
 | [**@smogon/calc** (damage-calc)](https://github.com/smogon/damage-calc) | Created by Honko; maintained by Austin, Kris and the damage-calc contributors | MIT | The Champions damage engine (a line-by-line Swift port), stat formulas, and the bundled species, move and type data |
 | [**Pokémon Showdown**](https://github.com/smogon/pokemon-showdown) | Guangcong Luo and contributors | MIT | Vendored under `tools/vendor` as the reference for Champions mechanics and data |
-| [**PokéFinder**](https://github.com/Admiral-Fish/PokeFinder) | Admiral_Fish, bumba and EzPzStreamz | **GPL-3.0** | The RNG core in `PKDex/Core` (generators, searchers, encounter data), and the algorithms behind the IV calculator, IV→PID and seed recovery |
+| [**PokéFinder**](https://github.com/Admiral-Fish/PokeFinder) | Admiral_Fish, bumba and EzPzStreamz | **GPL-3.0-or-later** | The RNG core in `PKDex/Core` (generators, searchers, encounter data), and the algorithms behind the IV calculator, IV→PID and seed recovery |
 | [**EonTimer**](https://github.com/DasAmpharos/EonTimer) | DasAmpharos | MIT | The RNG timer: phase calculations, calibration, console frame rates and rounding |
 | [**nlohmann/json**](https://github.com/nlohmann/json) 3.12.0 | Niels Lohmann | MIT | JSON parsing in the C++ core (bundled with PokéFinder) |
-| **fph (flash perfect hash table)** | — | — | Perfect hash maps in the C++ core (bundled with PokéFinder) |
-| [**Zstandard**](https://github.com/facebook/zstd) | Meta Platforms, Inc. and contributors | BSD or GPLv2 (dual) | Decompressing PokéFinder's embedded resources |
+| [**Flash Perfect Hash Table**](https://github.com/renzibei/fph-table) (fph) | renzibei (includes code derived from robin-hood-hashing and Abseil) | Apache-2.0 | Perfect hash maps in the C++ core (bundled with PokéFinder) |
+| [**Zstandard**](https://github.com/facebook/zstd) | Meta Platforms, Inc. and affiliates | BSD (dual-licensed BSD / GPLv2; used under BSD) | Decompressing PokéFinder's embedded resources |
 
 The RNG tools also build on research from the Pokémon RNG community, including
 RNG Reporter, PPRNG and 3DSRNG Tool. The LCRNG reversal techniques
 (meet-in-the-middle and Euclidean-divisor methods) follow discussions on
 crypto.stackexchange.com.
 
-### Swift packages
+### Models
 
-| Package | Author | Used for |
-|---|---|---|
-| [mlx-swift](https://github.com/ml-explore/mlx-swift), [mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm) | Apple (ML Explore) | Running the Pokii LLM on device |
-| [swift-transformers](https://github.com/huggingface/swift-transformers), [swift-huggingface](https://github.com/huggingface/swift-huggingface), [swift-jinja](https://github.com/huggingface/swift-jinja) | Hugging Face | Tokenizers, Hub access and chat templates for the LLM |
-| [EventSource](https://github.com/mattt/EventSource) | Mattt | Server-sent events (used by swift-huggingface) |
-| [yyjson](https://github.com/ibireme/yyjson) | ibireme | Fast JSON parsing (used by swift-transformers) |
-| [swift-collections](https://github.com/apple/swift-collections), [swift-numerics](https://github.com/apple/swift-numerics), [swift-atomics](https://github.com/apple/swift-atomics), [swift-nio](https://github.com/apple/swift-nio), [swift-crypto](https://github.com/apple/swift-crypto), [swift-asn1](https://github.com/apple/swift-asn1), [swift-system](https://github.com/apple/swift-system), [swift-syntax](https://github.com/swiftlang/swift-syntax) | Apple / Swift project | Supporting libraries for the packages above |
-| [PokemonAPI](https://github.com/kinkofer/PokemonAPI) | kinkofer | A Swift PokeAPI wrapper. It's linked into the app target, though the app calls PokeAPI directly |
-
-### Hosting and models
-
-- **Hugging Face** hosts the Pokii LLM weights (`rra013/pokii-mlx-q4-3b`).
-- The on-device models were trained in a separate training repository by the
-  author of this app.
+The on-device models were trained in a separate training repository by the
+author of this app.
 
 ### Pokémon
 
@@ -439,9 +428,9 @@ FREAK inc. This project is not affiliated with or endorsed by them.
 The app's own code is released under the [MIT License](LICENSE)
 (© 2026 rra013).
 
-Third-party components keep their own licenses, listed above. In particular,
-**the PokéFinder code in `PKDex/Core` is licensed under the GPL-3.0**, not MIT.
-Review the GPL's requirements before distributing builds that include it.
-Code ported from `@smogon/calc`, Pokémon Showdown and EonTimer is MIT-licensed;
-the full license texts are in `tools/vendor/damage-calc/LICENSE`,
-`tools/vendor/pokemon-showdown/LICENSE` and the upstream repositories.
+Third-party components keep their own licenses. They're listed with their
+copyright holders in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), and the
+license texts ship with the app, shown under Settings → Acknowledgements &
+Licenses. In particular, **the PokéFinder code in `PKDex/Core` is licensed
+under the GPL-3.0-or-later** ([`PKDex/Core/COPYING`](PKDex/Core/COPYING)), not
+MIT. Review the GPL's requirements before distributing builds that include it.

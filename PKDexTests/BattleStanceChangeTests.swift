@@ -207,49 +207,6 @@ struct TournamentSpeciesAliasTests {
         let candidates = TournamentSpeciesAlias.candidates(for: "Floette-Eternal")
         #expect(candidates.contains("Floette-Eternal"))
     }
-
-    // MARK: - Basculegion (form picked from moveset)
-
-    @Test func basculegionPicksMaleWhenMostlyPhysical() {
-        // 3 physical, 1 special → strict majority physical → Male first.
-        let candidates = TournamentSpeciesAlias.basculegionFormCandidates(
-            physicalCount: 3, specialCount: 1)
-        #expect(candidates.first == "Basculegion-Male")
-        let maleIdx = candidates.firstIndex(of: "Basculegion-Male") ?? Int.max
-        let femaleIdx = candidates.firstIndex(of: "Basculegion-Female") ?? Int.max
-        #expect(maleIdx < femaleIdx)
-    }
-
-    @Test func basculegionPicksFemaleWhenMostlySpecial() {
-        let candidates = TournamentSpeciesAlias.basculegionFormCandidates(
-            physicalCount: 1, specialCount: 3)
-        #expect(candidates.first == "Basculegion-Female")
-    }
-
-    @Test func basculegionDefaultsToFemaleOnTie() {
-        // "otherwise female" — ties don't favor Male.
-        let candidates = TournamentSpeciesAlias.basculegionFormCandidates(
-            physicalCount: 2, specialCount: 2)
-        #expect(candidates.first == "Basculegion-Female")
-    }
-
-    @Test func basculegionDefaultsToFemaleWithOnlyStatusMoves() {
-        // All status moves → both counts 0 → falls into the "otherwise" branch.
-        let candidates = TournamentSpeciesAlias.basculegionFormCandidates(
-            physicalCount: 0, specialCount: 0)
-        #expect(candidates.first == "Basculegion-Female")
-    }
-
-    @Test func basculegionCandidatesIncludeRawAsFallback() {
-        let candidates = TournamentSpeciesAlias.basculegionFormCandidates(
-            physicalCount: 4, specialCount: 0)
-        #expect(candidates.contains("Basculegion"))
-        // Raw "Basculegion" exists in the local Pokedex (the Male-form row uses
-        // the species name), so keeping it as a fallback prevents a hard fail.
-        let rawIdx = candidates.firstIndex(of: "Basculegion") ?? Int.max
-        let maleIdx = candidates.firstIndex(of: "Basculegion-Male") ?? Int.max
-        #expect(maleIdx < rawIdx)
-    }
 }
 
 @Suite("Champions Format — Reverse Species Canonicalization")
