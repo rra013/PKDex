@@ -286,14 +286,16 @@ struct LimitlessTeamImportTests {
 
     // MARK: Basculegion
 
-    @Test("Plain Basculegion's form follows its moveset; the ♀ label is explicit")
+    @Test("Basculegion follows Limitless's label: plain is male, ♀ is female")
     func basculegion() {
-        let physical = Self.member("Basculegion", moves: ["Wave Crash", "Last Respects", "Protect"])
-        let special = Self.member("Basculegion", moves: ["Scald", "Shadow Ball", "Protect"])
+        // The moveset no longer decides. A special-attacking plain
+        // "Basculegion" is still the male form, because Limitless marks the
+        // female form "Basculegion ♀".
+        let special = Self.member("Basculegion", slug: "basculegion",
+                                  moves: ["Scald", "Shadow Ball", "Protect"])
         let labelled = Self.member("Basculegion ♀", slug: "basculegion-f",
                                    moves: ["Wave Crash", "Last Respects"])
-        #expect(Self.importer.pokemon(for: physical)?.name == "Basculegion-Male")
-        #expect(Self.importer.pokemon(for: special)?.name == "Basculegion-Female")
+        #expect(Self.importer.pokemon(for: special)?.name == "Basculegion-Male")
         #expect(Self.importer.pokemon(for: labelled)?.name == "Basculegion-Female")
     }
 }
