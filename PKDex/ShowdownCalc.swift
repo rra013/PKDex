@@ -15,9 +15,10 @@
 //  Dynamax/Max, Tera, older gens) are ported but left present-but-unwired.
 //  See PKDex/ShowdownPort-NOTES.md for the wiring decision.
 //
-//  Copyright the Smogon damage-calc contributors, MIT License. See
-//  tools/vendor/damage-calc/LICENSE for the full text; a NOTICE is bundled
-//  under Showdown-LICENSE.
+//  Copyright the Smogon damage-calc contributors, MIT License. The license
+//  text ships in the app as PKDex/Licenses/License-smogon-damage-calc.txt
+//  (and License-pokemon-showdown.txt for the Showdown data), shown under
+//  Settings → Acknowledgements & Licenses.
 //
 
 import Foundation

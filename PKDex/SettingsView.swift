@@ -191,15 +191,21 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        Text("Damage calculations are based on the Gen V+ damage formula and may not be perfectly accurate in all edge cases.")
+                        Text("Damage calculations follow Smogon's damage calculator for Champions and the Gen V+ formula otherwise, and may not be exact in every edge case.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        Text("Data sourced from PokeAPI.")
+                        Text("Data from PokeAPI, Serebii and Limitless. The damage calculator is ported from Smogon's, and the RNG tools from PokéFinder and EonTimer.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 4)
+
+                    NavigationLink {
+                        AcknowledgementsView()
+                    } label: {
+                        Label("Acknowledgements & Licenses", systemImage: "doc.text")
+                    }
                 }
             }
             .navigationTitle("Settings")

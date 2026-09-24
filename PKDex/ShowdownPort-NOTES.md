@@ -91,5 +91,7 @@ Champions rules/data live upstream in `pokemon-showdown/data/mods/champions`
 data (see the data generator in `tools/`) rather than hand-rolling rules.
 
 ## Licensing
-MIT (both repos). Attribution + license text bundled under
-`PKDex/Showdown-LICENSE`; per-file "ported from …" headers retained.
+MIT (both repos). The license texts ship in the app as
+`PKDex/Licenses/License-smogon-damage-calc.txt` and
+`PKDex/Licenses/License-pokemon-showdown.txt`, shown under Settings →
+Acknowledgements & Licenses. Per-file "ported from …" headers are retained.
