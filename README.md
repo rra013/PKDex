@@ -54,8 +54,9 @@ The Xcode project and target are named `PKDex`, and the app's display name is
 | **Settings** | Appearance, accent color, visible tabs, default tab and generation, active Champions regulation, data management, and acknowledgements and licenses. |
 
 **Team Search** is in development. You describe a team idea in plain words,
-and it finds matching popular teams from real tournaments. The data layer is
-built; see [`TeamSearch-PLAN.md`](TeamSearch-PLAN.md).
+and it finds matching popular teams from real tournaments. The tournament data
+store, description parser and search engine are built, and the screen is
+next; see [`TeamSearch-PLAN.md`](TeamSearch-PLAN.md).
 
 Every tab except Settings can be hidden or made the default tab. On iPad and
 wide iPhone layouts, the list-based tabs switch to a split view with the list
@@ -335,11 +336,12 @@ Vision. The project has no Swift package dependencies.
    data from PokeAPI, so it needs a network connection; later launches work
    offline, except for Tournaments.
 
-**Tests:** 903 tests written with Swift Testing. They cover the damage engines
+**Tests:** 939 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
-tools, ML parity, and the tournament import and data store. None of them need
-the network or a SwiftData store.
+tools, ML parity, the tournament import and data store, Team Search's parser
+and engine, and the bundled license files. None of them need the network or a
+SwiftData store.
 
 ```bash
 xcodebuild test -project PKDex.xcodeproj -scheme PKDex -destination 'platform=iOS Simulator,name=iPhone 17 Pro'

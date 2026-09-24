@@ -1,8 +1,8 @@
 # Team Search: implementation plan
 
-Status: **phase 1 done** (2026-09-24), on branch `team-search-corpus`. Decisions
-are recorded in §7. The two Tournaments bugs from §4.1 and §4.5 were fixed first
-(PR #15).
+Status: **phases 1 and 2 done** (2026-09-24). Phase 1 merged in #16; phase 2
+(query parsing and the search engine) is on branch `team-search-engine`. Next is
+phase 3, the UI. Decisions are recorded in §7.
 
 The goal: a user describes a team idea in plain words, for example *"Trick Room
 with Mega Gardevoir, no Incineroar"*. The app shows popular team compositions
@@ -62,7 +62,7 @@ Conventions to follow:
 TeamSearchView  (@MainActor UI)
     │ text
     ▼
-TeamQueryParser (nonisolated, pure) ◄── vocab: whitelist, learnset moves, items/stones, team_archetypes.json
+TeamQueryParser (nonisolated, pure) ◄── vocab: regulation JSONs + team_search_vocab.json
     │ TeamQuery
     ▼
 TeamSearchEngine (nonisolated, pure): filter → score → group → rank
@@ -109,14 +109,14 @@ struct TeamQuery {
 Version 1 is deterministic:
 - **Species:** find every whitelist match, longest first, marking matched text as used so shorter names can't match inside it. `mega X` sets the mega flag. A small table covers common shorthand (`chomp`, `incin`, `rilla`, `gambit`, `zard`, …). Regional adjectives are handled (`hisuian arcanine` → `Arcanine-Hisui`). Fuzzy matching through `NameIndex.closestName` applies only to tokens of 5+ characters.
 - **Moves:** multi-word learnset moves plus a short list of team-defining single-word moves. Moves nearly every team has, such as Protect, are ignored.
-- **Archetypes:** keywords come from `team_archetypes.json` (§4.3), so the parser and the tagger share one list.
+- **Archetypes:** keywords come from `team_search_vocab.json` (§4.3), so the parser and the tagger share one list.
 - **Negation** (`no`, `without`, `not`, `except`, `avoid`) applies only to the *next* entity. This looks back a few words from each entity for a negation word, rather than using a greedy regex. (The removed LLM prompt normalizer did the same for "trick room".) For example, *"no Incineroar but Trick Room"* excludes Incineroar and includes Trick Room.
 
 The UI shows the parsed query as editable chips: tap a chip to remove it or flip it between include and exclude. Letting users fix a misparse matters more than parser cleverness.
 
 An optional later phase (§6) uses Apple's on-device FoundationModels with a `@Generable` `TeamQuery`. It works only on Apple Intelligence devices, and its output is checked against the same vocabulary. It does not use the Pokii LLM, which is a 4.5 GB download tuned to emit set JSON.
 
-### 4.3 Archetype tagging: `TeamArchetypes.swift` + `PKDex/team_archetypes.json`
+### 4.3 Archetype tagging: in `TeamSearchEngine.swift`, rules in `PKDex/team_search_vocab.json`
 
 Tags are computed from team contents:
 
@@ -188,7 +188,14 @@ A "Team Search data" row in Data Management shows the last update and cache size
    - `LimitlessTeamImport.swift`: `LimitlessSpeciesResolver` (aliases → Limitless slug → name → most specific row whose words all appear → unique default form) resolves all 275 distinct species names in a 22-event sample. Before, 35 failed, including "Hisuian Arcanine" (167 teams) and "Indeedee ♀" (143). `LimitlessTeamImporter` routes saves through `PasteImporter` / `TeamPasteImport.plan`.
    - The paste importer now saves unmodelled items as text (Air Balloon, Red Card and 9 other Champions items aren't `HeldItem` cases). Before, it dropped them.
    - Follow-up: the Tournaments Mon Index link (`findPokemon`) still matches `PKMN` by raw name, so "Hisuian Arcanine" has no link. It could go through the resolver → `speciesID`.
-2. **Query + engine:** `TeamQueryParser`, `team_archetypes.json`, `TeamArchetypes`, `TeamSearchEngine`, all with fixture tests.
+2. ✅ **Query + engine:** `TeamQueryParser`, `TeamSearchVocabulary`, `team_search_vocab.json`, `TeamSearchEngine`, all with fixture tests (36). What landed, and where it differs from §4.2–4.4:
+   - **One vocabulary file**, `PKDex/team_search_vocab.json`. It holds the styles (keywords, signals, `requires`), negation, connector and contrast words, stop words, form filler words, nicknames and the single-word move allowlist. `TeamSearchVocabulary` combines it with the regulation's two JSONs: species, form words (from alternate forms and allowed regional forms), Mega Stones with their Mega abilities, and legal moves.
+   - **Species identity** is base species plus form words, limited to forms the regulation lists (so Limitless's `floette-eternal` and `floette` match). A query form must be a subset of the member's forms, and "male" means "not female".
+   - **Negation:** it carries across "or", "nor" and commas, and ends at a contrast word ("and", "but") or an unknown word. This replaces "next entity only".
+   - **Parser extras:** form suffixes (`arcanine-h`, `indeedee-f`), "Charizard Y" as a Mega variant, Mega Stone names, and typo correction within 1–2 edits for words of 5 or more letters, which are reported in `corrections`.
+   - **Grouping** folds a group into the first heavier composition that shares all but one Pokémon, indexed by "all but one" subsets.
+   - **Live check on M-C** (2,528 teams): 1 member outside the vocabulary (an Alomomola, not M-C-legal), 16 form identities, and 875 compositions. The top three hold 145, 117 and 101 teams. Searches take a few ms once event dates are parsed at index time. Parsing them per team per search cost up to 250 ms.
+   - **Found while testing:** Limitless answers HTTP 429 when hit repeatedly. `LimitlessAPIService` doesn't check status codes, so a 429 shows up as a decode error, and `TeamCorpusStore` lists the event as missing until the next refresh. Retrying with backoff (respecting `Retry-After`) would make first builds sturdier. Do it before or with phase 3.
 3. **UI:** the `AppTab` case, search and detail views, the save flow, the Settings row, and a check in the simulator.
 4. *(optional)* **Smogon enrichment:** a `SmogonStatsService` that fetches the monthly chaos JSON, cached per month, and maps Showdown form names. It adds usage/teammate tie-breaks, "suggested fill" for partial cores, and singles formats (BSS/OU), shown as usage-based cores since Smogon has no complete teams.
 5. *(optional)* **FoundationModels parser** for free-form descriptions.

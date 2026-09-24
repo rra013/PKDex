@@ -38,7 +38,7 @@ enum ChampionsRegulation: String, CaseIterable, Identifiable, Sendable {
     nonisolated var bundleResourceName: String { "champions-\(rawValue)" }
 
     /// Filename (without extension) of the per-species learnset JSON.
-    var learnsetBundleResourceName: String { "champions-\(rawValue)-learnsets" }
+    nonisolated var learnsetBundleResourceName: String { "champions-\(rawValue)-learnsets" }
 
     // MARK: Display
 

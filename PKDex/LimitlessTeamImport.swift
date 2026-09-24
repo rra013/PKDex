@@ -172,10 +172,15 @@ nonisolated struct LimitlessSpeciesResolver: Sendable {
 
     // MARK: Words
 
-    private static let wordSubstitutions: [String: String] = [
+    /// Regional adjectives as the region words PokeAPI and Limitless use in
+    /// form names ("Hisuian" → "hisui"). Team Search's query parser uses the
+    /// same map.
+    static let regionWords: [String: String] = [
         "alolan": "alola", "galarian": "galar", "hisuian": "hisui", "paldean": "paldea",
-        "f": "female", "m": "male",
     ]
+
+    private static let wordSubstitutions: [String: String] =
+        regionWords.merging(["f": "female", "m": "male"]) { region, _ in region }
 
     /// Lowercased ASCII words, accents folded, regional adjectives and
     /// gender marks normalized.
