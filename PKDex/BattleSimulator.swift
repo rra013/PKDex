@@ -1701,13 +1701,21 @@ final class BattleEngine {
         }
     }
 
+    /// Whether `p` is on the ground: always under Gravity or after Smack Down,
+    /// otherwise not if it's Flying-type or floats (Levitate, Eelevate). Air
+    /// Balloon and Iron Ball aren't modelled.
+    func isGrounded(_ p: BattleParticipant) -> Bool {
+        if gravityTurns > 0 || p.grounded { return true }
+        let floats = p.activeAbility == "levitate" || p.activeAbility == "eelevate"
+        return !p.types.contains("Flying") && !floats
+    }
+
     private func applyHazardsOnSwitchIn(p: BattleParticipant, side: BattleSide) {
         // Hazards only affect grounded Pokemon. Flying-types and ability
         // holders that float (Levitate, Pokemon Champions' Eelevate) skip
         // Spikes / Sticky Web / Toxic Spikes. Stealth Rock is type-based,
         // not ground-based, and is handled separately below.
-        let floats = p.activeAbility == "levitate" || p.activeAbility == "eelevate"
-        let grounded = !p.types.contains("Flying") && !floats
+        let grounded = isGrounded(p)
         let magicGuard = p.activeAbility == "magic-guard"
 
         if side.stealthRock, !magicGuard {
@@ -1923,6 +1931,17 @@ final class BattleEngine {
             resolvedMoveIndex = locked
         }
         var move = attacker.moves[resolvedMoveIndex]
+
+        // Expanding Force hits both foes in Psychic Terrain when the user is
+        // grounded. Decided here, when the move is used, because terrain can
+        // change earlier in the turn. The Showdown port applies its 1.5x
+        // boost; the spread path applies 0.75x when two foes remain.
+        if format == .doubles, terrain == .psychic, isGrounded(attacker),
+           BattleSimSeed.normalize(move.name) == "expandingforce" {
+            performSpreadMove(attackerSide: attackerSide, attackerSlot: attackerSlot,
+                              moveIndex: moveIndex)
+            return
+        }
 
         // A Fire-type move thaws the frozen user before the status check resolves.
         if attacker.status == .freeze && move.type == "Fire" {

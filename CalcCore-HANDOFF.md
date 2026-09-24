@@ -38,7 +38,7 @@ evaluations — hence the need to get off the main actor.
 | 2.2 | `EVSolver.swift` — survive / KO / outspeed solves | done, tested |
 | 2.3 | `EVSolverSheet.swift` — solver UI on the calc's move rows | done, checked in the simulator |
 
-Last full run (after two-hit goals and the spread fixes): **856 of 856 passing**. The test-randomness
+Last full run (after the Expanding Force follow-up): **861 of 861 passing**. The test-randomness
 fixes held for three runs in a row before that. See "Randomness in tests" below. Both
 engines are behind `CalcEngine`, so the whole damage suite exercises the
 extracted code.
@@ -268,8 +268,21 @@ used, so a lone surviving foe takes full damage. `allAdjacent` moves
 (Earthquake, Surf, Explosion) now also hit the user's ally. Wide Guard
 still blocks per side by move type. The calc's legacy engine applied the
 doubles toggle to *every* move and now applies it to spread moves only; the
-Champions port already did. Not modelled: Expanding Force turning spread
-in Psychic Terrain (the port handles it for damage, the sim doesn't).
+Champions port already did.
+
+Follow-ups (2026-09-23):
+- **Expanding Force** now hits both foes in the sim in Psychic Terrain when
+  the user is grounded. `performMove` reroutes it to the spread path at the
+  moment it's used, since terrain can change earlier in the turn. The port
+  still supplies the 1.5x boost.
+- **New `BattleEngine.isGrounded(_:)`**: Gravity or Smack Down always
+  ground; otherwise Flying-type, Levitate and Eelevate float. Switch-in
+  hazards use it now, so under Gravity a Flying-type takes Spikes, Toxic
+  Spikes and Sticky Web. Air Balloon and Iron Ball aren't modelled.
+- **The battle AI is unaffected by the new spread list.** The policy model's
+  inputs are species indices and 105 continuous features. `isSpread` is only
+  used after the model picks a move, to route the action. No retraining is
+  needed, and PR #9's warning about that was over-cautious.
 
 ## Design decisions worth not re-litigating
 
