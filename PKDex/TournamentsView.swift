@@ -305,13 +305,17 @@ struct TournamentDetailView: View {
             case .top32: return 32
             }
         }
+
+        /// Unranked players (nil placing) only show under "All".
+        func includes(placing: Int?) -> Bool {
+            guard let maxPlacing else { return true }
+            guard let placing else { return false }
+            return placing <= maxPlacing
+        }
     }
 
     private var filteredStandings: [LimitlessStanding] {
-        var result = standings
-        if let maxPlacing = selectedPlacingFilter.maxPlacing {
-            result = result.filter { $0.placing <= maxPlacing }
-        }
+        var result = standings.filter { selectedPlacingFilter.includes(placing: $0.placing) }
         if !searchText.isEmpty {
             result = result.filter {
                 $0.name.localizedStandardContains(searchText) ||
@@ -410,7 +414,7 @@ struct TournamentDetailView: View {
             async let detailFetch = LimitlessAPIService.shared.fetchTournamentDetail(id: tournament.id)
             async let standingsFetch = LimitlessAPIService.shared.fetchStandings(tournamentID: tournament.id)
             detail = try await detailFetch
-            standings = try await standingsFetch
+            standings = LimitlessStanding.sortedByPlacing(try await standingsFetch)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -426,7 +430,7 @@ private struct StandingRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
-                Text("#\(standing.placing)")
+                Text(standing.placing.map { "#\($0)" } ?? "—")
                     .font(.headline)
                     .foregroundStyle(placingColor)
                     .frame(width: 44, alignment: .leading)
@@ -482,9 +486,10 @@ private struct StandingRow: View {
 
     private var placingColor: Color {
         switch standing.placing {
-        case 1: return .yellow
-        case 2: return .gray
-        case 3: return .orange
+        case 1?: return .yellow
+        case 2?: return .gray
+        case 3?: return .orange
+        case nil: return .secondary
         default: return .primary
         }
     }
@@ -538,7 +543,7 @@ private struct StandingDetailView: View {
                 if let country = standing.country {
                     LabeledContent("Country", value: flagEmoji(for: country) + " " + country)
                 }
-                LabeledContent("Placing", value: "#\(standing.placing)")
+                LabeledContent("Placing", value: standing.placing.map { "#\($0)" } ?? "Unranked")
                 if let record = standing.record {
                     LabeledContent("Record", value: record.display)
                 }
@@ -704,7 +709,8 @@ private struct StandingDetailView: View {
     }
 
     private func saveSet(member: LimitlessStanding.TeamMember) {
-        _ = buildAndInsertSpread(for: member)
+        let name = TeamPasteImport.uniqueName(member.name, taken: takenSpreadNames())
+        _ = buildAndInsertSpread(for: member, named: name)
         withAnimation {
             savedMemberName = member.name
         }
@@ -717,16 +723,29 @@ private struct StandingDetailView: View {
         }
     }
 
+    /// Names a new spread must avoid. Team slots find their spread by name
+    /// (`SavedTeam.resolvedSlots`), so reusing a name — every Incineroar used
+    /// to be saved as "Incineroar" — made older teams load the newest spread.
+    /// Read from the context at save time rather than from `@Query`, so a
+    /// spread inserted a moment ago counts too.
+    private func takenSpreadNames() -> Set<String> {
+        let spreads = (try? modelContext.fetch(FetchDescriptor<SavedSpread>())) ?? []
+        let teams = (try? modelContext.fetch(FetchDescriptor<SavedTeam>())) ?? []
+        return TeamPasteImport.takenNames(spreads: spreads, teams: teams)
+    }
+
     /// Inserts a SavedSpread for the given team member and returns the spread plus
     /// the matched `PKMNStats` (when found). Shared by the per-member save button
     /// and the full-team save action so both paths produce identical records.
+    /// `name` must already be unique; see `takenSpreadNames`.
     ///
     /// When the screen-level `predictStatsAndNature` toggle is on, the saved
     /// record's EV spread + nature come from the on-device predictor instead
     /// of the SavedSpread defaults (Adamant, all-0 EVs). The flag is captured
     /// inside this helper so both the per-member save button and the
     /// full-team save use the same branch.
-    private func buildAndInsertSpread(for member: LimitlessStanding.TeamMember)
+    private func buildAndInsertSpread(for member: LimitlessStanding.TeamMember,
+                                      named name: String)
         -> (spread: SavedSpread, stats: PKMNStats?)
     {
         let stats = findStats(for: member)
@@ -735,7 +754,7 @@ private struct StandingDetailView: View {
         let moveIDs: [Int?] = (member.attacks ?? []).map { findMove(named: $0)?.id }
 
         let spread = SavedSpread(
-            name: member.name,
+            name: name,
             pokemonID: stats?.id,
             pokemonName: stats?.name ?? member.name,
             abilityName: abilityRaw,
@@ -815,9 +834,14 @@ private struct StandingDetailView: View {
         }
 
         // 2. All species + moves matched — persist spreads and a SavedTeam.
+        //    Spreads are named "<team> · <species>", like a paste import.
+        let teamName = "\(standing.name)'s Team"
+        let spreadNames = TeamPasteImport.spreadNames(
+            teamName: teamName, memberNames: members.map(\.name),
+            taken: takenSpreadNames())
         var slots: [TeamSlotInfo] = []
-        for member in members {
-            let result = buildAndInsertSpread(for: member)
+        for (member, spreadName) in zip(members, spreadNames) {
+            let result = buildAndInsertSpread(for: member, named: spreadName)
             // The pre-flight guarantees `stats` is non-nil here, so
             // `TeamSlotInfo.from` shouldn't fail; force-checking with a
             // safe fallback keeps the type happy without resurrecting a
@@ -829,7 +853,6 @@ private struct StandingDetailView: View {
             }
         }
 
-        let teamName = "\(standing.name)'s Team"
         let team = SavedTeam(name: teamName, slots: slots)
         modelContext.insert(team)
 

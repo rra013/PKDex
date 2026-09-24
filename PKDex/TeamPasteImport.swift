@@ -57,6 +57,19 @@ enum TeamPasteImport {
         return taken
     }
 
+    /// `<team> · <member>` for each member, unique against `taken` and against
+    /// each other. Shared with the tournament team save so both paths name
+    /// spreads the same way.
+    static func spreadNames(teamName: String, memberNames: [String],
+                            taken: Set<String>) -> [String] {
+        var taken = taken
+        return memberNames.map { member in
+            let name = uniqueName("\(teamName) · \(member)", taken: taken)
+            taken.insert(name)
+            return name
+        }
+    }
+
     /// Plans the spreads and team for a resolved paste. nil when nothing is
     /// importable. Blocked sets are skipped, and anything past six is left
     /// out; both are reported so the sheet can say so.
@@ -69,12 +82,11 @@ enum TeamPasteImport {
         guard !importable.isEmpty else { return nil }
         let kept = importable.prefix(maxSlots)
 
-        var taken = taken
+        let names = spreadNames(teamName: finalTeamName,
+                                memberNames: kept.map(\.displayName), taken: taken)
         var spreads: [SavedSpread] = []
         var slots: [TeamSlotInfo] = []
-        for slot in kept {
-            let spreadName = uniqueName("\(finalTeamName) · \(slot.displayName)", taken: taken)
-            taken.insert(spreadName)
+        for (slot, spreadName) in zip(kept, names) {
             guard let spread = importer.savedSpread(for: slot, name: spreadName),
                   let teamSlot = importer.teamSlot(for: slot, spreadName: spreadName)
             else { continue }
