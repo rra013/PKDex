@@ -176,9 +176,8 @@ final class PokiiBattleAI {
                 let oppSide = engine.side(at: oppIdx)
                 let mirror = oppSide.active(at: slot) ?? oppSide.active(at: 0)
                 if mirror != nil {
-                    let normalized = BattleSimSeed.normalize(actor.moves[mi].name)
                     if engine.format == .doubles
-                        && BattleMoveEffects.spreadMoves.contains(normalized)
+                        && BattleMoveEffects.isSpread(actor.moves[mi].name)
                         && actor.moves[mi].damageClass != "status" {
                         return .spreadMove(moveIndex: mi)
                     }

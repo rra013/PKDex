@@ -62,12 +62,13 @@ enum BattleHazard {
 /// whether `MoveData.name` arrives as "Swords Dance", "swords-dance", or "SwordsDance".
 enum BattleMoveEffects {
 
-    static let spreadMoves: Set<String> = [
-        "earthquake", "surf", "rockslide", "discharge", "heatwave",
-        "blizzard", "muddywater", "lavaplume", "eruption", "icywind",
-        "dazzlinggleam", "hypervoice", "snarl", "boomburst", "earthpower",
-        "sludgewave", "bulldoze", "explosion", "selfdestruct",
-    ]
+    /// Whether a move hits more than one Pokemon in doubles. Reads the move's
+    /// target from the Showdown data via `SpreadMoves`; this used to be a
+    /// hand-written list that was missing half the spread moves and wrongly
+    /// included Earth Power.
+    static func isSpread(_ moveName: String) -> Bool {
+        SpreadMoves.isSpread(moveName)
+    }
 
     /// Moves that only succeed on the user's first action since switching in.
     /// Mirrors Showdown's `onTry { if (source.activeMoveActions > 1) return false }`
@@ -2269,12 +2270,25 @@ final class BattleEngine {
             return
         }
 
-        // Wide Guard blocks the whole spread hit when it lands on the foe side.
-        if dSide.wideGuardActive {
-            log.append(BattleLogEntry(text: "\(dSide.label)'s Wide Guard blocked \(move.name)!"))
-            attacker.consecutiveProtectCount = 0
-            return
+        // Targets are fixed when the move is used: every live foe, plus the
+        // user's ally for `allAdjacent` moves (Earthquake, Surf, Explosion).
+        // The 0.75x spread reduction applies only when that's more than one
+        // Pokemon. With one foe left and no ally, Hyper Voice is single-target
+        // and does full damage. As in Showdown, a target that then protects or
+        // is immune still counts.
+        let targeting = SpreadMoves.targeting(of: move.name)
+        var targets: [(participant: BattleParticipant, side: BattleSide)] =
+            (0..<format.activeSlots).compactMap { slot in
+                guard let foe = dSide.active(at: slot), !foe.fainted else { return nil }
+                return (foe, dSide)
+            }
+        if targeting.hitsAlly {
+            for slot in 0..<format.activeSlots where slot != attackerSlot {
+                if let ally = aSide.active(at: slot), !ally.fainted { targets.append((ally, aSide)) }
+            }
         }
+        let isSpreadHit = targets.count > 1
+
         // Quick Guard catches priority spread moves (rare — e.g. Quick Attack
         // isn't spread, but a future priority spread move would route here too).
         if move.priority > 0, dSide.quickGuardActive {
@@ -2283,14 +2297,23 @@ final class BattleEngine {
             return
         }
 
-        for slot in 0..<format.activeSlots {
-            guard let defender = dSide.active(at: slot), !defender.fainted else { continue }
+        for target in targets {
+            // Wide Guard shields its own side, so the ally can be covered by
+            // the attacker's side's Wide Guard. It keys off the move's target
+            // type, not the live target count, so it still blocks a spread
+            // move with one foe left.
+            if target.side.wideGuardActive {
+                log.append(BattleLogEntry(text: "\(target.side.label)'s Wide Guard blocked \(move.name)!"))
+                continue
+            }
+            let defender = target.participant
             if defender.protectedThisTurn {
                 log.append(BattleLogEntry(text: "\(defender.displayName) protected itself from \(move.name)!"))
                 applyProtectContactPenalty(attacker: attacker, defender: defender, move: move)
                 continue
             }
-            applyDamageHit(attacker: attacker, defender: defender, move: move, isSpread: true)
+            applyDamageHit(attacker: attacker, defender: defender, move: move, isSpread: isSpreadHit)
+            if attacker.fainted { break }
         }
         // Damage pivots that happen to be spread moves (none currently in our
         // pool, but the bookkeeping is identical).
@@ -5915,8 +5938,7 @@ private struct ActorActionCard: View {
     private func chooseMove(_ moveIndex: Int) {
         guard moveIndex < actor.moves.count else { return }
         let move = actor.moves[moveIndex]
-        let normalized = BattleSimSeed.normalize(move.name)
-        let isSpread = BattleMoveEffects.spreadMoves.contains(normalized)
+        let isSpread = BattleMoveEffects.isSpread(move.name)
 
         // Doubles + spread → auto-target both opponents, no picker.
         if engine.format == .doubles && isSpread && move.damageClass != "status" {
