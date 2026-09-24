@@ -17,7 +17,11 @@ struct LimitlessGame: Decodable, Identifiable, Sendable {
     let metagame: Bool
 }
 
-struct LimitlessTournament: Decodable, Identifiable, Sendable {
+// `LimitlessTournament` and `LimitlessStanding` are `Codable` rather than just
+// `Decodable` because `TeamCorpusStore` caches them on disk in the API's own
+// shape, and `nonisolated` so the store can build its corpus off the main actor.
+
+nonisolated struct LimitlessTournament: Codable, Identifiable, Sendable {
     let id: String
     let name: String
     let game: String
@@ -67,7 +71,7 @@ nonisolated struct LimitlessTournamentDetail: Decodable, Sendable {
     }
 }
 
-struct LimitlessStanding: Decodable, Identifiable, Sendable {
+nonisolated struct LimitlessStanding: Codable, Identifiable, Sendable {
     var id: String { player }
     let player: String
     let name: String
@@ -82,7 +86,7 @@ struct LimitlessStanding: Decodable, Identifiable, Sendable {
     let decklist: [TeamMember]?
     let drop: Int?
 
-    struct Record: Decodable, Sendable {
+    struct Record: Codable, Sendable {
         let wins: Int
         let losses: Int
         let ties: Int
@@ -92,19 +96,30 @@ struct LimitlessStanding: Decodable, Identifiable, Sendable {
         }
     }
 
-    struct Deck: Decodable, Sendable {
+    struct Deck: Codable, Sendable {
         let id: String?
         let name: String?
         let icons: [String]?
     }
 
-    struct TeamMember: Decodable, Identifiable, Sendable {
+    struct TeamMember: Codable, Identifiable, Sendable {
         var id: String { name }
         let name: String
+        /// Limitless's species slug ("arcanine-hisui", "indeedee-f"). Closer
+        /// to the Pokedex's row names than `name` ("Hisuian Arcanine").
+        let limitlessID: String?
         let item: String?
         let ability: String?
         let attacks: [String]?
+        /// Sent for every member in recent events; nil in older ones.
+        /// Casing isn't consistent ("Jolly", "jolly").
+        let nature: String?
         let tera: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case name, item, ability, attacks, nature, tera
+            case limitlessID = "id"
+        }
     }
 
     /// Ranked players by placing, then unranked players in the order the

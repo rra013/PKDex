@@ -217,6 +217,15 @@ struct ResolvedSlot: Identifiable {
     /// What to show in the preview list.
     var displayName: String { pokemon?.name ?? source.species }
 
+    /// The item to save: the modelled item's name, or the text as written
+    /// when the calc doesn't model it (Air Balloon, Red Card), so it isn't
+    /// lost. nil for no item.
+    var itemText: String? {
+        if item != .none { return item.rawValue }
+        guard let raw = source.item, !raw.isEmpty else { return nil }
+        return raw
+    }
+
     var legalityViolations: [Violation] { violations.filter { $0.category.isLegality } }
     var coherenceViolations: [Violation] { violations.filter { !$0.category.isLegality } }
 }
@@ -457,7 +466,7 @@ struct PasteImporter {
         return PokemonSet(
             species: slot.validatorSpecies,
             ability: slot.validatorAbility ?? "",
-            item: slot.item == .none ? slot.source.item : slot.item.rawValue,
+            item: slot.itemText,
             nature: slot.nature.name,
             teraType: slot.source.teraType,
             moves: slot.validatorMoves,
@@ -476,7 +485,7 @@ struct PasteImporter {
             pokemonID: pokemon.id,
             pokemonName: pokemon.name,
             abilityName: slot.ability,
-            itemRawValue: slot.item == .none ? nil : slot.item.rawValue,
+            itemRawValue: slot.itemText,
             championsMode: targetScale == .champions,
             natureID: slot.nature.id,
             level: slot.level,
@@ -508,7 +517,7 @@ struct PasteImporter {
             pokemonName: pokemon.name,
             type1: pokemon.type1, type2: pokemon.type2,
             abilityName: slot.ability,
-            itemRawValue: slot.item == .none ? nil : slot.item.rawValue,
+            itemRawValue: slot.itemText,
             championsMode: targetScale == .champions,
             natureID: slot.nature.id,
             level: slot.level,

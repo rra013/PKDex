@@ -222,6 +222,26 @@ struct ShowdownPasteImportTests {
         #expect(text.contains("Incineroar @ Covert Cloak"))
     }
 
+    @Test("An unmodelled item is saved as text on the spread and team slot")
+    func unmodelledItemIsSaved() throws {
+        // Air Balloon is Champions-legal but not a `HeldItem`. It used to be
+        // dropped on save, despite the issue saying "kept as text".
+        let importer = Self.importer()
+        let preview = importer.preview(ShowdownPaste.parse("Incineroar @ Air Balloon"))
+        let slot = try #require(preview.slots.first)
+        #expect(slot.itemText == "Air Balloon")
+        #expect(importer.savedSpread(for: slot, name: "x")?.itemRawValue == "Air Balloon")
+        #expect(importer.teamSlot(for: slot, spreadName: "x")?.itemRawValue == "Air Balloon")
+    }
+
+    @Test("No item saves as no item")
+    func noItemSavesNil() throws {
+        let importer = Self.importer()
+        let slot = try #require(importer.preview(ShowdownPaste.parse("Incineroar")).slots.first)
+        #expect(slot.itemText == nil)
+        #expect(importer.savedSpread(for: slot, name: "x")?.itemRawValue == nil)
+    }
+
     @Test("The synthetic type-boost bucket never wins a lookup")
     func typeBoostIsNotMatchable() throws {
         let slot = try #require(Self.preview("Incineroar @ Type-Boost (1.2x)").slots.first)
