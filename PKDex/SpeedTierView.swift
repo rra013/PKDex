@@ -13,7 +13,7 @@ enum SpeedBenchmark: String, CaseIterable, Identifiable {
     case maxNeutral   = "Max (252 EV, Neutral)"
     case uninvBoosted = "Uninvested+ (0 EV, +Spe)"
     case uninvNeutral = "Uninvested (0 EV, Neutral)"
-    case minHindered  = "Min (0 EV, 0 IV, -Spe)"
+    case minHindered  = "Min (0 EV, -Spe, lowest IV)"
 
     var id: String { rawValue }
 
@@ -24,6 +24,8 @@ enum SpeedBenchmark: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Mainline IV. Champions fixes IVs at 31, so `computeBenchmarkSpeed`
+    /// ignores this there.
     var iv: Int {
         switch self {
         case .minHindered: return 0
@@ -67,7 +69,7 @@ enum SpeedItemModifier: String, CaseIterable, Identifiable {
 enum SpeedAbilityModifier: String, CaseIterable, Identifiable {
     case none = "None"
     case swiftSwim = "Swift Swim / Chlorophyll / Sand Rush / Slush Rush (2x)"
-    case unburden = "Unburden (2x)"
+    case unburden = "Unburden (2x, item used up)"
     case quickFeet = "Quick Feet (1.5x)"
     case slowStart = "Slow Start (0.5x)"
     case paralysis = "Paralysis (0.5x)"
@@ -106,15 +108,47 @@ func computeBenchmarkSpeed(
     abilityMod: SpeedAbilityModifier
 ) -> Int {
     let ev = championsMode ? championsEVToMain(benchmark.championsEV) : benchmark.ev
-    let iv = benchmark.iv
+    // Champions fixes IVs at 31, so "Min" there is 0 points and -Spe only.
+    let iv = championsMode ? 31 : benchmark.iv
     let rawStat = calcStat(base: baseSpeed, iv: iv, ev: ev, level: level, natureMod: benchmark.natureMod)
-    return Int(Double(rawStat) * itemMod.multiplier * abilityMod.multiplier)
+    return applySpeedModifiers(rawStat, item: itemMod, ability: abilityMod)
 }
 
 /// Compute the user's custom speed from their CalcSide configuration.
 func computeUserSpeed(side: CalcSide, itemMod: SpeedItemModifier, abilityMod: SpeedAbilityModifier) -> Int {
     let baseSpeed = side.speed // already accounts for EVs, IVs, nature, level, stages
-    return Int(Double(baseSpeed) * itemMod.multiplier * abilityMod.multiplier)
+    return applySpeedModifiers(baseSpeed, item: itemMod, ability: abilityMod)
+}
+
+/// Applies Speed Tiers' item / ability modifiers the way the games do, the
+/// same arithmetic as the Showdown port's `getFinalSpeed`:
+///   * modifiers are chained in 1/4096 steps and the result rounded with
+///     `pokeRound` (multiplying decimals and truncating was 1 low for some
+///     pairs, e.g. Scarf + Slow Start);
+///   * Unburden means the item has been used up, so the item is ignored;
+///   * paralysis halves after the other modifiers.
+/// `SpeedTierPortParityTests` checks every combination against the port.
+func applySpeedModifiers(_ stat: Int, item: SpeedItemModifier,
+                         ability: SpeedAbilityModifier) -> Int {
+    var mods: [Int] = []
+    switch ability {
+    case .swiftSwim, .unburden: mods.append(8192)
+    case .quickFeet:            mods.append(6144)
+    case .slowStart:            mods.append(2048)
+    case .none, .paralysis:     break
+    }
+    if ability != .unburden {
+        switch item {
+        case .choiceScarf: mods.append(6144)
+        case .ironBall:    mods.append(2048)
+        case .none:        break
+        }
+    }
+    var speed = OF32(pokeRound(Double(stat * chainMods(mods, 410, 131172)) / 4096))
+    if ability == .paralysis {
+        speed = Int(floor(Double(OF32(speed * 50)) / 100))
+    }
+    return max(0, min(10000, speed))
 }
 
 // MARK: - Speed Tier View

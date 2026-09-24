@@ -38,7 +38,7 @@ evaluations — hence the need to get off the main actor.
 | 2.2 | `EVSolver.swift` — survive / KO / outspeed solves | done, tested |
 | 2.3 | `EVSolverSheet.swift` — solver UI on the calc's move rows | done, checked in the simulator |
 
-Last full run (after the hazard rounding fix): **866 of 866 passing**. The test-randomness
+Last full run (after the Speed Tiers parity fixes): **867 of 867 passing**. The test-randomness
 fixes held for three runs in a row before that. See "Randomness in tests" below. Both
 engines are behind `CalcEngine`, so the whole damage suite exercises the
 extracted code.
@@ -222,6 +222,20 @@ The app still has several speed calculations. The Speed Tiers screen used
 solver use 0.5x. It was fixed on 2026-09-23, and
 `SpeedTierTests.paralysisMatchesShowdownPort` now ties the two together so
 they can't drift apart again.
+
+**Speed Tiers checked against the port for every combination
+(2026-09-23).** Moving Speed Tiers wholesale onto `getFinalSpeed` would
+lose its "what if" nature: it applies modifier categories to every Pokedex
+species, many outside the Champions data. It keeps its own table, and
+`SpeedTierPortParityTests` compares every benchmark x item x ability combo
+with the port on three species. That found 84 mismatches, now fixed:
+- **Champions "Min" used 0 IV.** Champions fixes IVs at 31. The label is
+  now "Min (0 EV, -Spe, lowest IV)".
+- **Unburden + item stacked.** Unburden means the item is used up, so the
+  item is now ignored (Scarf + Unburden showed 3x).
+- **Two modifiers were multiplied as decimals and truncated.** They now use
+  `applySpeedModifiers`, which chains them in 1/4096 steps with `pokeRound`
+  like the games.
 
 **Survive / KO from current HP (2026-09-23).** `CalcOutcome` has an
 optional `defenderCurrentHP` (nil = full). `isGuaranteedOHKO`,
