@@ -523,9 +523,9 @@ private struct StandingDetailView: View {
     @State private var showUnmatchedAlert: Bool = false
     /// When on, every spread saved from this screen (single member OR full
     /// team) runs through `StatNaturePredictor` so the saved record has a
-    /// best-guess EV spread + nature instead of the defaults. The Limitless
-    /// API doesn't expose stats or nature, so this toggle is the only way
-    /// downloaded teams gain those fields.
+    /// best-guess stat spread instead of all zeros. The Limitless API doesn't
+    /// expose stat points, so this toggle is the only way downloaded teams
+    /// gain them. It fills the nature only when Limitless didn't send one.
     @State private var predictStatsAndNature: Bool = false
 
     /// Tracks the result of the most recent "Save Full Team" press so we can flash
@@ -555,7 +555,7 @@ private struct StandingDetailView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Label("Predict Stats & Nature", systemImage: "sparkles")
                                 .font(.subheadline)
-                            Text("Fills in EV spread + nature using the on-device model. Limitless doesn't expose these.")
+                            Text("Fills in stat points using the on-device model, since Limitless doesn't publish them. Also fills the nature when the event didn't record one.")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -632,85 +632,22 @@ private struct StandingDetailView: View {
         return nil
     }
 
-    /// Limitless reports several form-changing Pokemon under their base name
-    /// (e.g. "Aegislash") even though the local Pokedex stores them as separate
-    /// PKMNStats rows keyed by form (e.g. "Aegislash-Shield"). This walks an
-    /// alias list so the team downloader resolves them to the canonical row.
-    ///
-    /// Some species need move-aware disambiguation (Basculegion-Male vs
-    /// Basculegion-Female): the report doesn't say which form was used, so we
-    /// infer it from the moveset. That's why the lookup takes the full member
-    /// rather than just a name.
-    private func findStats(for member: LimitlessStanding.TeamMember) -> PKMNStats? {
-        let candidates = candidateRowNames(for: member)
-        for candidate in candidates {
-            let lower = candidate.lowercased()
-            if let hit = allStats.first(where: { $0.name.lowercased() == lower }) {
-                return hit
-            }
-        }
-        return nil
-    }
-
-    /// Returns the ordered list of local PKMNStats row names to try for a given
-    /// team member. Wraps `TournamentSpeciesAlias.candidates` and overlays any
-    /// species that need contextual disambiguation (Basculegion form by moveset).
-    private func candidateRowNames(for member: LimitlessStanding.TeamMember) -> [String] {
-        if member.name.lowercased() == "basculegion" {
-            return basculegionFormCandidates(for: member.attacks ?? [])
-        }
-        return TournamentSpeciesAlias.candidates(for: member.name)
-    }
-
-    /// Counts physical vs. special damage classes for each named attack and
-    /// hands the totals to the shared Basculegion selector. Status moves and
-    /// unknown move names are ignored.
-    private func basculegionFormCandidates(for attacks: [String]) -> [String] {
-        var physical = 0, special = 0
-        for attack in attacks {
-            let lower = attack.lowercased()
-            guard let move = allMoves.first(where: { $0.name.lowercased() == lower })
-            else { continue }
-            switch move.damageClass {
-            case "physical": physical += 1
-            case "special":  special += 1
-            default:         break
-            }
-        }
-        return TournamentSpeciesAlias.basculegionFormCandidates(
-            physicalCount: physical, specialCount: special)
-    }
-
-    /// Limitless move names don't agree with PokeAPI on hyphen/space/apostrophe
-    /// placement — "U-turn" (Limitless) vs "U Turn" (synced) is the canonical
-    /// example. Match by stripping everything but alphanumerics + lowercasing,
-    /// which collapses "U-turn", "U Turn", "U-Turn" and "uturn" all to "uturn"
-    /// and lets the lookup hit. Returns nil if nothing comes close.
-    private func findMove(named attackName: String) -> MoveData? {
-        let target = BattleSimSeed.normalize(attackName)
-        guard !target.isEmpty else { return nil }
-        return allMoves.first { BattleSimSeed.normalize($0.name) == target }
-    }
-
-    /// Ability matching uses the same normalization so "King's Rock", "Kings
-    /// Rock", or "kings-rock" all hit the same entry. Falls back to a
-    /// hyphenated guess so a new-but-known-syntax ability still saves cleanly
-    /// even when the species's local ability list hasn't caught up yet.
-    private func matchAbility(displayName: String?, on stats: PKMNStats?) -> String? {
-        guard let displayName, let stats else { return nil }
-        let normalized = BattleSimSeed.normalize(displayName)
-        if let hit = stats.allAbilities.first(where: { BattleSimSeed.normalize($0) == normalized }) {
-            return hit
-        }
-        // Fallback to the hyphenated guess so engine-keyed handlers (which
-        // expect "stance-change"-style IDs) still resolve when the species's
-        // ability list doesn't list it.
-        return displayName.lowercased().replacingOccurrences(of: " ", with: "-")
+    /// Species, moves and everything else resolve through the shared
+    /// Limitless importer, which Team Search uses too. Built per save: it's
+    /// cheap next to a tap, and always sees the current Pokedex.
+    private func makeImporter() -> LimitlessTeamImporter {
+        LimitlessTeamImporter(allPokemon: allStats, allMoves: allMoves)
     }
 
     private func saveSet(member: LimitlessStanding.TeamMember) {
-        let name = TeamPasteImport.uniqueName(member.name, taken: takenSpreadNames())
-        _ = buildAndInsertSpread(for: member, named: name)
+        switch makeImporter().planSpread(member, taken: takenSpreadNames(),
+                                         predictStats: predictStatsAndNature) {
+        case .failure(let unmatched):
+            showUnmatched(unmatched)
+            return
+        case .success(let spread):
+            modelContext.insert(spread)
+        }
         withAnimation {
             savedMemberName = member.name
         }
@@ -734,130 +671,37 @@ private struct StandingDetailView: View {
         return TeamPasteImport.takenNames(spreads: spreads, teams: teams)
     }
 
-    /// Inserts a SavedSpread for the given team member and returns the spread plus
-    /// the matched `PKMNStats` (when found). Shared by the per-member save button
-    /// and the full-team save action so both paths produce identical records.
-    /// `name` must already be unique; see `takenSpreadNames`.
+    /// Persists a SavedSpread per member and a SavedTeam that references them
+    /// by name.
     ///
-    /// When the screen-level `predictStatsAndNature` toggle is on, the saved
-    /// record's EV spread + nature come from the on-device predictor instead
-    /// of the SavedSpread defaults (Adamant, all-0 EVs). The flag is captured
-    /// inside this helper so both the per-member save button and the
-    /// full-team save use the same branch.
-    private func buildAndInsertSpread(for member: LimitlessStanding.TeamMember,
-                                      named name: String)
-        -> (spread: SavedSpread, stats: PKMNStats?)
-    {
-        let stats = findStats(for: member)
-        let abilityRaw = matchAbility(displayName: member.ability, on: stats)
-
-        let moveIDs: [Int?] = (member.attacks ?? []).map { findMove(named: $0)?.id }
-
-        let spread = SavedSpread(
-            name: name,
-            pokemonID: stats?.id,
-            pokemonName: stats?.name ?? member.name,
-            abilityName: abilityRaw,
-            itemRawValue: member.item,
-            moveID1: moveIDs.count > 0 ? moveIDs[0] : nil,
-            moveID2: moveIDs.count > 1 ? moveIDs[1] : nil,
-            moveID3: moveIDs.count > 2 ? moveIDs[2] : nil,
-            moveID4: moveIDs.count > 3 ? moveIDs[3] : nil
-        )
-        if predictStatsAndNature {
-            applyPredictedStatsAndNature(to: spread, member: member)
-        }
-        modelContext.insert(spread)
-        return (spread, stats)
-    }
-
-    /// Runs the stat/nature predictor and writes the result back onto the
-    /// spread. Failure here is silent — if the model isn't bundled or the
-    /// predictor returns nil, the spread keeps its defaults rather than
-    /// blocking the save. Predicted stat points are stored as EV values in
-    /// Champions mode (0–32 per stat, total 66).
-    private func applyPredictedStatsAndNature(to spread: SavedSpread,
-                                              member: LimitlessStanding.TeamMember) {
-        let pred = StatNaturePredictor.shared.predict(
-            name: member.name,
-            item: member.item,
-            ability: member.ability,
-            moves: member.attacks ?? [],
-            role: nil   // Limitless doesn't expose role; predictor handles UNK
-        )
-        guard let pred else { return }
-        spread.championsMode = true
-        spread.evHP    = pred.statPoints.hp
-        spread.evAtk   = pred.statPoints.atk
-        spread.evDef   = pred.statPoints.def
-        spread.evSpAtk = pred.statPoints.spa
-        spread.evSpDef = pred.statPoints.spd
-        spread.evSpeed = pred.statPoints.spe
-        if let nature = pred.natureRecord {
-            spread.natureID = nature.id
-        }
-    }
-
-    /// Walks the standing's decklist, persisting a SavedSpread per member and a
-    /// SavedTeam that references them by name.
-    ///
-    /// **Pre-flight validation:** before inserting anything, every member name
-    /// and every move name is run through the normalized lookups. If anything
-    /// fails to resolve we abort the save and surface a persistent alert
-    /// listing each unmatched entry — silently saving a partial team or partial
-    /// moveset makes the gap impossible to debug. Alert lines follow the
-    /// "no match found for <X>" / "no match found for move <X> on <Y>" format
-    /// so the missing names are easy to copy into the alias map or sync logs.
+    /// **All or nothing:** if any species or move doesn't resolve, nothing is
+    /// saved and a persistent alert lists each unmatched name — silently
+    /// saving a partial team or partial moveset makes the gap impossible to
+    /// debug. Alert lines follow the "no match found for <X>" / "no match
+    /// found for move <X> on <Y>" format so the missing names are easy to
+    /// copy into the alias map or sync logs.
     private func saveFullTeam() {
         guard let members = standing.decklist, !members.isEmpty else {
             withAnimation { fullTeamSaveState = .noTeam }
             scheduleFullTeamStateReset()
             return
         }
-
-        // 1. Pre-flight: collect every species AND move that didn't resolve.
-        var lines: [String] = []
-        for member in members {
-            if findStats(for: member) == nil {
-                lines.append("no match found for \(member.name)")
-            }
-            for attack in member.attacks ?? [] {
-                if findMove(named: attack) == nil {
-                    lines.append("no match found for move \(attack) on \(member.name)")
-                }
-            }
+        switch makeImporter().planTeam(members, teamName: "\(standing.name)'s Team",
+                                       taken: takenSpreadNames(),
+                                       predictStats: predictStatsAndNature) {
+        case .failure(let unmatched):
+            showUnmatched(unmatched)
+        case .success(let plan):
+            for spread in plan.spreads { modelContext.insert(spread) }
+            modelContext.insert(plan.team)
+            withAnimation { fullTeamSaveState = .saved(savedCount: plan.team.slots.count) }
+            scheduleFullTeamStateReset()
         }
-        if !lines.isEmpty {
-            unmatchedAlertLines = lines
-            showUnmatchedAlert = true
-            return
-        }
+    }
 
-        // 2. All species + moves matched — persist spreads and a SavedTeam.
-        //    Spreads are named "<team> · <species>", like a paste import.
-        let teamName = "\(standing.name)'s Team"
-        let spreadNames = TeamPasteImport.spreadNames(
-            teamName: teamName, memberNames: members.map(\.name),
-            taken: takenSpreadNames())
-        var slots: [TeamSlotInfo] = []
-        for (member, spreadName) in zip(members, spreadNames) {
-            let result = buildAndInsertSpread(for: member, named: spreadName)
-            // The pre-flight guarantees `stats` is non-nil here, so
-            // `TeamSlotInfo.from` shouldn't fail; force-checking with a
-            // safe fallback keeps the type happy without resurrecting a
-            // silent-skip path.
-            if let slot = TeamSlotInfo.from(spread: result.spread,
-                                            pokemon: result.stats,
-                                            moves: allMoves) {
-                slots.append(slot)
-            }
-        }
-
-        let team = SavedTeam(name: teamName, slots: slots)
-        modelContext.insert(team)
-
-        withAnimation { fullTeamSaveState = .saved(savedCount: slots.count) }
-        scheduleFullTeamStateReset()
+    private func showUnmatched(_ unmatched: LimitlessUnmatchedNames) {
+        unmatchedAlertLines = unmatched.lines
+        showUnmatchedAlert = true
     }
 
     private func scheduleFullTeamStateReset() {
@@ -988,67 +832,3 @@ private extension PKMN {
         return URL(string: link)
     }
 }
-// MARK: - Tournament Species Aliases
-
-/// Limitless tournament reports list several form-changing Pokemon under names
-/// that don't match the local PKMNStats row exactly:
-///   - Shared base name across forms: "Aegislash" → "Aegislash-Shield"/"-Blade"
-///   - Canonical English name vs Showdown form: "Eternal Flower Floette" or
-///     "Floette" (Champions context) → "Floette-Eternal"
-/// This helper expands a Limitless name to a prioritized candidate list so the
-/// downloader can find the canonical row. **Aliases take priority over the raw
-/// name** because for some species (notably Floette) the raw name resolves to
-/// the wrong row — regular Floette and Floette-Eternal are both in the Pokedex
-/// but Champions reports always mean the Eternal Flower form.
-enum TournamentSpeciesAlias {
-    /// Maps a base species name (or canonical English name) to one or more
-    /// canonical row names, in priority order. The first hit wins; the raw name
-    /// is appended last as a fallback. Keep entries to genuinely ambiguous form
-    /// names — anything stored under its own name already round-trips fine.
-    static let table: [String: [String]] = [
-        "Aegislash":              ["Aegislash-Shield", "Aegislash-Blade"],
-        "Floette":                ["Floette-Eternal"],
-        "Eternal Flower Floette": ["Floette-Eternal"],
-        "Floette-Eternal":        ["Floette-Eternal"],
-        "Wishiwashi":             ["Wishiwashi-Solo", "Wishiwashi-School"],
-        "Mimikyu":                ["Mimikyu-Disguised", "Mimikyu"],
-        "Minior":                 ["Minior-Meteor", "Minior-Red-Meteor"],
-        "Morpeko":                ["Morpeko-Full-Belly", "Morpeko"],
-        "Eiscue":                 ["Eiscue-Ice", "Eiscue-Noice"],
-        "Zacian":                 ["Zacian-Crowned", "Zacian-Hero"],
-        "Zamazenta":              ["Zamazenta-Crowned", "Zamazenta-Hero"],
-    ]
-
-    /// Returns the lookup order for a Limitless name: aliases first (so we
-    /// prefer the canonical form-specific row), raw name last as a fallback.
-    /// Case-insensitive on the key side. The raw name is always included — if
-    /// no alias entry exists, it's the only candidate.
-    static func candidates(for rawName: String) -> [String] {
-        var result: [String] = []
-        for (key, aliases) in table where key.lowercased() == rawName.lowercased() {
-            result.append(contentsOf: aliases)
-        }
-        // Always include the raw name as a final fallback, deduped.
-        if !result.contains(where: { $0.lowercased() == rawName.lowercased() }) {
-            result.append(rawName)
-        }
-        return result
-    }
-
-    /// Basculegion's two forms can't be told apart by Limitless's "Basculegion"
-    /// label, but their stat focuses are mirror images: Male leans physical
-    /// (Atk 112 vs SpA 80), Female leans special (Atk 92 vs SpA 100). Pick the
-    /// form whose stat focus matches the team's actual moveset. Strictly more
-    /// physical moves than special → Male; tie / mostly special / mostly status
-    /// → Female (per the requested rule: "if using mostly attacking moves,
-    /// assume male. otherwise female").
-    static func basculegionFormCandidates(physicalCount: Int,
-                                          specialCount: Int) -> [String] {
-        if physicalCount > specialCount {
-            return ["Basculegion-Male", "Basculegion-Female", "Basculegion"]
-        } else {
-            return ["Basculegion-Female", "Basculegion-Male", "Basculegion"]
-        }
-    }
-}
-
