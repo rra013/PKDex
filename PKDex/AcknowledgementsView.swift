@@ -2,8 +2,14 @@
 //  AcknowledgementsView.swift
 //  PKDex
 //
-//  Settings → Acknowledgements & Licenses: the data sources the app reads,
-//  and the open-source code it's built on, with each license's full text.
+//  Settings → Acknowledgements & Licenses: the app's own license, the data
+//  sources the app reads, and the open-source code it's built on, with each
+//  license's full text.
+//
+//  PK Reference is licensed under GPL-3.0-or-later. GPLv3 section 5(d) asks
+//  an interactive program to show its copyright notice, that there is no
+//  warranty, and how to view the license; the "This App" section does that,
+//  and links the source code.
 //
 //  The license files are bundled from PKDex/Licenses, plus PKDex/Core/COPYING
 //  for PokéFinder's GPL-3.0, so every build carries them, as the MIT, BSD,
@@ -27,6 +33,13 @@ struct Acknowledgement: Identifiable {
     let licenseFiles: [String]
 
     var id: String { name }
+
+    /// PK Reference itself.
+    static let app = Acknowledgement(
+        name: "PK Reference", credit: "© 2026 rra013",
+        use: "Free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3 or (at your option) any later version. It comes with ABSOLUTELY NO WARRANTY. Tap for the license.",
+        url: URL(string: "https://github.com/rra013/PKDex")!,
+        license: "GPL-3.0-or-later", licenseFiles: ["License-GPL-3.0.txt"])
 
     static let dataSources: [Acknowledgement] = [
         Acknowledgement(
@@ -63,7 +76,7 @@ struct Acknowledgement: Identifiable {
             name: "PokéFinder", credit: "Admiral_Fish, bumba and EzPzStreamz",
             use: "The RNG tools' generators, searchers and encounter data",
             url: URL(string: "https://github.com/Admiral-Fish/PokeFinder")!,
-            license: "GPL-3.0", licenseFiles: ["COPYING"]),
+            license: "GPL-3.0-or-later", licenseFiles: ["COPYING"]),
         Acknowledgement(
             name: "EonTimer", credit: "DasAmpharos",
             use: "The RNG timer",
@@ -117,6 +130,19 @@ struct Acknowledgement: Identifiable {
 struct AcknowledgementsView: View {
     var body: some View {
         List {
+            Section {
+                NavigationLink {
+                    LicenseTextView(item: Acknowledgement.app)
+                } label: {
+                    AcknowledgementRow(item: Acknowledgement.app)
+                }
+                Link(destination: Acknowledgement.app.url) {
+                    Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+            } header: {
+                Text("This App")
+            }
+
             Section {
                 ForEach(Acknowledgement.dataSources) { item in
                     Link(destination: item.url) {

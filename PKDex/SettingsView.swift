@@ -221,6 +221,10 @@ struct SettingsView: View {
                         Text("Data from PokeAPI, Serebii and Limitless. The damage calculator is ported from Smogon's, and the RNG tools from PokéFinder and EonTimer.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+
+                        Text("PK Reference is free software under the GNU General Public License, version 3 or later, and comes with no warranty. The license and source code are under Acknowledgements & Licenses.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 4)
 

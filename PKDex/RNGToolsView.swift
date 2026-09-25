@@ -4,9 +4,13 @@
 //
 //  RNG manipulation tools ported from:
 //  - PokeFinder by Admiral_Fish, bumba, and EzPzStreamz
-//    (https://github.com/Admiral-Fish/PokeFinder) — GPLv3
+//    (https://github.com/Admiral-Fish/PokeFinder) — GPL-3.0-or-later
 //  - EonTimer by DasAmpharos
 //    (https://github.com/DasAmpharos/EonTimer) — MIT
+//
+//  The PokeFinder parts (marked "PokeFinder Port") were ported to Swift and
+//  modified for PK Reference by rra013 from April 2026. Like the rest of the
+//  app, this file is licensed under GPL-3.0-or-later.
 //
 
 import SwiftUI

@@ -1,3 +1,4 @@
+// Modified for PK Reference by rra013 on 2026-04-24: added pragmas that silence two clang warnings. See PKDex/Core/MODIFICATIONS.md.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdocumentation"
 #pragma clang diagnostic ignored "-Wshorten-64-to-32"
