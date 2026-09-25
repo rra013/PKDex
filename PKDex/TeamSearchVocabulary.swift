@@ -69,6 +69,8 @@ nonisolated struct TeamSearchVocabulary: Sendable {
     struct ArchetypeRule: Sendable {
         let archetype: TeamArchetype
         let keywords: [String]
+        /// A few words on what the style is, for Apple Intelligence.
+        let hint: String?
         let signals: Signals
         let requires: Signals?
     }
@@ -190,6 +192,7 @@ nonisolated struct TeamSearchVocabulary: Sendable {
             ArchetypeRule(
                 archetype: TeamArchetype(id: entry.id, label: entry.label),
                 keywords: entry.keywords,
+                hint: entry.hint,
                 signals: entry.signals.resolved,
                 requires: entry.requires?.resolved)
         }
@@ -318,6 +321,7 @@ nonisolated struct TeamSearchVocabulary: Sendable {
             let id: String
             let label: String
             let keywords: [String]
+            let hint: String?
             let signals: SignalsEntry
             let requires: SignalsEntry?
         }

@@ -22,6 +22,10 @@
 //    "Mega Charizard Y" and "Charizardite Y" ask for that Mega.
 //  - When the same item is mentioned twice, the later mention wins.
 //
+//  Runs of words it can't place ("big fire cat") can be handed to Apple
+//  Intelligence, and the text parsed again with its answers in their place
+//  ("no big fire cat" → "no Incineroar"), so the rules above still apply.
+//
 
 import Foundation
 
@@ -137,8 +141,13 @@ nonisolated struct TeamQueryParser: Sendable {
     // MARK: Parsing
 
     func parse(_ text: String) -> TeamQuery {
+        read(Self.tokens(text)).query
+    }
+
+    /// Parses words, noting the position of each one left unrecognized.
+    private func read(_ words: [String]) -> (query: TeamQuery, unplaced: [Int]) {
         var query = TeamQuery()
-        let words = Self.tokens(text)
+        var unplaced: [Int] = []
         var index = 0
         /// A negation word is waiting for its item.
         var negate = false
@@ -146,13 +155,19 @@ nonisolated struct TeamQueryParser: Sendable {
         var carried = false
         /// The last item was negated, so a connector can pass it on.
         var lastWasNegated = false
-        var pendingMega = false
-        var pendingForms: [String] = []
+        /// Where a "mega" waiting for its species was.
+        var pendingMega: Int?
+        var pendingForms: [(word: String, position: Int)] = []
+
+        func unrecognized(_ word: String, at position: Int) {
+            query.unrecognized.append(word)
+            unplaced.append(position)
+        }
 
         func flushPending() {
-            if pendingMega { query.unrecognized.append("mega") }
-            query.unrecognized.append(contentsOf: pendingForms)
-            pendingMega = false
+            if let pendingMega { unrecognized("mega", at: pendingMega) }
+            for form in pendingForms { unrecognized(form.word, at: form.position) }
+            pendingMega = nil
             pendingForms = []
         }
 
@@ -185,8 +200,10 @@ nonisolated struct TeamQueryParser: Sendable {
             func isForm(_ word: String) -> Bool {
                 known.contains(word) || (word == "male" && known.contains("female"))
             }
-            var forms = pendingForms.filter(isForm)
-            query.unrecognized.append(contentsOf: pendingForms.filter { !isForm($0) })
+            var forms = pendingForms.map(\.word).filter(isForm)
+            for form in pendingForms where !isForm(form.word) {
+                unrecognized(form.word, at: form.position)
+            }
             pendingForms = []
             while index < words.count {
                 let next = words[index]
@@ -204,17 +221,17 @@ nonisolated struct TeamQueryParser: Sendable {
 
             let megas = species?.megas ?? []
             if index < words.count, words[index] == "mega" {
-                pendingMega = true
+                pendingMega = index
                 index += 1
             }
             if term.mega == nil, index < words.count,
                megas.contains(where: { $0.variant == words[index] }) {
                 term.mega = .variant(words[index])
                 index += 1
-            } else if pendingMega && term.mega == nil {
-                if megas.isEmpty { query.unrecognized.append("mega") } else { term.mega = .any }
+            } else if let megaPosition = pendingMega, term.mega == nil {
+                if megas.isEmpty { unrecognized("mega", at: megaPosition) } else { term.mega = .any }
             }
-            pendingMega = false
+            pendingMega = nil
             record(.species(term))
         }
 
@@ -232,7 +249,7 @@ nonisolated struct TeamQueryParser: Sendable {
                 continue
             }
             if word == "mega" {
-                pendingMega = true
+                pendingMega = index
                 index += 1
                 continue
             }
@@ -248,7 +265,7 @@ nonisolated struct TeamQueryParser: Sendable {
                 continue
             }
             if leadingFormWords.contains(word) {
-                pendingForms.append(word)
+                pendingForms.append((word, index))
                 index += 1
                 continue
             }
@@ -267,12 +284,63 @@ nonisolated struct TeamQueryParser: Sendable {
                 recordSpecies(SpeciesTerm(speciesID: species.id, name: species.name))
                 continue
             }
-            query.unrecognized.append(word)
+            unrecognized(word, at: index - 1)
             carried = false
             lastWasNegated = false
         }
         flushPending()
-        return query
+        return (query, unplaced)
+    }
+
+    // MARK: Unplaced phrases
+
+    /// Runs of adjacent words the parser couldn't place, as its words:
+    /// "big fire cat" in "sun, no big fire cat", "hisui fire dog" in
+    /// "Hisuian fire dog".
+    func unplacedPhrases(in text: String) -> [String] {
+        let words = Self.tokens(text)
+        return Self.runs(read(words).unplaced).map { words[$0].joined(separator: " ") }
+    }
+
+    /// Parses `text` with its unplaced phrases replaced by what they mean,
+    /// keyed by phrase: with "big fire cat" meaning "Incineroar", "sun, no
+    /// big fire cat" reads as "sun, no Incineroar". A meaning is used only
+    /// when all of it parses as known names with no typos; otherwise the
+    /// phrase stays as it was.
+    func parse(_ text: String, meanings: [String: String]) -> TeamQuery {
+        let words = Self.tokens(text)
+        var rewritten: [String] = []
+        var next = 0
+        for run in Self.runs(read(words).unplaced) {
+            rewritten += words[next..<run.lowerBound]
+            let phrase = words[run].joined(separator: " ")
+            if let meaning = meanings[phrase], readsCleanly(meaning) {
+                rewritten += Self.tokens(meaning)
+            } else {
+                rewritten += words[run]
+            }
+            next = run.upperBound
+        }
+        rewritten += words[next...]
+        return read(rewritten).query
+    }
+
+    private func readsCleanly(_ text: String) -> Bool {
+        let query = parse(text)
+        return query.hasConstraints && query.unrecognized.isEmpty && query.corrections.isEmpty
+    }
+
+    /// Positions grouped into runs of adjacent ones.
+    private static func runs(_ positions: [Int]) -> [Range<Int>] {
+        var runs: [Range<Int>] = []
+        for position in Set(positions).sorted() {
+            if let last = runs.last, last.upperBound == position {
+                runs[runs.count - 1] = last.lowerBound..<position + 1
+            } else {
+                runs.append(position..<position + 1)
+            }
+        }
+        return runs
     }
 
     private func longestMatch(at start: Int, in words: [String]) -> (Entity, Int)? {

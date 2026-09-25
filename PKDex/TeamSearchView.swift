@@ -4,7 +4,8 @@
 //
 //  The Team Search tab: describe a team idea, and see the tournament teams
 //  that match, grouped into compositions. The list shows the parsed query
-//  as chips, then Smogon's "often paired with" suggestions, then the
+//  as chips (with an offer to read unrecognized words with Apple
+//  Intelligence), then Smogon's "often paired with" suggestions, then the
 //  compositions and where the data came from. A composition opens its
 //  teams, and a team opens the same team sheet the Tournaments tab uses,
 //  with its save buttons.
@@ -118,9 +119,15 @@ struct TeamSearchView: View {
     @ViewBuilder
     private func sections(selectable: Bool) -> some View {
         let chips = model.chips
-        if !chips.isEmpty {
+        if !chips.isEmpty || model.offersInterpretation {
             Section {
-                QueryChips(chips: chips, invert: model.invert, remove: model.remove)
+                if !chips.isEmpty {
+                    QueryChips(chips: chips, isInterpreted: model.isInterpreted,
+                               invert: model.invert, remove: model.remove)
+                }
+                if model.offersInterpretation {
+                    InterpretationRow(model: model)
+                }
             } footer: {
                 Text("Tap a chip to switch between include and exclude.")
             }
@@ -208,6 +215,62 @@ struct TeamSearchView: View {
     }
 }
 
+// MARK: - Apple Intelligence
+
+private struct InterpretationRow: View {
+    let model: TeamSearchModel
+
+    var body: some View {
+        switch model.interpreterAvailability {
+        case .available:
+            available
+        case .notEnabled:
+            note("Turn on Apple Intelligence in Settings to read words Team Search doesn't know.")
+        case .notReady:
+            note("Apple Intelligence is still getting ready. Try again later.")
+        case .unsupported:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var available: some View {
+        switch model.interpretation {
+        case .idle:
+            Button {
+                Task { await model.interpret() }
+            } label: {
+                Label("Read with Apple Intelligence", systemImage: "apple.intelligence")
+            }
+        case .running:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Reading your description…")
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+        case .finished(let added) where added.isEmpty:
+            note("Apple Intelligence found nothing more to add.")
+        case .finished(let added):
+            note("Apple Intelligence added \(added.formatted(.list(type: .and))). It can make mistakes, so remove anything it got wrong.")
+        case .failed(let message):
+            VStack(alignment: .leading, spacing: 6) {
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+                Button("Try Again") { Task { await model.interpret() } }
+                    .font(.subheadline)
+            }
+        }
+    }
+
+    private func note(_ text: String) -> some View {
+        Label(text, systemImage: "apple.intelligence")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+    }
+}
+
 // MARK: - Suggestions
 
 private struct Suggestions: View {
@@ -245,6 +308,7 @@ private struct Suggestions: View {
 
 private struct QueryChips: View {
     let chips: [TeamSearchModel.Chip]
+    let isInterpreted: (TeamSearchModel.Chip) -> Bool
     let invert: (TeamSearchModel.Chip) -> Void
     let remove: (TeamSearchModel.Chip) -> Void
 
@@ -274,6 +338,7 @@ private struct QueryChips: View {
                     if chip.canInvert { invert(chip) }
                 }
                 .accessibilityElement(children: .combine)
+                .accessibilityValue(isInterpreted(chip) ? "Added by Apple Intelligence" : "")
                 .accessibilityAddTraits(chip.canInvert ? .isButton : [])
                 .accessibilityHint(chip.canInvert
                                    ? (chip.isExcluded ? "Includes it instead" : "Excludes it instead")
@@ -284,6 +349,7 @@ private struct QueryChips: View {
     }
 
     private func icon(for chip: TeamSearchModel.Chip) -> String {
+        if isInterpreted(chip) { return "apple.intelligence" }
         switch chip {
         case .species(_, let excluded): return excluded ? "minus.circle" : "checkmark.circle"
         case .move(_, let excluded): return excluded ? "minus.circle" : "bolt"

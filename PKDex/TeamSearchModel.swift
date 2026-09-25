@@ -16,6 +16,10 @@
 //  suggestions and usage figures. They're optional: if they can't load,
 //  search works as before.
 //
+//  When the parser leaves words it can't place, Apple Intelligence can
+//  read them, if the device has it. What it adds is marked on its chips,
+//  and kept until the text changes.
+//
 
 import Foundation
 import Observation
@@ -77,6 +81,15 @@ final class TeamSearchModel {
         }
     }
 
+    /// Reading the description with Apple Intelligence.
+    enum Interpretation: Equatable {
+        case idle
+        case running
+        /// It read the current text; `added` are the chips it added.
+        case finished(added: [String])
+        case failed(String)
+    }
+
     var regulation: ChampionsRegulation
     private(set) var status: Status = .idle
     /// A background refresh is running while cached results show.
@@ -95,13 +108,20 @@ final class TeamSearchModel {
     private(set) var insights: SmogonInsights?
     /// Teammates Smogon pairs with the query's species.
     private(set) var suggestions: [SmogonInsights.Suggestion] = []
+    private(set) var interpretation: Interpretation = .idle
+    private(set) var interpreterAvailability: TeamInterpreterAvailability = .unsupported
 
     private let store: TeamCorpusStore
     private let smogonStore: SmogonUsageStore
     private let loadVocabulary: @Sendable (ChampionsRegulation) throws -> TeamSearchVocabulary
+    private let interpreter: TeamQueryInterpreting
     private let now: () -> Date
     private var loadedRegulation: ChampionsRegulation?
     private var parser: TeamQueryParser?
+    /// What Apple Intelligence added to the query, by ID.
+    private var interpretedSpecies: Set<String> = []
+    private var interpretedMoves: Set<ShowdownID> = []
+    private var interpretedStyles: Set<String> = []
     private var index: TeamSearchIndex?
     private var text = ""
 
@@ -111,11 +131,13 @@ final class TeamSearchModel {
          loadVocabulary: @escaping @Sendable (ChampionsRegulation) throws -> TeamSearchVocabulary = {
              try TeamSearchVocabulary.bundled(for: $0)
          },
+         interpreter: TeamQueryInterpreting = AppleIntelligenceInterpreter(),
          now: @escaping () -> Date = Date.init) {
         self.regulation = regulation
         self.store = store
         self.smogonStore = smogonStore
         self.loadVocabulary = loadVocabulary
+        self.interpreter = interpreter
         self.now = now
     }
 
@@ -126,6 +148,7 @@ final class TeamSearchModel {
     /// regulation, it starts over.
     func load(forceRefresh: Bool = false) async {
         let regulation = self.regulation
+        interpreterAvailability = interpreter.availability
         if loadedRegulation != regulation {
             loadedRegulation = regulation
             parser = nil
@@ -134,6 +157,7 @@ final class TeamSearchModel {
             results = []
             suggestions = []
             status = .idle
+            resetInterpretation()
             let loader = loadVocabulary
             do {
                 let vocabulary = try await Task.detached { try loader(regulation) }.value
@@ -221,14 +245,97 @@ final class TeamSearchModel {
 
     // MARK: Query
 
-    /// Parses `text` and searches. Chip edits are dropped.
+    /// Parses `text` and searches. Chip edits, and what Apple Intelligence
+    /// added, are dropped. Unchanged text (submitting it again) keeps them.
     func setText(_ text: String) {
+        interpreterAvailability = interpreter.availability
+        guard text != self.text else { return }
         self.text = text
         query = parser?.parse(text) ?? TeamQuery()
+        resetInterpretation()
         search()
     }
 
-    var chips: [Chip] {
+    // MARK: Apple Intelligence
+
+    /// Whether to offer Apple Intelligence: the parser left words it
+    /// couldn't place, or it has already run on this text. Hidden on
+    /// devices that can't run it.
+    var offersInterpretation: Bool {
+        guard interpreterAvailability != .unsupported, parser != nil,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        return !query.unrecognized.isEmpty || interpretation != .idle
+    }
+
+    /// Asks Apple Intelligence what the words the parser couldn't place
+    /// mean, reads the text again with its answers, and adds what that
+    /// finds. Words it couldn't place either stay unrecognized.
+    func interpret() async {
+        interpreterAvailability = interpreter.availability
+        guard interpreterAvailability == .available, interpretation != .running,
+              let parser else { return }
+        let text = self.text
+        let regulation = self.regulation
+        let phrases = parser.unplacedPhrases(in: text)
+        guard !phrases.isEmpty else {
+            interpretation = .finished(added: [])
+            return
+        }
+        interpretation = .running
+        let result: Result<[String: String], Error>
+        do {
+            result = .success(try await interpreter.meanings(of: phrases, in: text,
+                                                             vocabulary: parser.vocabulary))
+        } catch {
+            result = .failure(error)
+        }
+        // The text or regulation changed while it ran: the answer is stale.
+        guard self.text == text, self.regulation == regulation, interpretation == .running else { return }
+        switch result {
+        case .success(let meanings):
+            let baseline = parser.parse(text)
+            let reread = parser.parse(text, meanings: meanings)
+            let added = query.add(reread, beyond: baseline)
+            interpretedSpecies.formUnion((added.species + added.excludedSpecies).map(\.speciesID))
+            interpretedMoves.formUnion((added.moves + added.excludedMoves).map(\.id))
+            interpretedStyles.formUnion((added.archetypes + added.excludedArchetypes).map(\.id))
+            // Words still unplaced, less any the user removed.
+            var removed = baseline.unrecognized
+            for word in query.unrecognized {
+                if let found = removed.firstIndex(of: word) { removed.remove(at: found) }
+            }
+            var unplaced = reread.unrecognized
+            for word in removed {
+                if let found = unplaced.firstIndex(of: word) { unplaced.remove(at: found) }
+            }
+            query.unrecognized = unplaced
+            interpretation = .finished(added: Self.chips(for: added).map(\.label))
+            search()
+        case .failure(let error):
+            interpretation = .failed(error.localizedDescription)
+        }
+    }
+
+    /// Whether Apple Intelligence added the chip's species, move or style.
+    func isInterpreted(_ chip: Chip) -> Bool {
+        switch chip {
+        case .species(let term, _): return interpretedSpecies.contains(term.speciesID)
+        case .move(let term, _): return interpretedMoves.contains(term.id)
+        case .style(let style, _): return interpretedStyles.contains(style.id)
+        case .correction, .unrecognized: return false
+        }
+    }
+
+    private func resetInterpretation() {
+        interpretation = .idle
+        interpretedSpecies = []
+        interpretedMoves = []
+        interpretedStyles = []
+    }
+
+    var chips: [Chip] { Self.chips(for: query) }
+
+    private static func chips(for query: TeamQuery) -> [Chip] {
         var chips: [Chip] = []
         chips += query.species.map { .species($0, excluded: false) }
         chips += query.archetypes.map { .style($0, excluded: false) }
@@ -237,7 +344,9 @@ final class TeamSearchModel {
         chips += query.excludedArchetypes.map { .style($0, excluded: true) }
         chips += query.excludedMoves.map { .move($0, excluded: true) }
         chips += query.corrections.map { .correction($0) }
-        chips += query.unrecognized.map { .unrecognized($0) }
+        // A word typed twice shows once; removing it removes both.
+        var seen = Set<String>()
+        chips += query.unrecognized.filter { seen.insert($0).inserted }.map { .unrecognized($0) }
         return chips
     }
 

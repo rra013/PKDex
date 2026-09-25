@@ -1,8 +1,8 @@
 # Team Search: implementation plan
 
-Status: **phases 1–4 done** (2026-09-24). Phases 1–3 merged in #16, #18 and #19;
-phase 4 (Smogon usage stats, doubles only) is on branch `team-search-smogon`.
-Phase 5 (a free-form parser) is optional. Decisions are recorded in §7.
+Status: **all phases done** (2026-09-24). Phases 1–4 merged in #16, #18, #19
+and #20; phase 5 (reading unrecognized words with Apple Intelligence) is on
+branch `team-search-ai`. Decisions are recorded in §7.
 
 The goal: a user describes a team idea in plain words, for example *"Trick Room
 with Mega Gardevoir, no Incineroar"*. The app shows popular team compositions
@@ -114,7 +114,7 @@ Version 1 is deterministic:
 
 The UI shows the parsed query as editable chips: tap a chip to remove it or flip it between include and exclude. Letting users fix a misparse matters more than parser cleverness.
 
-An optional later phase (§6) uses Apple's on-device FoundationModels with a `@Generable` `TeamQuery`. It works only on Apple Intelligence devices, and its output is checked against the same vocabulary. It does not use the Pokii LLM, which is a 4.5 GB download tuned to emit set JSON.
+An optional later phase (§6) uses Apple's on-device FoundationModels for what the parser can't place. It works only on Apple Intelligence devices, and its output is checked against the same vocabulary. It does not use the Pokii LLM, which is a 4.5 GB download tuned to emit set JSON. (Phase 5 settled on reading only the unrecognized phrases, not the whole query; see §6.)
 
 ### 4.3 Archetype tagging: in `TeamSearchEngine.swift`, rules in `PKDex/team_search_vocab.json`
 
@@ -209,7 +209,13 @@ A "Team Search data" row in Data Management shows the last update and cache size
    - UI: an "Often paired with" section that adds a suggestion to the search text, "Ladder Usage" in composition details, a label with the stats' regulation, month and rating (and a note when they're from an earlier regulation), and a Smogon credit in the footer and on the Acknowledgements screen. Settings' Clear Team Search Data clears both caches.
    - Not done: usage as a ranking tie-break, which adds little over placement, and singles.
    - Checked in the simulator on live data (August, M-B): for Incineroar, Sinistcha 44%, Kingambit 39%, Sneasler 38%, Garchomp 26%, matching the raw file. Adding Sinistcha from a suggestion updated both the chips and the suggestions. Ladder usage showed Kingambit at 47%.
-5. *(optional)* **FoundationModels parser** for free-form descriptions.
+5. ✅ **Apple Intelligence reading** (FoundationModels, on device, optional). The sketch was a `@Generable` `TeamQuery` for the whole description. What landed reads only what the parser couldn't place:
+   - `TeamQueryParser.unplacedPhrases(in:)` returns runs of adjacent unrecognized words ("big fire cat"). `AppleIntelligenceInterpreter` asks the on-device model for each phrase's meaning, with one string property per phrase in a `DynamicGenerationSchema`, greedy sampling, a capped response and the style hints from `team_search_vocab.json`. `parse(_:meanings:)` reads the text again with each clean meaning in place of its phrase, so "no big fire cat" becomes "no Incineroar". A meaning counts only if all of it parses as known names with no typo fixes.
+   - `TeamQuery.add(_:beyond:)` adds only what neither the current chips nor the text's own parse mention (a species in any form or Mega counts as mentioned), so the parser's reading and the user's chip edits are never changed. At most six species are included.
+   - UI: a **Read with Apple Intelligence** row under the chips when words are unrecognized. It shows a spinner while running, lists what was added (marked chips) or says nothing was found, and shows errors with Try Again. It explains when Apple Intelligence is off or still downloading, and is hidden on devices that can't run it. Submitting unchanged text no longer drops chip edits.
+   - Tried first, on the Mac's copy of the same on-device model: (a) arrays constrained to all 333 M-C names plus styles, which produced a 3,839-token schema and degenerate output (alphabetical runs, the same styles in both include and exclude); (b) free-form include/avoid lists, which added Pokémon and styles nobody asked for, often from the examples; (c) phrase-cited mentions, which gave worse names; (d) per-phrase answers limited to all legal names, or to legal names of a type the phrase mentions, which chose poorly (Absol, Chesnaught, Ceruledge). Private Cloud Compute needs a managed entitlement.
+   - Quality, measured on the Mac with the real M-C vocabulary: right for "hisuian fire dog" (Hisuian Arcanine), "slow" (Trick Room), "dragon … multiscale" (Dragonite), "fairy queen" (Gardevoir) and "big fish" (Gyarados); wrong or empty for "big fire cat", "grass monkey", "land shark" and "sword ghost" (Spiritomb). Answers that aren't known names ("Fairies", "Sand Shard") are dropped. This is why additions are marked and easy to remove.
+   - The iOS 27 simulator here can't run the model: every request, even a trivial one, fails in the safety filter (`promptTemplateNotFound` for `instruct_300m.safety`), and the app shows its error message. The UI was checked in the simulator with canned answers, and the model on the Mac.
 
 ---
 
