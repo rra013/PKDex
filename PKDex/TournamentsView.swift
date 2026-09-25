@@ -507,7 +507,8 @@ private struct StandingRow: View {
 
 // MARK: - Standing Detail (Team View)
 
-private struct StandingDetailView: View {
+/// One player's team sheet, with save buttons. Team Search opens it too.
+struct StandingDetailView: View {
     let standing: LimitlessStanding
     @Query(sort: \PKMN.nationalPokedexNumber) private var allPokemon: [PKMN]
     @Query(sort: \PKMNStats.name) private var allStats: [PKMNStats]

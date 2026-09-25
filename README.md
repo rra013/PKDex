@@ -51,12 +51,8 @@ The Xcode project and target are named `PKDex`, and the app's display name is
 | **Battle Sim** | Singles and doubles battle engine using your saved teams, with Mega Evolution and an on-device AI that can play either side. |
 | **RNG Tools** | Timer, seed finder, wild and static encounters, eggs, TID/SID, GameCube (Colosseum/XD), IV calculator, IV→PID and Hidden Power, for Gen 3–5, plus Sword/Shield raid dens. |
 | **Tournaments** | Tournaments, standings and team sheets from Limitless, with one-tap import of any team. |
+| **Team Search** | Describe a team idea in plain words and see the popular tournament teams that match it, grouped into compositions. |
 | **Settings** | Appearance, accent color, visible tabs, default tab and generation, active Champions regulation, data management, and acknowledgements and licenses. |
-
-**Team Search** is in development. You describe a team idea in plain words,
-and it finds matching popular teams from real tournaments. The tournament data
-store, description parser and search engine are built, and the screen is
-next; see [`TeamSearch-PLAN.md`](TeamSearch-PLAN.md).
 
 Every tab except Settings can be hidden or made the default tab. On iPad and
 wide iPhone layouts, the list-based tabs switch to a split view with the list
@@ -225,6 +221,36 @@ Limitless names to Pokédex entries: "Hisuian Arcanine" becomes Arcanine-Hisui,
 form. If any Pokémon or move can't be matched, nothing is saved, and an alert
 lists every name that failed.
 
+### Team Search
+
+Describe the team you're thinking of, such as *"Trick Room with Mega
+Gardevoir, no Incineroar"*, and Team Search finds the teams that match in
+recent Limitless events for the chosen Champions regulation.
+
+- **What it understands:** Pokémon (with nicknames such as "Chomp", regional
+  and gendered forms such as "Hisuian Arcanine" or "Indeedee ♀", and Megas
+  such as "Mega Charizard Y" or "Charizardite Y"), moves such as "Fake Out"
+  and "Follow Me", and team styles: Trick Room, Tailwind, sun, rain, sand,
+  snow, the four terrains, redirection and Perish Trap. "No", "without" and
+  similar words exclude things.
+- **Chips:** what it understood shows as chips under the search field. Tap a
+  chip to switch it between include and exclude, or tap × to remove it.
+  Typo fixes ("incinaroar → Incineroar") and words it didn't understand show
+  too.
+- **Results:** matching teams are grouped into compositions. Teams sharing
+  five of their six Pokémon count as variants of the same composition.
+  Compositions are ranked by how well their teams placed and how recent the
+  events were. Each shows its style tags, team and event counts, and best
+  finish. With an empty search, the tab shows the most popular compositions.
+- **Details:** a composition lists why it matched, its variants and its
+  teams. Each team opens the same team sheet as the Tournaments tab, with
+  the same save buttons.
+- **Partial matches:** when fewer than 10 teams match everything, teams
+  missing one of the requested Pokémon are shown too, marked "Partial match".
+- **Data:** each event's results are downloaded once and cached; pull to
+  refresh for new events. If Limitless is limiting requests, the app waits
+  and retries. Settings → Clear Team Search Data frees the cache.
+
 ### Settings
 
 - **Appearance:** system, light or dark mode, and one of 11 accent colors.
@@ -232,8 +258,8 @@ lists every name that failed.
 - **Default generation:** the Mon Index list the app opens with.
 - **Champions regulation:** the active format. New installs default to the
   newest regulation.
-- **Data management:** re-download the Pokémon and move data, or reset all
-  data.
+- **Data management:** re-download the Pokémon and move data, clear Team
+  Search's cached tournament data, or reset all data.
 - **Acknowledgements & Licenses:** the data sources and open-source
   components the app uses, with each license's full text.
 
@@ -314,7 +340,8 @@ the git history.
   and `PFBridge.h/.mm` wraps them. `PFBridgeSwift.swift` gives the RNG
   views a Swift interface to them.
 - **Networking:** `LimitlessAPIService` (an actor with a short in-memory cache)
-  and `TeamCorpusStore` (a disk cache of tournament standings for Team Search).
+  and `TeamCorpusStore` (a disk cache of tournament standings for Team Search,
+  which retries after rate limits and server errors).
 
 More internal documentation:
 [`PKDex/ProjectDocumentation.md`](PKDex/ProjectDocumentation.md) (an early
@@ -336,7 +363,7 @@ Vision. The project has no Swift package dependencies.
    data from PokeAPI, so it needs a network connection; later launches work
    offline, except for Tournaments.
 
-**Tests:** 939 tests written with Swift Testing. They cover the damage engines
+**Tests:** 955 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
 tools, ML parity, the tournament import and data store, Team Search's parser

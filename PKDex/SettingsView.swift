@@ -24,6 +24,8 @@ struct SettingsView: View {
     @State private var showRedownloadConfirmation = false
     @State private var isRedownloading = false
     @State private var redownloadStatus: String?
+    /// Size of Team Search's cached tournament data; nil until measured.
+    @State private var teamSearchCacheBytes: Int?
 
     private var enabledTabSet: Set<String> {
         Set(enabledTabsRaw.split(separator: ",").map(String.init))
@@ -174,6 +176,23 @@ struct SettingsView: View {
                             .foregroundStyle(status.contains("Failed") ? .red : .secondary)
                     }
 
+                    Button {
+                        Task {
+                            try? await TeamCorpusStore.shared.clearCache()
+                            teamSearchCacheBytes = await TeamCorpusStore.shared.cacheSize()
+                        }
+                    } label: {
+                        HStack {
+                            Label("Clear Team Search Data", systemImage: "trash")
+                            Spacer()
+                            if let bytes = teamSearchCacheBytes {
+                                Text(bytes.formatted(.byteCount(style: .file)))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .disabled(teamSearchCacheBytes == 0)
+
                     Button("Reset All Data", role: .destructive) {
                         showResetConfirmation = true
                     }
@@ -212,6 +231,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .task { teamSearchCacheBytes = await TeamCorpusStore.shared.cacheSize() }
             .confirmationDialog(
                 "Redownload Data",
                 isPresented: $showRedownloadConfirmation,
@@ -301,5 +321,9 @@ struct SettingsView: View {
         try? modelContext.delete(model: SavedSpread.self)
         try? modelContext.delete(model: SavedTeam.self)
         try? modelContext.save()
+        Task {
+            try? await TeamCorpusStore.shared.clearCache()
+            teamSearchCacheBytes = 0
+        }
     }
 }

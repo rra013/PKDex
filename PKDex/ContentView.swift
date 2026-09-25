@@ -23,7 +23,7 @@ extension EnvironmentValues {
 // MARK: - App Tab Definition
 
 enum AppTab: String, CaseIterable, Identifiable {
-    case monIndex, moveIndex, abilityIndex, damageCalc, sets, teams, speedTiers, battleSim, rngTools, tournaments, settings
+    case monIndex, moveIndex, abilityIndex, damageCalc, sets, teams, speedTiers, battleSim, rngTools, tournaments, teamSearch, settings
 
     var id: String { rawValue }
 
@@ -39,6 +39,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .battleSim:    return "Battle Sim"
         case .rngTools:     return "RNG Tools"
         case .tournaments:  return "Tournaments"
+        case .teamSearch:   return "Team Search"
         case .settings:     return "Settings"
         }
     }
@@ -55,11 +56,12 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .battleSim:    return "gamecontroller.fill"
         case .rngTools:     return "dice"
         case .tournaments:  return "trophy"
+        case .teamSearch:   return "sparkle.magnifyingglass"
         case .settings:     return "gear"
         }
     }
 
-    static let allUserTabs: [AppTab] = [.monIndex, .moveIndex, .abilityIndex, .damageCalc, .sets, .teams, .speedTiers, .battleSim, .rngTools, .tournaments]
+    static let allUserTabs: [AppTab] = [.monIndex, .moveIndex, .abilityIndex, .damageCalc, .sets, .teams, .speedTiers, .battleSim, .rngTools, .tournaments, .teamSearch]
     static let defaultEnabledRaw = allUserTabs.map(\.rawValue).joined(separator: ",")
 }
 
@@ -167,6 +169,7 @@ struct ContentView: View {
         case .battleSim:    BattleSimulatorView()
         case .rngTools:     RNGToolsView()
         case .tournaments:  TournamentsTab()
+        case .teamSearch:   TeamSearchView()
         case .settings:     SettingsView()
         }
     }

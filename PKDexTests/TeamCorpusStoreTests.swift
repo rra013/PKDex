@@ -278,6 +278,7 @@ struct TeamCorpusStoreTests {
         let corpus = try await store.corpus(format: "M-C")
         #expect(corpus.listFetchedAt == Self.t0)
         #expect(corpus.teams.count == 3)
+        #expect(corpus.listRefreshError != nil)
     }
 
     // MARK: - Retries

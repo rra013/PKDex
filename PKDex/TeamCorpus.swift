@@ -47,13 +47,17 @@ nonisolated struct TeamCorpus: Sendable {
     let listFetchedAt: Date
     /// Listed events whose standings couldn't be fetched and weren't cached.
     let missingEvents: [LimitlessTournament]
+    /// Why re-crawling the tournament list failed, when this corpus fell back
+    /// to the cached list. nil when the list is as fresh as it was asked to be.
+    let listRefreshError: String?
 
     init(format: String, events: [CorpusEvent], listFetchedAt: Date,
-         missingEvents: [LimitlessTournament]) {
+         missingEvents: [LimitlessTournament], listRefreshError: String? = nil) {
         self.format = format
         self.events = events
         self.listFetchedAt = listFetchedAt
         self.missingEvents = missingEvents
+        self.listRefreshError = listRefreshError
         self.teams = events.flatMap { event in
             LimitlessStanding.sortedByPlacing(event.standings)
                 .filter { !($0.decklist ?? []).isEmpty }
@@ -179,14 +183,16 @@ actor TeamCorpusStore {
     /// and are older than `listTTL` (always, on `forceRefresh`).
     ///
     /// Failures degrade rather than throw: a failed list crawl falls back to
-    /// the cached list, and a failed standings fetch to that event's cached
-    /// standings, or to `missingEvents`. Throws only when the list can't be
-    /// fetched and none is cached.
+    /// the cached list (and says so in `listRefreshError`), and a failed
+    /// standings fetch to that event's cached standings, or to
+    /// `missingEvents`. Throws only when the list can't be fetched and none
+    /// is cached.
     func corpus(format: String, forceRefresh: Bool = false,
                 progress: (@Sendable (FetchProgress) -> Void)? = nil) async throws -> TeamCorpus {
         let start = now()
 
         let list: CachedList
+        var listRefreshError: String?
         let cachedList = readList(format: format)
         if let cachedList, !forceRefresh,
            start.timeIntervalSince(cachedList.fetchedAt) <= configuration.listTTL {
@@ -198,6 +204,7 @@ actor TeamCorpusStore {
             } catch {
                 guard let cachedList else { throw error }
                 list = cachedList
+                listRefreshError = error.localizedDescription
             }
         }
 
@@ -251,7 +258,8 @@ actor TeamCorpusStore {
             format: format,
             events: list.tournaments.compactMap { cached[$0.id] },
             listFetchedAt: list.fetchedAt,
-            missingEvents: list.tournaments.filter { cached[$0.id] == nil })
+            missingEvents: list.tournaments.filter { cached[$0.id] == nil },
+            listRefreshError: listRefreshError)
         memory[format] = corpus
         return corpus
     }
