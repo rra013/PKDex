@@ -69,8 +69,8 @@ enum TeamSearchFixtures {
     static let vocabularyJSON = """
     {
       "archetypes": [
-        {"id": "trick-room", "label": "Trick Room", "keywords": ["trick room", "tr"],
-         "signals": {"moves": ["Trick Room"]}},
+        {"id": "trick-room", "label": "Trick Room", "hint": "slow Pokémon move first",
+         "keywords": ["trick room", "tr"], "signals": {"moves": ["Trick Room"]}},
         {"id": "tailwind", "label": "Tailwind", "keywords": ["tailwind", "tw"],
          "signals": {"moves": ["Tailwind"]}},
         {"id": "sun", "label": "Sun", "keywords": ["sun"],

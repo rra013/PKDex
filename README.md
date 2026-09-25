@@ -237,6 +237,16 @@ recent Limitless events for the chosen Champions regulation.
   chip to switch it between include and exclude, or tap × to remove it.
   Typo fixes ("incinaroar → Incineroar") and words it didn't understand show
   too.
+- **Apple Intelligence:** when some words aren't understood ("the Hisuian
+  fire dog", "a slow team") and Apple Intelligence is on, **Read with Apple
+  Intelligence** asks Apple's on-device language model what each of those
+  phrases means. Only names Team Search knows are kept, and a "no" before a
+  phrase still applies, so "no big fire cat" can become "No Incineroar".
+  What it adds is marked with the Apple Intelligence symbol. The on-device
+  model is small and its Pokémon knowledge is patchy, so check those chips.
+  It runs only when you tap the button, entirely on the device. On devices
+  without Apple Intelligence the button doesn't appear, and search works as
+  before.
 - **Results:** matching teams are grouped into compositions. Teams sharing
   five of their six Pokémon count as variants of the same composition.
   Compositions are ranked by how well their teams placed and how recent the
@@ -314,7 +324,12 @@ All inference runs on the device.
 | **Pokii doubles policy**: battle state → action, and whether to Mega Evolve | `pokii_battler.safetensors`, `feature_config.json` | Battle Sim AI | `PokiiBattler` (Accelerate) |
 
 All three are small multilayer perceptrons (MLPs), bundled with the app and
-run in plain Swift on Accelerate. Decoding respects the rules: predicted
+run in plain Swift on Accelerate.
+
+Team Search can also use Apple's on-device language model, through the
+FoundationModels framework, to read words its parser doesn't know. That model
+is part of Apple Intelligence rather than the app, and runs only on devices
+that have it turned on (see [Team Search](#team-search)). Decoding respects the rules: predicted
 abilities and moves are limited to the species' legal options, and stat
 points are rebalanced to the 66-point budget. `pokii_parity_samples.json`
 lets the tests check the Swift inference against the training outputs.
@@ -371,11 +386,12 @@ Vision. The project has no Swift package dependencies.
    data from PokeAPI, so it needs a network connection; later launches work
    offline, except for Tournaments.
 
-**Tests:** 975 tests written with Swift Testing. They cover the damage engines
+**Tests:** 989 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
 tools, ML parity, the tournament import and data store, Team Search's parser,
-engine and Smogon suggestions, and the bundled license files. None of them need the network or a
+engine, Smogon suggestions and Apple Intelligence reading (with canned
+answers), and the bundled license files. None of them need the network or a
 SwiftData store.
 
 ```bash
