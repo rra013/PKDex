@@ -39,7 +39,7 @@ struct Acknowledgement: Identifiable {
             url: URL(string: "https://www.serebii.net")!, license: nil, licenseFiles: []),
         Acknowledgement(
             name: "Limitless", credit: "Limitless TCG",
-            use: "Tournaments, standings and team sheets",
+            use: "Tournaments, standings and team sheets, and Team Search's teams",
             url: URL(string: "https://play.limitlesstcg.com")!, license: nil, licenseFiles: []),
     ]
 
@@ -92,7 +92,7 @@ struct Acknowledgement: Identifiable {
     /// License files are hard-wrapped at about 80 columns, which wraps
     /// raggedly on a phone. This joins each paragraph's lines so the text
     /// wraps to the screen. Blank lines still separate paragraphs.
-    static func reflowed(_ text: String) -> String {
+    nonisolated static func reflowed(_ text: String) -> String {
         var paragraphs: [String] = []
         var current: [String] = []
         for line in text.replacingOccurrences(of: "\r\n", with: "\n")

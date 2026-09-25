@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - API Models
 
-struct LimitlessGame: Decodable, Identifiable, Sendable {
+nonisolated struct LimitlessGame: Decodable, Identifiable, Sendable {
     let id: String
     let name: String
     let formats: [String: String]
@@ -136,6 +136,65 @@ nonisolated struct LimitlessStanding: Codable, Identifiable, Sendable {
     }
 }
 
+// MARK: - Errors
+
+/// A response Limitless didn't answer normally. Before this existed, a rate
+/// limit (HTTP 429, whose body isn't JSON) surfaced as a decoding error.
+nonisolated enum LimitlessAPIError: LocalizedError, Equatable, Sendable {
+    /// HTTP 429. `retryAfter` is the server's Retry-After, in seconds, when
+    /// it sent one.
+    case rateLimited(retryAfter: TimeInterval?)
+    /// Any other status outside 200–299.
+    case http(status: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .rateLimited(let retryAfter?):
+            return "Limitless is limiting requests right now. Try again in \(Int(retryAfter.rounded(.up))) seconds."
+        case .rateLimited(nil):
+            return "Limitless is limiting requests right now. Try again in a minute."
+        case .http(let status):
+            return "Limitless returned an error (HTTP \(status))."
+        }
+    }
+
+    /// Worth retrying after a pause: rate limits and server errors.
+    var isTransient: Bool {
+        switch self {
+        case .rateLimited: return true
+        case .http(let status): return status >= 500
+        }
+    }
+
+    /// Throws for any HTTP status outside 200–299. Other response types pass.
+    static func check(_ response: URLResponse, now: Date = Date()) throws {
+        guard let httpResponse = response as? HTTPURLResponse else { return }
+        switch httpResponse.statusCode {
+        case 200..<300:
+            return
+        case 429:
+            throw Self.rateLimited(retryAfter: retryAfter(
+                httpResponse.value(forHTTPHeaderField: "Retry-After"), now: now))
+        default:
+            throw Self.http(status: httpResponse.statusCode)
+        }
+    }
+
+    /// A Retry-After header in seconds. It's either a number of seconds or an
+    /// HTTP date; nil when it's missing or unreadable.
+    static func retryAfter(_ value: String?, now: Date) -> TimeInterval? {
+        guard let value = value?.trimmingCharacters(in: .whitespaces), !value.isEmpty else {
+            return nil
+        }
+        if let seconds = TimeInterval(value) { return max(0, seconds) }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "GMT")
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        return formatter.date(from: value).map { max(0, $0.timeIntervalSince(now)) }
+    }
+}
+
 // MARK: - API Service
 
 actor LimitlessAPIService {
@@ -157,13 +216,20 @@ actor LimitlessAPIService {
     private var detailCache: [String: CacheEntry<LimitlessTournamentDetail>] = [:]
     private var standingsCache: [String: CacheEntry<[LimitlessStanding]>] = [:]
 
+    /// Fetches and decodes, throwing `LimitlessAPIError` for a non-2xx status
+    /// so a rate limit isn't mistaken for bad JSON.
+    private func get<T: Decodable>(_ type: T.Type, from url: URL) async throws -> T {
+        let (data, response) = try await URLSession.shared.data(from: url)
+        try LimitlessAPIError.check(response)
+        return try JSONDecoder().decode(type, from: data)
+    }
+
     func fetchGames() async throws -> [LimitlessGame] {
         if let cached = gamesCache, cached.isValid(ttl: cacheTTL) {
             return cached.value
         }
         let url = URL(string: "\(baseURL)/games")!
-        let (data, _) = try await URLSession.shared.data(from: url)
-        let result = try JSONDecoder().decode([LimitlessGame].self, from: data)
+        let result = try await get([LimitlessGame].self, from: url)
         gamesCache = CacheEntry(value: result, timestamp: Date())
         return result
     }
@@ -188,8 +254,7 @@ actor LimitlessAPIService {
         if let format { items.append(URLQueryItem(name: "format", value: format)) }
         components.queryItems = items
 
-        let (data, _) = try await URLSession.shared.data(from: components.url!)
-        let result = try JSONDecoder().decode([LimitlessTournament].self, from: data)
+        let result = try await get([LimitlessTournament].self, from: components.url!)
         tournamentsCache[cacheKey] = CacheEntry(value: result, timestamp: Date())
         return result
     }
@@ -199,8 +264,7 @@ actor LimitlessAPIService {
             return cached.value
         }
         let url = URL(string: "\(baseURL)/tournaments/\(id)/details")!
-        let (data, _) = try await URLSession.shared.data(from: url)
-        let result = try JSONDecoder().decode(LimitlessTournamentDetail.self, from: data)
+        let result = try await get(LimitlessTournamentDetail.self, from: url)
         detailCache[id] = CacheEntry(value: result, timestamp: Date())
         return result
     }
@@ -210,8 +274,7 @@ actor LimitlessAPIService {
             return cached.value
         }
         let url = URL(string: "\(baseURL)/tournaments/\(tournamentID)/standings")!
-        let (data, _) = try await URLSession.shared.data(from: url)
-        let result = try JSONDecoder().decode([LimitlessStanding].self, from: data)
+        let result = try await get([LimitlessStanding].self, from: url)
         standingsCache[tournamentID] = CacheEntry(value: result, timestamp: Date())
         return result
     }

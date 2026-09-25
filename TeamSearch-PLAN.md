@@ -1,8 +1,8 @@
 # Team Search: implementation plan
 
-Status: **phases 1 and 2 done** (2026-09-24). Phase 1 merged in #16; phase 2
-(query parsing and the search engine) is on branch `team-search-engine`. Next is
-phase 3, the UI. Decisions are recorded in §7.
+Status: **phases 1–3 done** (2026-09-24). Phase 1 merged in #16 and phase 2 in
+#18; phase 3 (the tab) is on branch `team-search-ui`. Phases 4 (Smogon usage
+stats) and 5 (a free-form parser) are optional. Decisions are recorded in §7.
 
 The goal: a user describes a team idea in plain words, for example *"Trick Room
 with Mega Gardevoir, no Incineroar"*. The app shows popular team compositions
@@ -195,8 +195,14 @@ A "Team Search data" row in Data Management shows the last update and cache size
    - **Parser extras:** form suffixes (`arcanine-h`, `indeedee-f`), "Charizard Y" as a Mega variant, Mega Stone names, and typo correction within 1–2 edits for words of 5 or more letters, which are reported in `corrections`.
    - **Grouping** folds a group into the first heavier composition that shares all but one Pokémon, indexed by "all but one" subsets.
    - **Live check on M-C** (2,528 teams): 1 member outside the vocabulary (an Alomomola, not M-C-legal), 16 form identities, and 875 compositions. The top three hold 145, 117 and 101 teams. Searches take a few ms once event dates are parsed at index time. Parsing them per team per search cost up to 250 ms.
-   - **Found while testing:** Limitless answers HTTP 429 when hit repeatedly. `LimitlessAPIService` doesn't check status codes, so a 429 shows up as a decode error, and `TeamCorpusStore` lists the event as missing until the next refresh. Retrying with backoff (respecting `Retry-After`) would make first builds sturdier. Do it before or with phase 3.
-3. **UI:** the `AppTab` case, search and detail views, the save flow, the Settings row, and a check in the simulator.
+   - **Found while testing, then fixed:** Limitless answers HTTP 429 when hit repeatedly. `LimitlessAPIService` now checks status codes and throws `LimitlessAPIError` (`.rateLimited(retryAfter:)`, `.http(status:)`). `TeamCorpusStore` retries rate limits and 5xx errors up to 3 times, waiting for Retry-After or backing off from 2 s, capped at 60 s. Other errors still leave the event missing until the next refresh.
+3. ✅ **UI:** the `AppTab` case, search and detail views, the save flow, the Settings row, and a check in the simulator. What landed:
+   - `TeamSearchModel` (`@MainActor @Observable`) loads the vocabulary and cached corpus (instant when cached), then refreshes in the background. It shows progress on a first load and indexes off the main actor. It doesn't re-read the cache when you come back to the tab while the list is fresh. It exposes the parsed query as chips that can be removed or flipped between include and exclude.
+   - `TeamSearchView`: the search field (with a 300 ms pause before searching), chips, "Popular compositions" for an empty search, loading, error and refresh-error states, a regulation menu, and a source footer crediting Limitless. `CompositionDetailView` shows why it matched, a summary, variants and teams. Each team opens `StandingDetailView` (now internal), so saving goes through the shared Limitless importer. Wide layouts use a split view, like the Teams tab.
+   - `TeamCorpus.listRefreshError` reports a failed list re-crawl that fell back to the cache, so a failed pull to refresh isn't silent.
+   - Settings → Data Management → "Clear Team Search Data" shows the cache size. Reset All Data clears the cache too.
+   - Credits: the tab credits Limitless, the only source it uses so far. Smogon gets credited when phase 4 adds its usage stats.
+   - Checked in the simulator on live M-C data: popular compositions, a typed description with chips (including a typo fix and an unrecognized word), flipping a chip, the composition detail, the team sheet and the Settings row.
 4. *(optional)* **Smogon enrichment:** a `SmogonStatsService` that fetches the monthly chaos JSON, cached per month, and maps Showdown form names. It adds usage/teammate tie-breaks, "suggested fill" for partial cores, and singles formats (BSS/OU), shown as usage-based cores since Smogon has no complete teams.
 5. *(optional)* **FoundationModels parser** for free-form descriptions.
 
