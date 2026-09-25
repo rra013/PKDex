@@ -106,6 +106,13 @@ nonisolated struct TeamCorpusConfiguration: Sendable {
     /// Standings requests in flight at once. Limitless is a free API; stay
     /// polite.
     var maxConcurrentFetches = 4
+    /// Retries for a rate-limited (HTTP 429) or server-error request.
+    var maxRetries = 3
+    /// The first retry's wait when the server sends no Retry-After. It
+    /// doubles for each further retry.
+    var initialBackoff: TimeInterval = 2
+    /// The longest single wait, including a server's Retry-After.
+    var maxBackoff: TimeInterval = 60
 }
 
 // MARK: - Store
@@ -122,6 +129,7 @@ actor TeamCorpusStore {
     private let directory: URL
     private let configuration: TeamCorpusConfiguration
     private let now: @Sendable () -> Date
+    private let sleep: @Sendable (TimeInterval) async throws -> Void
     private var memory: [String: TeamCorpus] = [:]
 
     /// Bump when the cached file layout changes; older caches are ignored.
@@ -134,11 +142,15 @@ actor TeamCorpusStore {
     init(fetcher: any TeamCorpusFetching = LimitlessCorpusFetcher(),
          directory: URL = TeamCorpusStore.defaultDirectory,
          configuration: TeamCorpusConfiguration = TeamCorpusConfiguration(),
-         now: @escaping @Sendable () -> Date = { Date() }) {
+         now: @escaping @Sendable () -> Date = { Date() },
+         sleep: @escaping @Sendable (TimeInterval) async throws -> Void = {
+             try await Task.sleep(for: .seconds($0))
+         }) {
         self.fetcher = fetcher
         self.directory = directory.appending(path: Self.cacheVersion, directoryHint: .isDirectory)
         self.configuration = configuration
         self.now = now
+        self.sleep = sleep
     }
 
     /// The corpus from memory or disk, without touching the network. nil
@@ -205,16 +217,19 @@ actor TeamCorpusStore {
         var completed = total - toFetch.count
         progress?(FetchProgress(completed: completed, total: total))
 
-        let fetcher = self.fetcher
+        let fetcher = self.fetcher, configuration = self.configuration, sleep = self.sleep
+        @Sendable func fetchStandings(_ tournament: LimitlessTournament) async -> [LimitlessStanding]? {
+            try? await Self.withRetries(configuration, sleep: sleep) {
+                try await fetcher.standings(tournamentID: tournament.id)
+            }
+        }
         await withTaskGroup(of: (LimitlessTournament, [LimitlessStanding]?).self) { group in
             // At most `maxConcurrentFetches` in flight: start that many, then
             // one more as each finishes.
             var pending = toFetch[...]
             for _ in 0..<configuration.maxConcurrentFetches {
                 guard let tournament = pending.popFirst() else { break }
-                group.addTask {
-                    (tournament, try? await fetcher.standings(tournamentID: tournament.id))
-                }
+                group.addTask { (tournament, await fetchStandings(tournament)) }
             }
             while let result = await group.next() {
                 let (tournament, standings) = result
@@ -227,9 +242,7 @@ actor TeamCorpusStore {
                 completed += 1
                 progress?(FetchProgress(completed: completed, total: total))
                 if let next = pending.popFirst() {
-                    group.addTask {
-                        (next, try? await fetcher.standings(tournamentID: next.id))
-                    }
+                    group.addTask { (next, await fetchStandings(next)) }
                 }
             }
         }
@@ -275,8 +288,10 @@ actor TeamCorpusStore {
     private func crawl(format: String) async throws -> [LimitlessTournament] {
         var kept: [LimitlessTournament] = []
         for page in 1...configuration.maxPages {
-            let batch = try await fetcher.tournaments(
-                format: format, page: page, limit: configuration.pageSize)
+            let fetcher = self.fetcher, pageSize = configuration.pageSize
+            let batch = try await Self.withRetries(configuration, sleep: sleep) {
+                try await fetcher.tournaments(format: format, page: page, limit: pageSize)
+            }
             for tournament in batch where tournament.players >= configuration.minPlayers {
                 kept.append(tournament)
                 if kept.count == configuration.maxEvents { return kept }
@@ -284,6 +299,30 @@ actor TeamCorpusStore {
             if batch.count < configuration.pageSize { break }
         }
         return kept
+    }
+
+    /// Runs `request`, retrying rate limits and server errors up to
+    /// `maxRetries` times. Each retry waits for the server's Retry-After when
+    /// it sent one, otherwise `initialBackoff`, doubling each time. Either way
+    /// the wait is capped at `maxBackoff`. Other errors are thrown at once.
+    nonisolated static func withRetries<T: Sendable>(
+        _ configuration: TeamCorpusConfiguration,
+        sleep: @Sendable (TimeInterval) async throws -> Void,
+        _ request: () async throws -> T
+    ) async throws -> T {
+        var attempt = 0
+        while true {
+            do {
+                return try await request()
+            } catch let error as LimitlessAPIError where error.isTransient
+                                                       && attempt < configuration.maxRetries {
+                let backoff = configuration.initialBackoff * pow(2, Double(attempt))
+                var wait = backoff
+                if case .rateLimited(let retryAfter?) = error { wait = retryAfter }
+                attempt += 1
+                try await sleep(min(wait, configuration.maxBackoff))
+            }
+        }
     }
 
     private func isFinal(_ event: CorpusEvent) -> Bool {

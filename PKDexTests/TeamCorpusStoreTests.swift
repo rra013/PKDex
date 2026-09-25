@@ -3,9 +3,11 @@
 //  PKDexTests
 //
 //  Covers `TeamCorpusStore`: which events and teams make up a corpus, what
-//  is cached and when it's fetched again, and how failures degrade. A fake
-//  Limitless records every request, a settable clock drives the TTL and
-//  "final" rules, and each test gets its own temporary cache directory.
+//  is cached and when it's fetched again, how failures degrade, and retries
+//  after rate limits. A fake Limitless records every request and can fail on
+//  cue, a settable clock drives the TTL and "final" rules, a recorded sleep
+//  stands in for waiting, and each test gets its own temporary cache
+//  directory.
 //
 
 import Testing
@@ -18,6 +20,9 @@ private actor FakeLimitless: TeamCorpusFetching {
     var standingsByID: [String: [LimitlessStanding]]
     var failingStandings: Set<String> = []
     var listFails = false
+    /// Errors to throw, in order, before a request succeeds.
+    var scriptedStandingsErrors: [String: [LimitlessAPIError]] = [:]
+    var scriptedListErrors: [LimitlessAPIError] = []
     private(set) var pagesRequested: [Int] = []
     private(set) var standingsRequested: [String] = []
 
@@ -29,16 +34,25 @@ private actor FakeLimitless: TeamCorpusFetching {
     func tournaments(format: String, page: Int, limit: Int) async throws -> [LimitlessTournament] {
         pagesRequested.append(page)
         if listFails { throw URLError(.notConnectedToInternet) }
+        if !scriptedListErrors.isEmpty { throw scriptedListErrors.removeFirst() }
         return page <= pages.count ? pages[page - 1] : []
     }
 
     func standings(tournamentID: String) async throws -> [LimitlessStanding] {
         standingsRequested.append(tournamentID)
         if failingStandings.contains(tournamentID) { throw URLError(.badServerResponse) }
+        if let error = scriptedStandingsErrors[tournamentID]?.first {
+            scriptedStandingsErrors[tournamentID]?.removeFirst()
+            throw error
+        }
         return standingsByID[tournamentID] ?? []
     }
 
     func setFailingStandings(_ ids: Set<String>) { failingStandings = ids }
+    func script(standings id: String, _ errors: [LimitlessAPIError]) {
+        scriptedStandingsErrors[id] = errors
+    }
+    func script(list errors: [LimitlessAPIError]) { scriptedListErrors = errors }
     func setListFails(_ fails: Bool) { listFails = fails }
     func resetRequests() { pagesRequested = []; standingsRequested = [] }
 }
@@ -49,6 +63,14 @@ private final class TestClock: @unchecked Sendable {
     init(_ date: Date) { current = date }
     var now: Date { lock.withLock { current } }
     func advance(hours: Double) { lock.withLock { current += hours * 3600 } }
+}
+
+/// Records the waits the store asks for, without waiting.
+private final class SleepLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [TimeInterval] = []
+    func append(_ value: TimeInterval) { lock.withLock { values.append(value) } }
+    var all: [TimeInterval] { lock.withLock { values } }
 }
 
 /// Collects progress callbacks, which arrive from the store's actor.
@@ -112,11 +134,11 @@ struct TeamCorpusStoreTests {
     }
 
     private static func store(_ fetcher: FakeLimitless, clock: TestClock, directory: URL,
-                              configuration: TeamCorpusConfiguration = TeamCorpusConfiguration())
-        -> TeamCorpusStore
-    {
+                              configuration: TeamCorpusConfiguration = TeamCorpusConfiguration(),
+                              sleeps: SleepLog = SleepLog()) -> TeamCorpusStore {
         TeamCorpusStore(fetcher: fetcher, directory: directory,
-                        configuration: configuration, now: { clock.now })
+                        configuration: configuration, now: { clock.now },
+                        sleep: { sleeps.append($0) })
     }
 
     // MARK: - Building
@@ -255,6 +277,82 @@ struct TeamCorpusStoreTests {
         clock.advance(hours: 7)
         let corpus = try await store.corpus(format: "M-C")
         #expect(corpus.listFetchedAt == Self.t0)
+        #expect(corpus.teams.count == 3)
+    }
+
+    // MARK: - Retries
+
+    @Test("A rate-limited event waits out Retry-After, then loads")
+    func retryAfterRateLimit() async throws {
+        let dir = Self.tempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fake = Self.fake(), sleeps = SleepLog()
+        await fake.script(standings: "running", [.rateLimited(retryAfter: 5), .rateLimited(retryAfter: 5)])
+        let corpus = try await Self.store(fake, clock: TestClock(Self.t0), directory: dir,
+                                          sleeps: sleeps).corpus(format: "M-C")
+
+        #expect(corpus.teams.map(\.id).contains("running/leader"))
+        #expect(corpus.missingEvents.isEmpty)
+        #expect(sleeps.all == [5, 5])
+        #expect(await fake.standingsRequested.filter { $0 == "running" }.count == 3)
+    }
+
+    @Test("Without Retry-After the wait doubles, is capped, and gives up after maxRetries")
+    func backoffGivesUp() async throws {
+        let dir = Self.tempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fake = Self.fake(), sleeps = SleepLog()
+        await fake.script(standings: "running", Array(repeating: .rateLimited(retryAfter: nil), count: 10))
+        var configuration = TeamCorpusConfiguration()
+        configuration.initialBackoff = 2
+        configuration.maxBackoff = 5
+        configuration.maxRetries = 3
+        let corpus = try await Self.store(fake, clock: TestClock(Self.t0), directory: dir,
+                                          configuration: configuration, sleeps: sleeps)
+            .corpus(format: "M-C")
+
+        #expect(sleeps.all == [2, 4, 5])
+        #expect(corpus.missingEvents.map(\.id) == ["running"])
+        #expect(await fake.standingsRequested.filter { $0 == "running" }.count == 4)
+    }
+
+    @Test("A long Retry-After is capped at maxBackoff")
+    func retryAfterCapped() async throws {
+        let dir = Self.tempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fake = Self.fake(), sleeps = SleepLog()
+        await fake.script(standings: "running", [.rateLimited(retryAfter: 600)])
+        _ = try await Self.store(fake, clock: TestClock(Self.t0), directory: dir, sleeps: sleeps)
+            .corpus(format: "M-C")
+        #expect(sleeps.all == [60])
+    }
+
+    @Test("Server errors are retried; other errors aren't")
+    func whatIsRetried() async throws {
+        let dir = Self.tempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fake = Self.fake(), sleeps = SleepLog()
+        await fake.script(standings: "running", [.http(status: 503)])
+        await fake.script(standings: "settled", [.http(status: 404)])
+        let corpus = try await Self.store(fake, clock: TestClock(Self.t0), directory: dir,
+                                          sleeps: sleeps).corpus(format: "M-C")
+
+        #expect(sleeps.all == [2])
+        #expect(corpus.events.map(\.tournament.id) == ["running"])
+        #expect(corpus.missingEvents.map(\.id) == ["settled"])
+    }
+
+    @Test("The tournament list is retried too")
+    func listRetried() async throws {
+        let dir = Self.tempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fake = Self.fake(), sleeps = SleepLog()
+        await fake.script(list: [.rateLimited(retryAfter: 1)])
+        let corpus = try await Self.store(fake, clock: TestClock(Self.t0), directory: dir,
+                                          sleeps: sleeps).corpus(format: "M-C")
+
+        #expect(sleeps.all == [1])
+        #expect(await fake.pagesRequested == [1, 1])
         #expect(corpus.teams.count == 3)
     }
 
