@@ -179,7 +179,8 @@ struct SettingsView: View {
                     Button {
                         Task {
                             try? await TeamCorpusStore.shared.clearCache()
-                            teamSearchCacheBytes = await TeamCorpusStore.shared.cacheSize()
+                            try? await SmogonUsageStore.shared.clearCache()
+                            teamSearchCacheBytes = await teamSearchCacheSize()
                         }
                     } label: {
                         HStack {
@@ -231,7 +232,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
-            .task { teamSearchCacheBytes = await TeamCorpusStore.shared.cacheSize() }
+            .task { teamSearchCacheBytes = await teamSearchCacheSize() }
             .confirmationDialog(
                 "Redownload Data",
                 isPresented: $showRedownloadConfirmation,
@@ -323,7 +324,15 @@ struct SettingsView: View {
         try? modelContext.save()
         Task {
             try? await TeamCorpusStore.shared.clearCache()
+            try? await SmogonUsageStore.shared.clearCache()
             teamSearchCacheBytes = 0
         }
+    }
+
+    /// Team Search's tournament teams plus its Smogon usage stats.
+    private func teamSearchCacheSize() async -> Int {
+        let teams = await TeamCorpusStore.shared.cacheSize()
+        let usage = await SmogonUsageStore.shared.cacheSize()
+        return teams + usage
     }
 }

@@ -247,9 +247,17 @@ recent Limitless events for the chosen Champions regulation.
   the same save buttons.
 - **Partial matches:** when fewer than 10 teams match everything, teams
   missing one of the requested Pokémon are shown too, marked "Partial match".
+- **Often paired with:** once you name a Pokémon, Smogon's ladder usage
+  statistics suggest teammates, with the share of ladder teams running them.
+  With several Pokémon named, a suggestion must pair with all of them. Tap a
+  suggestion to add it to the search. Composition details show each
+  Pokémon's ladder usage too. Smogon publishes stats a month at a time, so
+  until the selected regulation has its own, the newest earlier
+  regulation's stats are used, and labelled as such.
 - **Data:** each event's results are downloaded once and cached; pull to
   refresh for new events. If Limitless is limiting requests, the app waits
-  and retries. Settings → Clear Team Search Data frees the cache.
+  and retries. Smogon's stats are cached per month. Settings → Clear Team
+  Search Data frees both caches.
 
 ### Settings
 
@@ -363,11 +371,11 @@ Vision. The project has no Swift package dependencies.
    data from PokeAPI, so it needs a network connection; later launches work
    offline, except for Tournaments.
 
-**Tests:** 955 tests written with Swift Testing. They cover the damage engines
+**Tests:** 975 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
-tools, ML parity, the tournament import and data store, Team Search's parser
-and engine, and the bundled license files. None of them need the network or a
+tools, ML parity, the tournament import and data store, Team Search's parser,
+engine and Smogon suggestions, and the bundled license files. None of them need the network or a
 SwiftData store.
 
 ```bash
@@ -420,7 +428,7 @@ PK Reference is built on the work of many people and projects. Thank you all.
 | [**PokeAPI**](https://pokeapi.co): REST (`pokeapi.co/api/v2`) and GraphQL (`graphql.pokeapi.co/v1beta2`) | National and regional Pokédex, species and forms, base stats, types, abilities, learnsets, and every move's data | Mon Index, Move Index, Ability Index, Damage Calc, Sets, Teams, Battle Sim, Speed Tiers |
 | [**Serebii.net**](https://www.serebii.net) | Pokédex, Attackdex and Abilitydex pages, plus the Champions Pokédex and regulation pages | In-app detail pages and links; the developer scripts that build each regulation's JSON files |
 | [**Limitless**](https://play.limitlesstcg.com) (`play.limitlesstcg.com/api`) | Tournament listings, standings and published team sheets | Tournaments tab and Team Search |
-| [**Smogon**](https://www.smogon.com) | `@smogon/calc` and its data (below), and usage statistics | Damage Calc, EV solver, Speed Tiers, Battle Sim damage. Smogon usage stats are planned for Team Search. |
+| [**Smogon**](https://www.smogon.com) | `@smogon/calc` and its data (below), and monthly ladder usage statistics ([smogon.com/stats](https://www.smogon.com/stats/)) | Damage Calc, EV solver, Speed Tiers, Battle Sim damage; Team Search's "often paired with" suggestions and ladder usage |
 
 ### Ported and vendored code
 

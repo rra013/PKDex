@@ -110,6 +110,28 @@ enum TeamSearchFixtures {
         vocabulary.archetypes.first { $0.archetype.id == id }!.archetype
     }
 
+    // MARK: Smogon
+
+    /// A trimmed Smogon chaos file, in the real one's shape. Teammate shares
+    /// work out to: Incineroar → Garchomp 50%, Charizard-Mega-Y 30%;
+    /// Garchomp → Incineroar 75%, Charizard-Mega-Y 70%; Charizard-Mega-Y →
+    /// Garchomp 90%, Incineroar 75%.
+    static let smogonChaosJSON = """
+    {
+      "info": {"metagame": "gen9championsvgc2026regmb", "cutoff": 1760, "number of battles": 1000},
+      "data": {
+        "Incineroar": {"usage": 0.40, "Raw count": 400,
+                       "Abilities": {"intimidate": 80.0, "blaze": 20.0},
+                       "Teammates": {"Garchomp": 50.0, "Charizard-Mega-Y": 30.0, "Gardevoir": 0.0}},
+        "Garchomp": {"usage": 0.30, "Raw count": 300, "Abilities": {"roughskin": 60.0},
+                     "Teammates": {"Incineroar": 45.0, "Charizard-Mega-Y": 42.0}},
+        "Charizard-Mega-Y": {"usage": 0.20, "Raw count": 200, "Abilities": {"drought": 40.0},
+                             "Teammates": {"Garchomp": 36.0, "Incineroar": 30.0}},
+        "Unused": {"usage": 0, "Raw count": 0, "Abilities": {}, "Teammates": {}}
+      }
+    }
+    """
+
     // MARK: Teams
 
     /// Noon UTC, 2026-09-24.

@@ -4,9 +4,10 @@
 //
 //  The Team Search tab: describe a team idea, and see the tournament teams
 //  that match, grouped into compositions. The list shows the parsed query
-//  as chips, then the compositions, then where the data came from. A
-//  composition opens its teams, and a team opens the same team sheet the
-//  Tournaments tab uses, with its save buttons.
+//  as chips, then Smogon's "often paired with" suggestions, then the
+//  compositions and where the data came from. A composition opens its
+//  teams, and a team opens the same team sheet the Tournaments tab uses,
+//  with its save buttons.
 //
 
 import SwiftUI
@@ -25,7 +26,7 @@ struct TeamSearchView: View {
             } detail: {
                 NavigationStack {
                     if let composition = model.results.first(where: { $0.id == selection }) {
-                        CompositionDetailView(composition: composition)
+                        CompositionDetailView(composition: composition, insights: model.insights)
                     } else {
                         ContentUnavailableView {
                             Label("Select a Composition", systemImage: "sidebar.left")
@@ -125,6 +126,21 @@ struct TeamSearchView: View {
             }
         }
 
+        if !model.suggestions.isEmpty, let insights = model.insights {
+            Section {
+                Suggestions(suggestions: model.suggestions) { suggestion in
+                    // Added to the text, so it survives further typing.
+                    text = text.isEmpty ? suggestion.term.displayName
+                                        : text + ", " + suggestion.term.displayName
+                    model.setText(text)
+                }
+            } header: {
+                Text("Often paired with")
+            } footer: {
+                Text(suggestionsFooter(insights))
+            }
+        }
+
         if let refreshError = model.refreshError {
             Section {
                 Label(refreshError, systemImage: "exclamationmark.triangle")
@@ -146,7 +162,7 @@ struct TeamSearchView: View {
                     CompositionRow(composition: composition).tag(composition.id)
                 } else {
                     NavigationLink {
-                        CompositionDetailView(composition: composition)
+                        CompositionDetailView(composition: composition, insights: model.insights)
                     } label: {
                         CompositionRow(composition: composition)
                     }
@@ -174,7 +190,54 @@ struct TeamSearchView: View {
                 Text("\(plural(model.missingEventCount, "event")) couldn't be loaded. Pull to refresh to try again.")
             }
             Link("Tournament teams from Limitless", destination: URL(string: "https://play.limitlesstcg.com")!)
+            if model.insights != nil {
+                Link("Usage stats from Smogon", destination: URL(string: "https://www.smogon.com/stats/")!)
+            }
         }
+    }
+
+    private func suggestionsFooter(_ insights: SmogonInsights) -> String {
+        let requested = model.query.species.count == 1
+            ? "teams with \(model.query.species[0].displayName)"
+            : "teams with each of them (the lowest share is shown)"
+        var text = "Share of Smogon ladder \(requested) that also run it. " + usageLabel(insights.usage)
+        if let statsRegulation = insights.usage.regulation, statsRegulation != model.regulation {
+            text += " \(model.regulation.displayName) stats aren't published yet."
+        }
+        return text
+    }
+}
+
+// MARK: - Suggestions
+
+private struct Suggestions: View {
+    let suggestions: [SmogonInsights.Suggestion]
+    let add: (SmogonInsights.Suggestion) -> Void
+
+    var body: some View {
+        FlowLayout(spacing: 6) {
+            ForEach(suggestions) { suggestion in
+                Button {
+                    add(suggestion)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                            .font(.caption2.weight(.bold))
+                        Text(suggestion.term.displayName)
+                            .font(.caption.weight(.medium))
+                        Text(percent(suggestion.share))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.fill.tertiary, in: Capsule())
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Add \(suggestion.term.displayName), \(percent(suggestion.share))")
+            }
+        }
+        .padding(.vertical, 2)
     }
 }
 
@@ -310,6 +373,7 @@ private struct StyleTags: View {
 
 struct CompositionDetailView: View {
     let composition: TeamComposition
+    let insights: SmogonInsights?
 
     var body: some View {
         List {
@@ -333,6 +397,20 @@ struct CompositionDetailView: View {
                 LabeledContent("Events", value: "\(composition.eventCount)")
                 if let best = composition.bestTeam {
                     LabeledContent("Best finish", value: finish(best))
+                }
+            }
+
+            if let insights {
+                Section {
+                    ForEach(Array(zip(composition.species, composition.speciesIDs).enumerated()),
+                            id: \.offset) { _, pair in
+                        LabeledContent(pair.0,
+                                       value: insights.usage(ofSpecies: pair.1).map(percent) ?? "—")
+                    }
+                } header: {
+                    Text("Ladder Usage")
+                } footer: {
+                    Text("Share of Smogon ladder teams running each Pokémon. " + usageLabel(insights.usage))
                 }
             }
 
@@ -407,6 +485,27 @@ private func finish(_ team: ScoredTeam) -> String {
     formatter.numberStyle = .ordinal
     let ordinal = formatter.string(from: placing as NSNumber) ?? "#\(placing)"
     return "\(ordinal) of \(corpusTeam.tournament.players)"
+}
+
+/// "44%".
+private func percent(_ share: Double) -> String {
+    share.formatted(.percent.precision(.fractionLength(0)))
+}
+
+/// Which stats these are: "Reg M-B, August 2026, 1760+ ladder."
+private func usageLabel(_ usage: SmogonUsage) -> String {
+    var parts: [String] = []
+    if let regulation = usage.regulation { parts.append(regulation.displayName) }
+    let parser = DateFormatter()
+    parser.dateFormat = "yyyy-MM"
+    parser.locale = Locale(identifier: "en_US_POSIX")
+    if let date = parser.date(from: usage.month) {
+        parts.append(date.formatted(.dateTime.month(.wide).year()))
+    } else {
+        parts.append(usage.month)
+    }
+    parts.append("\(usage.rating)+ ladder")
+    return parts.joined(separator: ", ") + "."
 }
 
 /// "1 team", "3 teams".

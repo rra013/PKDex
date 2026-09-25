@@ -125,6 +125,8 @@ nonisolated struct TeamComposition: Sendable, Identifiable {
     let id: String
     /// The core's Pokémon, as Limitless names them, in its best team's order.
     let species: [String]
+    /// The same Pokémon's species IDs, in the same order.
+    let speciesIDs: [String]
     /// Every matching team, core and variants, heaviest first.
     let teams: [ScoredTeam]
     let variants: [Variant]
@@ -350,6 +352,7 @@ nonisolated enum TeamSearchEngine {
         return TeamComposition(
             id: core.key,
             species: core.teams[0].team.members.map { name($0.identity.key) },
+            speciesIDs: core.teams[0].team.members.map(\.identity.speciesID),
             teams: teams,
             variants: variants,
             score: teams.reduce(0.0) { $0 + $1.weight },

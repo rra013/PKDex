@@ -1,8 +1,8 @@
 # Team Search: implementation plan
 
-Status: **phases 1–3 done** (2026-09-24). Phase 1 merged in #16 and phase 2 in
-#18; phase 3 (the tab) is on branch `team-search-ui`. Phases 4 (Smogon usage
-stats) and 5 (a free-form parser) are optional. Decisions are recorded in §7.
+Status: **phases 1–4 done** (2026-09-24). Phases 1–3 merged in #16, #18 and #19;
+phase 4 (Smogon usage stats, doubles only) is on branch `team-search-smogon`.
+Phase 5 (a free-form parser) is optional. Decisions are recorded in §7.
 
 The goal: a user describes a team idea in plain words, for example *"Trick Room
 with Mega Gardevoir, no Incineroar"*. The app shows popular team compositions
@@ -203,7 +203,12 @@ A "Team Search data" row in Data Management shows the last update and cache size
    - Settings → Data Management → "Clear Team Search Data" shows the cache size. Reset All Data clears the cache too.
    - Credits: the tab credits Limitless, the only source it uses so far. Smogon gets credited when phase 4 adds its usage stats.
    - Checked in the simulator on live M-C data: popular compositions, a typed description with chips (including a typo fix and an unrecognized word), flipping a chip, the composition detail, the team sheet and the Settings row.
-4. *(optional)* **Smogon enrichment:** a `SmogonStatsService` that fetches the monthly chaos JSON, cached per month, and maps Showdown form names. It adds usage/teammate tie-breaks, "suggested fill" for partial cores, and singles formats (BSS/OU), shown as usage-based cores since Smogon has no complete teams.
+4. ✅ **Smogon enrichment, doubles only:** the original sketch was a `SmogonStatsService` that fetches the monthly chaos JSON, cached per month, and maps Showdown form names, adding usage/teammate tie-breaks, "suggested fill" for partial cores, and singles formats. Decided on 2026-09-24: doubles only (singles stays out of scope), and while the selected regulation has no stats (M-C until September's upload in early October), use the newest earlier regulation's month, labelled. What landed:
+   - `SmogonUsage.swift`: `SmogonUsageStore` picks a month. It looks for the regulation's own newest `gen9championsvgc<year>reg<id>-1760.json` within 4 months, or else the newest month of the latest earlier regulation. The choice is re-checked every 12 h, and when offline the last choice is used. It reduces the roughly 13 MB chaos file to usage plus the top 24 teammates per species. A teammate's share is its co-occurrence weight divided by the species' weight (the sum of its ability weights), which matches Smogon's moveset files. Reduced months are cached permanently.
+   - `SmogonInsights.swift`: maps Smogon names to `SpeciesTerm`s through `TeamSearchVocabulary.term(showdownName:)`, so "Charizard-Mega-Y" becomes Mega Charizard Y. Suggestions are the teammates of every requested species, scored by their lowest share. A plain species averages its forms and Megas, weighted by usage, and species already named or excluded are skipped. It also gives usage by species.
+   - UI: an "Often paired with" section that adds a suggestion to the search text, "Ladder Usage" in composition details, a label with the stats' regulation, month and rating (and a note when they're from an earlier regulation), and a Smogon credit in the footer and on the Acknowledgements screen. Settings' Clear Team Search Data clears both caches.
+   - Not done: usage as a ranking tie-break, which adds little over placement, and singles.
+   - Checked in the simulator on live data (August, M-B): for Incineroar, Sinistcha 44%, Kingambit 39%, Sneasler 38%, Garchomp 26%, matching the raw file. Adding Sinistcha from a suggestion updated both the chips and the suggestions. Ladder usage showed Kingambit at 47%.
 5. *(optional)* **FoundationModels parser** for free-form descriptions.
 
 ---
