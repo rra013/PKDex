@@ -16,6 +16,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
+// Modified for PK Reference by rra013 on 2026-04-24 and 2026-04-26: compiler warning fixes, and search progress totals. See PKDex/Core/MODIFICATIONS.md.
 
 #include "WildSearcher4.hpp"
 #include <Core/Enum/Encounter.hpp>

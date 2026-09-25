@@ -27,10 +27,25 @@ struct AcknowledgementsTests {
         }
     }
 
+    @Test("The app's own notice: GPL-3.0-or-later, no warranty, the full text, and the source")
+    func appIsGPL() throws {
+        let app = Acknowledgement.app
+        #expect(app.license == "GPL-3.0-or-later")
+        #expect(app.credit.contains("©"))
+        #expect(app.use.contains("ABSOLUTELY NO WARRANTY"))
+        #expect(app.use.contains("version 3 or (at your option) any later version"))
+        #expect(app.url.absoluteString == "https://github.com/rra013/PKDex")
+        let file = try #require(app.licenseFiles.first)
+        let text = try #require(Acknowledgement.text(of: file))
+        #expect(text.contains("GNU GENERAL PUBLIC LICENSE"))
+        #expect(text.contains("Version 3, 29 June 2007"))
+        #expect(text.contains("END OF TERMS AND CONDITIONS"))
+    }
+
     @Test("PokéFinder's license is the full GPL-3.0 text")
     func pokeFinderIsGPL() throws {
         let pokeFinder = try #require(Acknowledgement.code.first { $0.name == "PokéFinder" })
-        #expect(pokeFinder.license == "GPL-3.0")
+        #expect(pokeFinder.license == "GPL-3.0-or-later")
         let text = try #require(Acknowledgement.text(of: "COPYING"))
         #expect(text.contains("GNU GENERAL PUBLIC LICENSE"))
         #expect(text.contains("Version 3, 29 June 2007"))

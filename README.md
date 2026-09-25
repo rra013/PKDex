@@ -386,7 +386,7 @@ Vision. The project has no Swift package dependencies.
    data from PokeAPI, so it needs a network connection; later launches work
    offline, except for Tournaments.
 
-**Tests:** 989 tests written with Swift Testing. They cover the damage engines
+**Tests:** 990 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
 tools, ML parity, the tournament import and data store, Team Search's parser,
@@ -419,7 +419,7 @@ xcodebuild test -project PKDex.xcodeproj -scheme PKDex -destination 'platform=iO
 | Path | Contents |
 |---|---|
 | `PKDex/` | App sources (a synced folder: new files are added to the target automatically) |
-| `PKDex/Core/` | PokéFinder's C++ RNG core, plus its vendored libraries (`External/`) and encounter resources |
+| `PKDex/Core/` | PokéFinder's C++ RNG core, plus its vendored libraries (`External/`) and encounter resources. `MODIFICATIONS.md` lists the changes made to it |
 | `PKDex/Show*.swift` | The `@smogon/calc` port (`ShowdownCalc`, `ShowdownRuntime`, `ShowdownMechanics`, `ShowdownChampions`, `ShowdownItems`, `ShowdownData`) and Showdown paste parsing and import |
 | `PKDex/showdown-champions-data.json` | Species, move and type data generated from `@smogon/calc` |
 | `PKDexTests/` | Swift Testing suites |
@@ -427,7 +427,8 @@ xcodebuild test -project PKDex.xcodeproj -scheme PKDex -destination 'platform=iO
 | `move_categories.json` | Move damage classes (physical, special, status) |
 | `*.npz`, `*_vocab.json`, `pokii_battler.safetensors`, `feature_config.json` | On-device model weights and vocabularies |
 | `zstd/` | Zstandard sources, compiled into the app for PokéFinder's compressed resources |
-| `PKDex/Licenses/` | License and notice texts for the bundled third-party code, shipped in the app |
+| `PKDex/Licenses/` | License and notice texts for the app and the bundled third-party code, shipped in the app |
+| `LICENSE` | The GNU General Public License, version 3 |
 | `THIRD_PARTY_NOTICES.md` | Every third-party component, its copyright and its license |
 | `tools/` | Regulation scrapers, the Showdown data generator, and vendored upstream sources |
 
@@ -478,12 +479,26 @@ FREAK inc. This project is not affiliated with or endorsed by them.
 
 ## License
 
-The app's own code is released under the [MIT License](LICENSE)
-(© 2026 rra013).
+PK Reference is free software: you can redistribute it and/or modify it under
+the terms of the [GNU General Public License](LICENSE) as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. It is distributed in the hope that it will be useful, but
+without any warranty; without even the implied warranty of merchantability or
+fitness for a particular purpose. © 2026 rra013.
 
-Third-party components keep their own licenses. They're listed with their
-copyright holders in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), and the
-license texts ship with the app, shown under Settings → Acknowledgements &
-Licenses. In particular, **the PokéFinder code in `PKDex/Core` is licensed
-under the GPL-3.0-or-later** ([`PKDex/Core/COPYING`](PKDex/Core/COPYING)), not
-MIT. Review the GPL's requirements before distributing builds that include it.
+The app is under the GPL because it includes PokéFinder's RNG core, which is
+GPL-3.0-or-later. Until 2026-09-25, the app's own code was released under the
+MIT License; versions from then on are GPL-3.0-or-later.
+
+Third-party components keep their own licenses, all compatible with the GPL.
+They're listed with their copyright holders in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), and the license texts ship
+with the app, shown under Settings → Acknowledgements & Licenses. The changes
+made to PokéFinder's files are listed in
+[`PKDex/Core/MODIFICATIONS.md`](PKDex/Core/MODIFICATIONS.md).
+
+**The App Store:** Apple's App Store terms add restrictions that the GPL
+doesn't allow, so distributing the app there needs permission from every
+copyright holder, including PokéFinder's authors.
+[`RNGRewrite-PLAN.md`](RNGRewrite-PLAN.md) describes the alternative, an
+independent rewrite of the RNG core. It's on hold.

@@ -1,9 +1,10 @@
 # Third-party notices
 
-PK Reference's own code is licensed under the MIT License (see
-[`LICENSE`](LICENSE)). The components below are included in this repository
-and in the app under their own licenses. Each license text is bundled with
-the app and shown under **Settings → Acknowledgements & Licenses**.
+PK Reference is licensed under the GNU General Public License, version 3 or
+later (see [`LICENSE`](LICENSE)). The components below are included in this
+repository and in the app under their own licenses, all compatible with the
+GPL. Each license text is bundled with the app and shown under
+**Settings → Acknowledgements & Licenses**.
 
 | Component | Copyright | License | Where | License text |
 |---|---|---|---|---|
@@ -18,13 +19,17 @@ the app and shown under **Settings → Acknowledgements & Licenses**.
 ## The GPL-3.0 component
 
 PokéFinder is licensed under the GNU General Public License, version 3 or
-later, not MIT. Its terms apply to the PokéFinder code in `PKDex/Core` and to
-distributed builds of the app that include it. Review the GPL's requirements
-before distributing those builds, particularly through an app store.
+later. It's why PK Reference as a whole uses the same license. The changes made
+to PokéFinder's files, and to fph-table's header, are listed in
+[`PKDex/Core/MODIFICATIONS.md`](PKDex/Core/MODIFICATIONS.md), and each changed
+file carries a notice. The Swift ports of PokéFinder's algorithms in
+`RNGToolsView.swift` are marked "PokeFinder Port".
 
 ## Sources of the license texts
 
-- GPL-3.0: the official text from <https://www.gnu.org/licenses/gpl-3.0.txt>.
+- GPL-3.0: the official text from <https://www.gnu.org/licenses/gpl-3.0.txt>,
+  used for [`LICENSE`](LICENSE), `PKDex/Core/COPYING` and
+  `PKDex/Licenses/License-GPL-3.0.txt`.
 - @smogon/calc and Pokémon Showdown: the `LICENSE` files in `tools/vendor`.
 - EonTimer: `LICENSE.md` from the upstream repository. The current `main`
   branch's README declares the MIT License but no longer includes the file,

@@ -17,6 +17,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
  * USA.
  */
+// Modified for PK Reference by rra013 on 2026-04-24: compiler warning fixes. See PKDex/Core/MODIFICATIONS.md.
 
 #include "EggGenerator3.hpp"
 #include <Core/Enum/Method.hpp>
