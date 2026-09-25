@@ -4,9 +4,10 @@
 //
 //  Covers `TeamSearchModel`, the state behind the Team Search tab: loading
 //  and indexing a corpus, typing into chips and results, chip edits, how
-//  load failures show, not refetching on every visit, and switching
-//  regulation. A canned Limitless serves the teams, and the fixture
-//  vocabulary stands in for the bundled one.
+//  load failures show, not refetching on every visit, switching regulation,
+//  and Smogon's suggestions. A canned Limitless serves the teams, a canned
+//  Smogon (or none) the usage stats, and the fixture vocabulary stands in
+//  for the bundled one.
 //
 
 import Testing
@@ -34,6 +35,28 @@ private actor CannedLimitless: TeamCorpusFetching {
     func failList(with error: Error?) { listError = error }
 }
 
+/// One month of M-B stats from the fixtures, or none, or offline.
+private struct CannedSmogon: SmogonFetching {
+    enum Mode { case stats, empty, offline }
+    let mode: Mode
+
+    func months() async throws -> [String] {
+        switch mode {
+        case .stats: return ["2026-08"]
+        case .empty: return []
+        case .offline: throw URLError(.notConnectedToInternet)
+        }
+    }
+
+    func chaosFiles(month: String) async throws -> [String] {
+        ["gen9championsvgc2026regmb-1760.json"]
+    }
+
+    func chaos(month: String, file: String) async throws -> Data {
+        Data(TeamSearchFixtures.smogonChaosJSON.utf8)
+    }
+}
+
 @MainActor
 @Suite("Team Search Model")
 struct TeamSearchModelTests {
@@ -54,11 +77,15 @@ struct TeamSearchModelTests {
     }
 
     private static func model(_ fetcher: CannedLimitless, directory: URL,
-                              regulation: ChampionsRegulation = .mC) -> TeamSearchModel {
+                              regulation: ChampionsRegulation = .mC,
+                              smogon: CannedSmogon.Mode = .empty) -> TeamSearchModel {
         TeamSearchModel(
             regulation: regulation,
             store: TeamCorpusStore(fetcher: fetcher, directory: directory,
                                    now: { F.now }, sleep: { _ in }),
+            smogonStore: SmogonUsageStore(fetcher: CannedSmogon(mode: smogon),
+                                          directory: directory.appending(path: "smogon"),
+                                          now: { F.now }),
             loadVocabulary: { _ in F.vocabulary },
             now: { F.now })
     }
@@ -156,6 +183,39 @@ struct TeamSearchModelTests {
 
         await model.load(forceRefresh: true)
         #expect(await fetcher.formatsRequested == ["M-C", "M-C"])
+    }
+
+    @Test("Smogon suggestions follow the query and add nothing by themselves")
+    func smogonSuggestions() async throws {
+        let dir = Self.tempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let model = Self.model(CannedLimitless(Self.events()), directory: dir, smogon: .stats)
+        await model.load()
+
+        let insights = try #require(model.insights)
+        #expect(insights.usage.regulation == .mB)        // M-C has none yet: the latest earlier
+        #expect(model.suggestions.isEmpty)               // nothing named yet
+
+        model.setText("incineroar")
+        #expect(model.suggestions.map(\.term.displayName) == ["Garchomp", "Mega Charizard Y"])
+        #expect(model.chips.map(\.label) == ["Incineroar"])
+
+        model.setText("incineroar and garchomp")
+        #expect(model.suggestions.map(\.term.displayName) == ["Mega Charizard Y"])
+    }
+
+    @Test("Without Smogon, search works as before")
+    func withoutSmogon() async {
+        let dir = Self.tempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let model = Self.model(CannedLimitless(Self.events()), directory: dir, smogon: .offline)
+        await model.load()
+        model.setText("incineroar")
+
+        #expect(model.insights == nil)
+        #expect(model.suggestions.isEmpty)
+        #expect(model.status == .ready)
+        #expect(model.results.count == 1)
     }
 
     @Test("Switching regulation loads that regulation's teams")

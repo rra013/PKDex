@@ -41,6 +41,10 @@ struct Acknowledgement: Identifiable {
             name: "Limitless", credit: "Limitless TCG",
             use: "Tournaments, standings and team sheets, and Team Search's teams",
             url: URL(string: "https://play.limitlesstcg.com")!, license: nil, licenseFiles: []),
+        Acknowledgement(
+            name: "Smogon", credit: "Smogon University",
+            use: "Ladder usage statistics, for Team Search's teammate suggestions",
+            url: URL(string: "https://www.smogon.com/stats/")!, license: nil, licenseFiles: []),
     ]
 
     static let code: [Acknowledgement] = [

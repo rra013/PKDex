@@ -52,6 +52,6 @@ struct AcknowledgementsTests {
     @Test("Data sources carry no license files")
     func dataSourcesHaveNoLicenseFiles() {
         #expect(Acknowledgement.dataSources.allSatisfy { $0.license == nil && $0.licenseFiles.isEmpty })
-        #expect(Acknowledgement.dataSources.map(\.name) == ["PokeAPI", "Serebii.net", "Limitless"])
+        #expect(Acknowledgement.dataSources.map(\.name) == ["PokeAPI", "Serebii.net", "Limitless", "Smogon"])
     }
 }

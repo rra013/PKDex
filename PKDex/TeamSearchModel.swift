@@ -12,6 +12,10 @@
 //  it between "include" and "exclude". Edits apply until the text changes
 //  and is parsed again.
 //
+//  Smogon's ladder usage stats load alongside, for "often paired with"
+//  suggestions and usage figures. They're optional: if they can't load,
+//  search works as before.
+//
 
 import Foundation
 import Observation
@@ -86,8 +90,14 @@ final class TeamSearchModel {
     private(set) var missingEventCount = 0
     /// When the tournament list was last fetched.
     private(set) var updatedAt: Date?
+    /// Smogon's usage stats for the regulation, or for the latest earlier
+    /// one while the regulation has none. nil until loaded, or if unavailable.
+    private(set) var insights: SmogonInsights?
+    /// Teammates Smogon pairs with the query's species.
+    private(set) var suggestions: [SmogonInsights.Suggestion] = []
 
     private let store: TeamCorpusStore
+    private let smogonStore: SmogonUsageStore
     private let loadVocabulary: @Sendable (ChampionsRegulation) throws -> TeamSearchVocabulary
     private let now: () -> Date
     private var loadedRegulation: ChampionsRegulation?
@@ -97,27 +107,32 @@ final class TeamSearchModel {
 
     init(regulation: ChampionsRegulation = .current,
          store: TeamCorpusStore = .shared,
+         smogonStore: SmogonUsageStore = .shared,
          loadVocabulary: @escaping @Sendable (ChampionsRegulation) throws -> TeamSearchVocabulary = {
              try TeamSearchVocabulary.bundled(for: $0)
          },
          now: @escaping () -> Date = Date.init) {
         self.regulation = regulation
         self.store = store
+        self.smogonStore = smogonStore
         self.loadVocabulary = loadVocabulary
         self.now = now
     }
 
     // MARK: Loading
 
-    /// Loads the corpus for `regulation`: first from cache, then from
-    /// Limitless. After a change of regulation, it starts over.
+    /// Loads the corpus for `regulation`, first from cache, then from
+    /// Limitless, and then Smogon's usage stats. After a change of
+    /// regulation, it starts over.
     func load(forceRefresh: Bool = false) async {
         let regulation = self.regulation
         if loadedRegulation != regulation {
             loadedRegulation = regulation
             parser = nil
             index = nil
+            insights = nil
             results = []
+            suggestions = []
             status = .idle
             let loader = loadVocabulary
             do {
@@ -136,6 +151,12 @@ final class TeamSearchModel {
             }
         }
         guard !Task.isCancelled, self.regulation == regulation else { return }
+        await loadCorpus(for: regulation, forceRefresh: forceRefresh)
+        guard !Task.isCancelled, self.regulation == regulation else { return }
+        await loadInsights(for: regulation, forceRefresh: forceRefresh)
+    }
+
+    private func loadCorpus(for regulation: ChampionsRegulation, forceRefresh: Bool) async {
         // Coming back to the tab shouldn't re-read and re-index the cache
         // while the list is still fresh.
         if !forceRefresh, index != nil, let updatedAt,
@@ -163,6 +184,26 @@ final class TeamSearchModel {
                 refreshError = error.localizedDescription
             }
         }
+    }
+
+    /// Loads Smogon's stats: the cached choice at once, then a check for a
+    /// newer month. Failures leave the insights as they were.
+    private func loadInsights(for regulation: ChampionsRegulation, forceRefresh: Bool) async {
+        guard let vocabulary = parser?.vocabulary else { return }
+        if insights == nil, let cached = await smogonStore.cachedUsage(for: regulation) {
+            await applyInsights(cached, vocabulary: vocabulary, for: regulation)
+        }
+        guard let usage = try? await smogonStore.usage(for: regulation, forceRefresh: forceRefresh),
+              usage != insights?.usage else { return }
+        await applyInsights(usage, vocabulary: vocabulary, for: regulation)
+    }
+
+    private func applyInsights(_ usage: SmogonUsage, vocabulary: TeamSearchVocabulary,
+                               for regulation: ChampionsRegulation) async {
+        let insights = await Task.detached { SmogonInsights(usage: usage, vocabulary: vocabulary) }.value
+        guard self.regulation == regulation else { return }
+        self.insights = insights
+        search()
     }
 
     private func apply(_ corpus: TeamCorpus, for regulation: ChampionsRegulation) async {
@@ -238,6 +279,7 @@ final class TeamSearchModel {
     }
 
     private func search() {
+        suggestions = insights?.suggestions(for: query) ?? []
         guard let index else {
             results = []
             return

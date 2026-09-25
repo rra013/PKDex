@@ -220,6 +220,27 @@ nonisolated struct TeamSearchVocabulary: Sendable {
                         formWords: [])
     }
 
+    /// A Smogon or Showdown species name as a species term: "Charizard-Mega-Y"
+    /// → Mega Charizard Y, "Floette-Mega" → Mega Floette, "Arcanine-Hisui" →
+    /// Arcanine (Hisui). nil for a species outside the regulation.
+    func term(showdownName name: String) -> SpeciesTerm? {
+        var words = LimitlessSpeciesResolver.words(name)
+        var mega: SpeciesTerm.Mega?
+        if let megaIndex = words.firstIndex(of: "mega") {
+            let variant = words.dropFirst(megaIndex + 1).first
+            mega = variant.flatMap { ["x", "y", "z"].contains($0) ? .variant($0) : nil } ?? .any
+            words = Array(words[..<megaIndex])
+        }
+        guard let identity = match(words, prefixOnly: true),
+              let species = speciesByID[identity.speciesID] else { return nil }
+        // A variant letter on a species with a single Mega means that Mega.
+        if case .variant(let variant)? = mega, !species.megas.contains(where: { $0.variant == variant }) {
+            mega = .any
+        }
+        return SpeciesTerm(speciesID: species.id, name: species.name,
+                           formWords: words.filter(identity.formWords.contains), mega: mega)
+    }
+
     /// The Mega a member can become: the held item must be one of its own
     /// species' stones.
     func mega(heldItem: String?, speciesID: String) -> Mega? {
