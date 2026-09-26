@@ -5536,16 +5536,37 @@ private struct TeamPickerCard: View {
     let championsFormat: Bool
     let validator: ChampionsValidator?
 
+    private static func title(for team: SavedTeam) -> String {
+        "\(team.name) (\(team.slots.count))"
+    }
+
+    private var selectedTitle: String {
+        teams.first { $0.persistentModelID == selectedID }.map(Self.title) ?? "Select a team…"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label).font(.headline)
-            Picker("Team", selection: $selectedID) {
-                Text("Select a team…").tag(PersistentIdentifier?.none)
-                ForEach(teams) { t in
-                    Text("\(t.name) (\(t.slots.count))").tag(Optional(t.persistentModelID))
+            // A Menu around the Picker, not a menu-style Picker: that one's
+            // label doesn't grow taller when a long team name wraps at a
+            // large text size, so the name is clipped.
+            Menu {
+                Picker("Team", selection: $selectedID) {
+                    Text("Select a team…").tag(PersistentIdentifier?.none)
+                    ForEach(teams) { t in
+                        Text(Self.title(for: t)).tag(Optional(t.persistentModelID))
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(selectedTitle)
+                        .multilineTextAlignment(.leading)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption.weight(.semibold))
                 }
             }
-            .pickerStyle(.menu)
+            .accessibilityLabel("Team")
+            .accessibilityValue(selectedTitle)
 
             if let t = teams.first(where: { $0.persistentModelID == selectedID }) {
                 let liveSlots = t.resolvedSlots(allSpreads: savedSpreads,
@@ -5623,7 +5644,8 @@ private struct LeadOrderCard: View {
     let activeSlots: Int
     @Binding var order: [Int]
 
-    private let columns = [GridItem(.adaptive(minimum: 96), spacing: 8)]
+    @ScaledMetric(relativeTo: .caption) private var tileMinimumWidth: CGFloat = 96
+    private var columns: [GridItem] { [GridItem(.adaptive(minimum: tileMinimumWidth), spacing: 8)] }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -5662,17 +5684,18 @@ private struct LeadOrderCard: View {
         } label: {
             VStack(spacing: 4) {
                 ZStack(alignment: .topTrailing) {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(tileFill(isLead: isLead, isBench: isBench))
-                        .frame(height: 44)
-                        .overlay(
-                            Text(slot.pokemonName)
-                                .font(.caption.bold())
-                                .foregroundStyle(.primary)
-                                .lineLimit(2)
-                                .minimumScaleFactor(0.7)
-                                .padding(.horizontal, 6)
-                        )
+                    // The name sets the tile's height, so a two-line name at
+                    // a large text size isn't clipped.
+                    Text(slot.pokemonName)
+                        .font(.caption.bold())
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.7)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(tileFill(isLead: isLead, isBench: isBench),
+                                    in: RoundedRectangle(cornerRadius: 8))
                     if let p = position {
                         Text("\(p + 1)")
                             .font(.caption2.bold())
@@ -5770,7 +5793,7 @@ private struct BattleView: View {
     @ViewBuilder
     private var globalsBar: some View {
         if engine.weather != .none || engine.terrain != .none {
-            HStack(spacing: 6) {
+            FlowLayout(spacing: 6) {
                 if engine.weather != .none {
                     Label("\(engine.weather.rawValue) (\(engine.weatherTurns))", systemImage: "cloud.sun")
                         .font(.caption2.bold())
@@ -5785,8 +5808,8 @@ private struct BattleView: View {
                         .background(Color.green.opacity(0.15), in: Capsule())
                         .foregroundStyle(.green)
                 }
-                Spacer()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -5851,25 +5874,29 @@ private struct ParticipantField: View {
     var p: BattleParticipant
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(p.displayName).font(.subheadline.bold())
-                TypeBadge(type: p.activeType1)
-                if let t2 = p.activeType2 { TypeBadge(type: t2) }
-                if p.megaForm != nil {
-                    Text("MEGA")
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 5).padding(.vertical, 1)
-                        .foregroundStyle(.white)
-                        .background(Color.pink, in: Capsule())
+            HStack(alignment: .firstTextBaseline) {
+                FlowLayout(spacing: 6) {
+                    Text(p.displayName).font(.subheadline.bold())
+                    TypeBadge(type: p.activeType1)
+                    if let t2 = p.activeType2 { TypeBadge(type: t2) }
+                    if p.megaForm != nil {
+                        Text("MEGA")
+                            .font(.caption2.bold())
+                            .fixedSize()
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .foregroundStyle(.white)
+                            .background(Color.pink, in: Capsule())
+                    }
+                    if p.status != .none {
+                        Text(p.status.shortLabel)
+                            .font(.caption2.bold())
+                            .fixedSize()
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .foregroundStyle(.white)
+                            .background(p.status.color, in: Capsule())
+                    }
                 }
-                if p.status != .none {
-                    Text(p.status.shortLabel)
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 5).padding(.vertical, 1)
-                        .foregroundStyle(.white)
-                        .background(p.status.color, in: Capsule())
-                }
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
                 Text("Lv\(p.slot.level)").font(.caption2).foregroundStyle(.secondary)
             }
             HPBar(current: p.currentHP, maxHP: p.maxHP)
@@ -5945,6 +5972,7 @@ private struct ActorActionCard: View {
 
     @State private var showSwitchSheet = false
     @State private var pendingChoice: PendingTargetChoice? = nil
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private enum PendingTargetChoice {
         case move(Int)
@@ -6039,7 +6067,8 @@ private struct ActorActionCard: View {
             // effect. Reads `effectiveHeldItem` indirectly via `isChoiceLocked` so a
             // knocked-off Choice item correctly frees the holder.
             let locked = engine.isChoiceLocked(actor) ? actor.choiceLockedMoveIndex : nil
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+            // One column at accessibility sizes, or move names truncate.
+            LazyVGrid(columns: dynamicTypeSize.gridColumns(2), spacing: 6) {
                 ForEach(0..<actor.moves.count, id: \.self) { mi in
                     let move = actor.moves[mi]
                     let curPP = actor.pp.indices.contains(mi) ? actor.pp[mi] : 0
@@ -6289,6 +6318,7 @@ private struct SwitchSheet: View {
 
 private struct ForceSwitchPanel: View {
     @Bindable var engine: BattleEngine
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(spacing: 12) {
@@ -6297,7 +6327,7 @@ private struct ForceSwitchPanel: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("\(s.label) must send out a replacement.")
                         .font(.subheadline.bold())
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+                    LazyVGrid(columns: dynamicTypeSize.gridColumns(2), spacing: 6) {
                         ForEach(s.benchIndices(), id: \.self) { bi in
                             let p = s.participants[bi]
                             Button {
