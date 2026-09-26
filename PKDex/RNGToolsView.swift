@@ -3217,7 +3217,7 @@ struct HiddenPowerCalcView: View {
                     HStack {
                         Text("Type"); Spacer()
                         Text(hpType).bold().padding(.horizontal, 12).padding(.vertical, 4)
-                            .background(typeColor(hpType).opacity(0.2)).clipShape(Capsule())
+                            .background(TypePalette.fill(for: hpType).opacity(0.2)).clipShape(Capsule())
                     }
                     HStack {
                         Text("Base Power (Gen V-VI)"); Spacer()
@@ -3244,7 +3244,7 @@ struct HiddenPowerCalcView: View {
 
     private func hpPreset(_ type: String, ivs: String) -> some View {
         HStack {
-            Text(type).frame(width: 80, alignment: .leading).foregroundStyle(typeColor(type))
+            TypeBadge(type: type).frame(width: 80, alignment: .leading)
             Spacer()
             Text(ivs).font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
         }
@@ -5645,20 +5645,5 @@ struct IVSliderRow8: View {
             Slider(value: Binding(get: { Double(value) }, set: { value = UInt8($0) }), in: 0...31, step: 1)
             Text("\(value)").frame(width: 30, alignment: .trailing).font(.system(.body, design: .monospaced))
         }
-    }
-}
-
-// MARK: - Type Color Helper
-
-private func typeColor(_ type: String) -> Color {
-    switch type.lowercased() {
-    case "fire": return .red; case "water": return .blue; case "grass": return .green
-    case "electric": return .yellow; case "ice": return .cyan; case "fighting": return .brown
-    case "poison": return .purple; case "ground": return .brown.opacity(0.7)
-    case "flying": return .indigo; case "psychic": return .pink
-    case "bug": return .green.opacity(0.7); case "rock": return .brown.opacity(0.5)
-    case "ghost": return .purple.opacity(0.7); case "dragon": return .indigo.opacity(0.8)
-    case "dark": return .gray; case "steel": return .gray.opacity(0.7)
-    default: return .primary
     }
 }

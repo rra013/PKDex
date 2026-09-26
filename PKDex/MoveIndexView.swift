@@ -80,9 +80,9 @@ struct MoveIndexTab: View {
                             Text(activeGenFilter.title)
                                 .font(.headline)
                             if selectedTypeFilter != .all {
-                                Text("· \(selectedTypeFilter.label)")
+                                Text("·")
                                     .font(.headline)
-                                    .foregroundStyle(typeColorMap[selectedTypeFilter.rawValue] ?? .gray)
+                                TypeBadge(type: selectedTypeFilter.rawValue)
                             }
                             Spacer()
                             Text("\(filteredMoves.count)")
@@ -143,8 +143,8 @@ private struct MoveRow: View {
                 .font(.caption.weight(.semibold))
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(typeColorMap[move.type] ?? .gray)
-                .foregroundStyle(.white)
+                .background(TypePalette.fill(for: move.type))
+                .foregroundStyle(TypePalette.text(for: move.type))
                 .clipShape(Capsule())
             Text(move.damageClass.capitalized)
                 .font(.caption)

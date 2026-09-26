@@ -558,20 +558,6 @@ class DamageCalcVM {
     }
 }
 
-// MARK: - Type Colors
-
-let typeColorMap: [String: Color] = [
-    "Normal": Color(.systemGray), "Fire": Color(.systemRed),
-    "Water": Color(.systemBlue), "Electric": Color(.systemYellow),
-    "Grass": Color(.systemGreen), "Ice": Color(.systemCyan),
-    "Fighting": Color(.systemBrown), "Poison": Color(.systemPurple),
-    "Ground": Color(.brown), "Flying": Color(.systemTeal),
-    "Psychic": Color(.systemPink), "Bug": Color(.systemGreen).opacity(0.7),
-    "Rock": Color(.brown).opacity(0.8), "Ghost": Color(.systemIndigo),
-    "Dragon": Color(.systemIndigo).opacity(0.8), "Dark": Color(.darkGray),
-    "Steel": Color(.systemGray2), "Fairy": Color(.systemPink).opacity(0.7),
-]
-
 // MARK: - Main View
 
 struct DamageCalculatorView: View {
@@ -1647,17 +1633,6 @@ struct DamageClassBadge: View {
             .padding(.horizontal, 4).padding(.vertical, 1)
             .foregroundStyle(color)
             .background(color.opacity(0.15), in: Capsule())
-    }
-}
-
-struct TypeBadge: View {
-    let type: String
-    var body: some View {
-        Text(type)
-            .font(.caption2.bold())
-            .padding(.horizontal, 8).padding(.vertical, 3)
-            .foregroundStyle(.white)
-            .background(typeColorMap[type] ?? .gray, in: Capsule())
     }
 }
 
