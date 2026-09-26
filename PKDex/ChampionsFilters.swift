@@ -130,12 +130,12 @@ struct ChampionsFilterChipStrip: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 if let t1 = filters.type1 {
-                    chip(label: t1, tint: typeColorMap[t1] ?? .gray) {
+                    chip(label: t1, tint: TypePalette.fill(for: t1), text: TypePalette.text(for: t1)) {
                         filters.type1 = nil
                     }
                 }
                 if let t2 = filters.type2 {
-                    chip(label: t2, tint: typeColorMap[t2] ?? .gray) {
+                    chip(label: t2, tint: TypePalette.fill(for: t2), text: TypePalette.text(for: t2)) {
                         filters.type2 = nil
                     }
                 }
@@ -162,7 +162,8 @@ struct ChampionsFilterChipStrip: View {
     }
 
     @ViewBuilder
-    private func chip(label: String, tint: Color, onRemove: @escaping () -> Void) -> some View {
+    private func chip(label: String, tint: Color, text: Color = .white,
+                      onRemove: @escaping () -> Void) -> some View {
         HStack(spacing: 4) {
             Text(label).font(.caption.bold())
             Button(action: onRemove) {
@@ -172,7 +173,7 @@ struct ChampionsFilterChipStrip: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 8).padding(.vertical, 4)
-        .foregroundStyle(.white)
+        .foregroundStyle(text)
         .background(tint, in: Capsule())
     }
 }

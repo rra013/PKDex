@@ -426,7 +426,7 @@ private struct TeamSlotCard: View {
                             }
                         }
                         .padding(.horizontal, 5).padding(.vertical, 2)
-                        .background((typeColorMap[move.moveType] ?? .gray).opacity(0.2), in: Capsule())
+                        .background(TypePalette.fill(for: move.moveType).opacity(0.2), in: Capsule())
                         .font(.caption2)
                     }
                 }
