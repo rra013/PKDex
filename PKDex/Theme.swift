@@ -280,6 +280,15 @@ private struct ScaledFont: ViewModifier {
     }
 }
 
+extension DynamicTypeSize {
+    /// `count` flexible grid columns, or one at accessibility sizes, where
+    /// side-by-side cells get too narrow for their text.
+    func gridColumns(_ count: Int, spacing: CGFloat? = nil) -> [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: spacing),
+              count: isAccessibilitySize ? 1 : count)
+    }
+}
+
 /// A row that becomes a column at accessibility text sizes, where its
 /// pieces no longer fit side by side.
 struct AdaptiveStack<Content: View>: View {
