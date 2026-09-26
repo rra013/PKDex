@@ -140,7 +140,8 @@ struct ChampionsFilterChipStrip: View {
                     }
                 }
                 if let ability = filters.ability {
-                    chip(label: formatAbilityName(ability), tint: .orange) {
+                    chip(label: formatAbilityName(ability), tint: ColorRole.ability.color,
+                         text: ColorRole.textOnFill) {
                         filters.ability = nil
                     }
                 }

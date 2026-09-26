@@ -436,11 +436,11 @@ private struct TeamSlotCard: View {
                 HStack(spacing: 6) {
                     Text(formatAbilityName(ability))
                         .font(.caption2)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(ColorRole.ability.color)
                     if let item = slot.itemRawValue {
                         Text(item)
                             .font(.caption2)
-                            .foregroundStyle(.green)
+                            .foregroundStyle(ColorRole.item.color)
                     }
                 }
             }

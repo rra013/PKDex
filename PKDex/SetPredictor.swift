@@ -395,10 +395,11 @@ struct SetPredictorSheet: View {
                     Text(item)
                         .font(.caption)
                         .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(.fill.tertiary, in: Capsule())
+                        .foregroundStyle(ColorRole.item.color)
+                        .background(ColorRole.item.color.opacity(0.12), in: Capsule())
                 }
                 Text(set.ability)
-                    .font(.caption).foregroundStyle(.orange)
+                    .font(.caption).foregroundStyle(ColorRole.ability.color)
                 Text(set.nature)
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()

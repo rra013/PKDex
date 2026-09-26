@@ -4039,7 +4039,7 @@ struct FinderRootView: View {
             Text("Ability: \(r.ability)")
                 .font(.caption2).foregroundStyle(.tertiary)
             if let item = r.itemName {
-                Text(item).font(.caption2).foregroundStyle(.orange)
+                Text(item).font(.caption2).foregroundStyle(ColorRole.item.color)
             }
         }
         if let inh = r.inheritance {
