@@ -114,7 +114,7 @@ struct GameCubeRNGView: View {
                 }
 
                 // Profile
-                RNGSection(title: "Trainer", icon: "person") {
+                SectionCard(title: "Trainer", icon: "person") {
                     if !savedProfiles.isEmpty {
                         Picker("Profile", selection: $selectedProfileID) {
                             Text("None").tag(UUID?.none)
@@ -176,7 +176,7 @@ struct GameCubeRNGView: View {
                 }
 
                 // Tools section
-                RNGSection(title: "Tools", icon: "wrench") {
+                SectionCard(title: "Tools", icon: "wrench") {
                     Button {
                         showSeedSearcher = true
                     } label: {
@@ -230,7 +230,7 @@ struct GameCubeRNGView: View {
     }
 
     private var generatorInputs: some View {
-        RNGSection(title: "Seed", icon: "number") {
+        SectionCard(title: "Seed", icon: "number") {
             HStack {
                 Text("Seed")
                 Spacer()
@@ -245,7 +245,7 @@ struct GameCubeRNGView: View {
     }
 
     private var searcherInputs: some View {
-        RNGSection(title: "IV Ranges", icon: "number.square") {
+        SectionCard(title: "IV Ranges", icon: "number.square") {
             FinderIVRangeRow(label: "HP", min: $minHP, max: $maxHP)
             FinderIVRangeRow(label: "Attack", min: $minAtk, max: $maxAtk)
             FinderIVRangeRow(label: "Defense", min: $minDef, max: $maxDef)
@@ -256,7 +256,7 @@ struct GameCubeRNGView: View {
     }
 
     private var pokeSpotInputs: some View {
-        RNGSection(title: "Seeds", icon: "number") {
+        SectionCard(title: "Seeds", icon: "number") {
             HStack {
                 Text("Food Seed")
                 Spacer()
@@ -288,7 +288,7 @@ struct GameCubeRNGView: View {
     }
 
     private var shadowPicker: some View {
-        RNGSection(title: "Shadow Pokemon", icon: "flame") {
+        SectionCard(title: "Shadow Pokemon", icon: "flame") {
             let filtered = filteredShadowTemplates
             if filtered.isEmpty {
                 Text("No shadow templates available")
@@ -308,7 +308,7 @@ struct GameCubeRNGView: View {
     }
 
     private var staticPicker: some View {
-        RNGSection(title: "Static Pokemon", icon: "star") {
+        SectionCard(title: "Static Pokemon", icon: "star") {
             if staticTemplates.isEmpty {
                 Text("No static templates available")
                     .foregroundStyle(.secondary)
@@ -324,7 +324,7 @@ struct GameCubeRNGView: View {
     }
 
     private var pokeSpotPicker: some View {
-        RNGSection(title: "Poké Spot", icon: "mappin.and.ellipse") {
+        SectionCard(title: "Poké Spot", icon: "mappin.and.ellipse") {
             if pokeSpotAreas.isEmpty {
                 Text("No Poké Spot data available")
                     .foregroundStyle(.secondary)
@@ -352,7 +352,7 @@ struct GameCubeRNGView: View {
     }
 
     private var resultsSection: some View {
-        RNGSection(title: "Results (\(results.count))", icon: "list.bullet") {
+        SectionCard(title: "Results (\(results.count))", icon: "list.bullet") {
             ForEach(results.prefix(500)) { r in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -392,7 +392,7 @@ struct GameCubeRNGView: View {
     }
 
     private var searcherResultsSection: some View {
-        RNGSection(title: "Results (\(searcherResults.count))", icon: "list.bullet") {
+        SectionCard(title: "Results (\(searcherResults.count))", icon: "list.bullet") {
             ForEach(searcherResults.prefix(500)) { r in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -432,7 +432,7 @@ struct GameCubeRNGView: View {
     }
 
     private var pokeSpotResultsSection: some View {
-        RNGSection(title: "Results (\(pokeSpotResults.count))", icon: "list.bullet") {
+        SectionCard(title: "Results (\(pokeSpotResults.count))", icon: "list.bullet") {
             ForEach(pokeSpotResults.prefix(500)) { r in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -697,7 +697,7 @@ struct SeedSearcherView: View {
                 }
 
                 if !seedResults.isEmpty {
-                    RNGSection(title: "Seeds (\(seedResults.count))", icon: "list.bullet") {
+                    SectionCard(title: "Seeds (\(seedResults.count))", icon: "list.bullet") {
                         ForEach(Array(seedResults.prefix(200).enumerated()), id: \.offset) { _, seed in
                             Text(String(format: "%08X", seed))
                                 .font(.system(.body, design: .monospaced))
@@ -718,7 +718,7 @@ struct SeedSearcherView: View {
     }
 
     private var coloInputs: some View {
-        RNGSection(title: "Colosseum Criteria", icon: "gamecontroller") {
+        SectionCard(title: "Colosseum Criteria", icon: "gamecontroller") {
             Picker("Lead Pokemon", selection: $coloLead) {
                 Text("Espeon").tag(UInt8(0))
                 Text("Umbreon").tag(UInt8(1))
@@ -732,7 +732,7 @@ struct SeedSearcherView: View {
     }
 
     private var galesInputs: some View {
-        RNGSection(title: "XD Battle Criteria", icon: "gamecontroller") {
+        SectionCard(title: "XD Battle Criteria", icon: "gamecontroller") {
             HStack {
                 Text("Enemy HP")
                 Spacer()
@@ -765,7 +765,7 @@ struct SeedSearcherView: View {
     }
 
     private var channelInputs: some View {
-        RNGSection(title: "Channel Jirachi Menu", icon: "gamecontroller") {
+        SectionCard(title: "Channel Jirachi Menu", icon: "gamecontroller") {
             Text("Enter the menu animation sequence (0 = left, 1 = right)")
                 .font(.caption).foregroundStyle(.secondary)
 
@@ -864,7 +864,7 @@ struct JirachiPatternView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                RNGSection(title: "Input", icon: "number") {
+                SectionCard(title: "Input", icon: "number") {
                     HStack {
                         Text("Seed")
                         Spacer()
@@ -888,7 +888,7 @@ struct JirachiPatternView: View {
                 }
 
                 if let jSeed = jirachiSeed {
-                    RNGSection(title: "Jirachi Seed", icon: "star") {
+                    SectionCard(title: "Jirachi Seed", icon: "star") {
                         Text(String(format: "%08X", jSeed))
                             .font(.system(.body, design: .monospaced))
                             .textSelection(.enabled)
@@ -896,7 +896,7 @@ struct JirachiPatternView: View {
                 }
 
                 if !actions.isEmpty {
-                    RNGSection(title: "Actions (\(actions.count) steps)", icon: "list.number") {
+                    SectionCard(title: "Actions (\(actions.count) steps)", icon: "list.number") {
                         let labels = ["Advance (wait)", "A button"]
                         ForEach(Array(actions.enumerated()), id: \.offset) { idx, action in
                             HStack {

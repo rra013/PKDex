@@ -5138,7 +5138,7 @@ struct BattleSimulatorView: View {
                         .navigationTitle("Battle Simulator")
                 }
             }
-            .background(Color(.systemGroupedBackground))
+            .cardPage()
         }
     }
 
@@ -5259,8 +5259,7 @@ struct BattleSimulatorView: View {
                 Text("Side 2 controlled by AI").font(.subheadline)
             }
         }
-        .padding()
-        .background(.background, in: RoundedRectangle(cornerRadius: 12))
+        .card()
     }
 
     private var formatCard: some View {
@@ -5286,8 +5285,7 @@ struct BattleSimulatorView: View {
                     .font(.caption2).foregroundStyle(.secondary)
             }
         }
-        .padding()
-        .background(.background, in: RoundedRectangle(cornerRadius: 12))
+        .card()
     }
 
     private var syncingCard: some View {
@@ -5297,8 +5295,7 @@ struct BattleSimulatorView: View {
                 .font(.subheadline).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(40)
-        .background(.background, in: RoundedRectangle(cornerRadius: 14))
+        .card(padding: 40)
     }
 
     private var emptyTeamsCard: some View {
@@ -5311,8 +5308,7 @@ struct BattleSimulatorView: View {
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(24)
-        .background(.background, in: RoundedRectangle(cornerRadius: 14))
+        .card(padding: 24)
     }
 
     private var canStart: Bool {
@@ -5613,8 +5609,7 @@ private struct TeamPickerCard: View {
                 }
             }
         }
-        .padding()
-        .background(.background, in: RoundedRectangle(cornerRadius: 12))
+        .card()
     }
 }
 
@@ -5656,8 +5651,7 @@ private struct LeadOrderCard: View {
                     .buttonStyle(.bordered)
             }
         }
-        .padding()
-        .background(.background, in: RoundedRectangle(cornerRadius: 12))
+        .card()
     }
 
     @ViewBuilder

@@ -84,7 +84,7 @@ struct EggRNGView: View {
                 }
 
                 // Profile
-                RNGSection(title: "Trainer", icon: "person") {
+                SectionCard(title: "Trainer", icon: "person") {
                     if !savedProfiles.isEmpty {
                         Picker("Profile", selection: $selectedProfileID) {
                             Text("None").tag(UUID?.none)
@@ -105,7 +105,7 @@ struct EggRNGView: View {
                 }
 
                 // Seeds
-                RNGSection(title: "Seeds", icon: "number") {
+                SectionCard(title: "Seeds", icon: "number") {
                     HStack {
                         Text("Held Seed")
                         Spacer()
@@ -135,7 +135,7 @@ struct EggRNGView: View {
                 }
 
                 // Daycare
-                RNGSection(title: "Daycare", icon: "house") {
+                SectionCard(title: "Daycare", icon: "house") {
                     Picker("Compatibility", selection: $compatibility) {
                         Text("The two seem to get along (20%)").tag(20)
                         Text("The two seem to get along very well (50%)").tag(50)
@@ -198,7 +198,7 @@ struct EggRNGView: View {
                                 spa: Binding<UInt8>, spd: Binding<UInt8>, spe: Binding<UInt8>,
                                 ability: Binding<UInt8>, gender: Binding<UInt8>,
                                 item: Binding<UInt8>, nature: Binding<UInt8>) -> some View {
-        RNGSection(title: label, icon: "figure.stand") {
+        SectionCard(title: label, icon: "figure.stand") {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 IVSliderRow8(label: "HP", value: hp)
                 IVSliderRow8(label: "Atk", value: atk)
@@ -239,7 +239,7 @@ struct EggRNGView: View {
     }
 
     private var eggResults3Section: some View {
-        RNGSection(title: "Results (\(results3.count))", icon: "list.bullet") {
+        SectionCard(title: "Results (\(results3.count))", icon: "list.bullet") {
             ForEach(results3.prefix(500)) { r in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -274,7 +274,7 @@ struct EggRNGView: View {
     }
 
     private var eggResults4Section: some View {
-        RNGSection(title: "Results (\(results4.count))", icon: "list.bullet") {
+        SectionCard(title: "Results (\(results4.count))", icon: "list.bullet") {
             ForEach(results4.prefix(500)) { r in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -502,7 +502,7 @@ struct IDRNGView: View {
     @State private var gen3IsGameCube: Bool = false
 
     private var gen3Inputs: some View {
-        RNGSection(title: "Gen 3 ID Generation", icon: "number") {
+        SectionCard(title: "Gen 3 ID Generation", icon: "number") {
             Toggle("GameCube (XD/Colo)", isOn: $gen3IsGameCube)
 
             if gen3IsGameCube {
@@ -553,7 +553,7 @@ struct IDRNGView: View {
     // MARK: - Gen 4 Generator
 
     private var gen4GeneratorInputs: some View {
-        RNGSection(title: "Gen 4 ID Generator", icon: "number") {
+        SectionCard(title: "Gen 4 ID Generator", icon: "number") {
             Text("Set the DS date/time and delay range to generate possible TID/SID combinations.")
                 .font(.caption).foregroundStyle(.secondary)
 
@@ -595,7 +595,7 @@ struct IDRNGView: View {
     // MARK: - Gen 4 Searcher
 
     private var gen4SearcherInputs: some View {
-        RNGSection(title: "Gen 4 ID Searcher", icon: "magnifyingglass") {
+        SectionCard(title: "Gen 4 ID Searcher", icon: "magnifyingglass") {
             Text("Exhaustively search all possible seeds for a target TID/SID. Set at least one filter to narrow results.")
                 .font(.caption).foregroundStyle(.secondary)
 
@@ -673,7 +673,7 @@ struct IDRNGView: View {
     // MARK: - Results
 
     private var idResults3Section: some View {
-        RNGSection(title: "Results (\(results3.count))", icon: "list.bullet") {
+        SectionCard(title: "Results (\(results3.count))", icon: "list.bullet") {
             ForEach(results3.prefix(500)) { r in
                 HStack {
                     Text("Adv: \(r.advances)")
@@ -693,7 +693,7 @@ struct IDRNGView: View {
     }
 
     private var idResults4Section: some View {
-        RNGSection(title: "Results (\(results4.count))", icon: "list.bullet") {
+        SectionCard(title: "Results (\(results4.count))", icon: "list.bullet") {
             ForEach(results4.prefix(500)) { r in
                 Button {
                     selectedResult = (selectedResult?.id == r.id) ? nil : r
@@ -736,7 +736,7 @@ struct IDRNGView: View {
     // MARK: - Seed Verification
 
     private func seedVerificationSection(for result: PFBridge.IDResult4) -> some View {
-        RNGSection(title: "Seed Verification", icon: "checkmark.seal") {
+        SectionCard(title: "Seed Verification", icon: "checkmark.seal") {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Seed")

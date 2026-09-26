@@ -604,7 +604,7 @@ struct DamageCalculatorView: View {
             .scrollDismissesKeyboard(.interactively)
             .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
             .navigationTitle("Damage Calc")
-            .background(Color(.systemGroupedBackground))
+            .cardPage()
             .onAppear {
                 let isChampions = defaultGeneration == PokedexFilter.champions.rawValue
                 if isChampions != vm.side1.championsMode {
@@ -629,8 +629,8 @@ private struct SyncingCard: View {
             Text("This only happens once.")
                 .font(.caption).foregroundStyle(.tertiary)
         }
-        .frame(maxWidth: .infinity).padding(40)
-        .background(.background, in: RoundedRectangle(cornerRadius: 14))
+        .frame(maxWidth: .infinity)
+        .card(padding: 40)
     }
 }
 
@@ -641,7 +641,7 @@ private struct ResultCard: View {
     @State private var solveRequest: EVSolveRequest?
 
     var body: some View {
-        CalcSection(title: "Results", icon: "bolt.fill") {
+        SectionCard(title: "Results", icon: "bolt.fill") {
             // Field conditions, then each side's modifiers on its own row: a
             // badge's color says what it is (ability, item), and the row's
             // marker says whose it is.
@@ -968,7 +968,7 @@ private struct SideCard: View {
     }
 
     var body: some View {
-        CalcSection(title: title, icon: SideMarker.symbol(for: role), iconColor: role.color) {
+        SectionCard(title: title, icon: SideMarker.symbol(for: role), iconColor: role.color) {
             // Pokemon Picker
             VStack(alignment: .leading, spacing: 8) {
                 if let p = side.pokemon {
@@ -1073,7 +1073,8 @@ private struct SideCard: View {
                             }
                         }
                         .frame(maxHeight: 200)
-                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+                        .background(Color(.tertiarySystemGroupedBackground),
+                                    in: RoundedRectangle(cornerRadius: CardMetrics.insetCornerRadius, style: .continuous))
                     }
                 }
             }
@@ -1417,7 +1418,8 @@ private struct MoveSlotView: View {
                         }
                     }
                     .frame(maxHeight: 150)
-                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+                    .background(Color(.tertiarySystemGroupedBackground),
+                                in: RoundedRectangle(cornerRadius: CardMetrics.insetCornerRadius, style: .continuous))
                 }
             }
         }
@@ -1430,7 +1432,7 @@ private struct ModifiersCard: View {
     @Bindable var vm: DamageCalcVM
 
     var body: some View {
-        CalcSection(title: "Modifiers", icon: "slider.horizontal.3") {
+        SectionCard(title: "Modifiers", icon: "slider.horizontal.3") {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Weather").font(.subheadline).foregroundStyle(.secondary)
                 Picker("Weather", selection: $vm.weather) {
@@ -1649,28 +1651,6 @@ private struct LoadSpreadSheet: View {
 }
 
 // MARK: - Reusable Components
-
-private struct CalcSection<Content: View>: View {
-    let title: String
-    let icon: String
-    var iconColor: Color = .primary
-    @ViewBuilder let content: Content
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label {
-                Text(title)
-            } icon: {
-                Image(systemName: icon).foregroundStyle(iconColor)
-            }
-            .font(.headline)
-            Divider()
-            content
-        }
-        .padding()
-        .background(.background, in: RoundedRectangle(cornerRadius: 14))
-        .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
-    }
-}
 
 struct DamageClassBadge: View {
     let damageClass: String

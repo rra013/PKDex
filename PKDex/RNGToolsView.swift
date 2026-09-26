@@ -2585,6 +2585,7 @@ struct RNGToolsView: View {
                 default: RNGCreditsView()
                 }
             }
+            .cardPage()
             .navigationTitle("RNG Tools")
             .onChange(of: FinderTimerBridge.shared.shouldSwitchToTimer) {
                 if FinderTimerBridge.shared.shouldSwitchToTimer {
@@ -2680,7 +2681,7 @@ struct RNGTimerView: View {
                 .disabled(engine.isRunning)
 
                 // Console picker
-                RNGSection(title: "Console", icon: "gamecontroller") {
+                SectionCard(title: "Console", icon: "gamecontroller") {
                     Picker("Console", selection: $consoleType) {
                         ForEach(RNGConsole.allCases) { c in Text(c.rawValue).tag(c) }
                     }
@@ -2690,7 +2691,7 @@ struct RNGTimerView: View {
                     Toggle("Precision Calibration", isOn: $precisionCalibration)
                 }
 
-                RNGSection(title: "Settings", icon: "gearshape") {
+                SectionCard(title: "Settings", icon: "gearshape") {
                     switch generation {
                     case .gen3: gen3Settings
                     case .gen4: gen4Settings
@@ -2700,7 +2701,7 @@ struct RNGTimerView: View {
                 }
 
                 if generation != .custom {
-                    RNGSection(title: "Calibration", icon: "tuningfork") {
+                    SectionCard(title: "Calibration", icon: "tuningfork") {
                         calibrationSection
                     }
                 }
@@ -2725,7 +2726,7 @@ struct RNGTimerView: View {
                 // Phase preview
                 let phases = computePhases()
                 if !phases.isEmpty && !engine.isRunning {
-                    RNGSection(title: "Phase Preview", icon: "list.number") {
+                    SectionCard(title: "Phase Preview", icon: "list.number") {
                         ForEach(Array(phases.enumerated()), id: \.offset) { i, ms in
                             HStack {
                                 Text("Phase \(i + 1)")
@@ -2782,9 +2783,8 @@ struct RNGTimerView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .padding(.vertical, 8)
+        .card()
     }
 
     // MARK: Gen Settings
@@ -2977,7 +2977,7 @@ struct IVCalculatorView: View {
     }
 
     private var pokemonSelector: some View {
-        RNGSection(title: "Pokemon", icon: "sparkles") {
+        SectionCard(title: "Pokemon", icon: "sparkles") {
             VStack(spacing: 8) {
                 TextField("Search Pokemon...", text: $searchText)
                     .textFieldStyle(.roundedBorder)
@@ -3024,7 +3024,7 @@ struct IVCalculatorView: View {
     }
 
     private var configSection: some View {
-        RNGSection(title: "Config", icon: "slider.horizontal.3") {
+        SectionCard(title: "Config", icon: "slider.horizontal.3") {
             HStack {
                 Text("Level")
                 Spacer()
@@ -3040,7 +3040,7 @@ struct IVCalculatorView: View {
     }
 
     private var statEntrySection: some View {
-        RNGSection(title: "Stats (from in-game summary)", icon: "number") {
+        SectionCard(title: "Stats (from in-game summary)", icon: "number") {
             VStack(spacing: 8) {
                 IVCalcRow16(label: "HP", stat: $statHP, ev: $evHP)
                 IVCalcRow16(label: "Attack", stat: $statAtk, ev: $evAtk)
@@ -3072,7 +3072,7 @@ struct IVCalculatorView: View {
     private var resultsSection: some View {
         Group {
             if !results.isEmpty {
-                RNGSection(title: "Results", icon: "checkmark.circle") {
+                SectionCard(title: "Results", icon: "checkmark.circle") {
                     ForEach(results) { r in
                         HStack {
                             Text(r.statName).frame(width: 80, alignment: .leading)
@@ -3118,7 +3118,7 @@ struct IVToPIDView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                RNGSection(title: "IVs", icon: "number.square") {
+                SectionCard(title: "IVs", icon: "number.square") {
                     IVSliderRow8(label: "HP", value: $hp)
                     IVSliderRow8(label: "Attack", value: $atk)
                     IVSliderRow8(label: "Defense", value: $def)
@@ -3127,7 +3127,7 @@ struct IVToPIDView: View {
                     IVSliderRow8(label: "Speed", value: $spe)
                 }
 
-                RNGSection(title: "Trainer Info", icon: "person") {
+                SectionCard(title: "Trainer Info", icon: "person") {
                     HStack {
                         Text("Nature (0-24)")
                         Spacer()
@@ -3154,7 +3154,7 @@ struct IVToPIDView: View {
                 }
 
                 if !results.isEmpty {
-                    RNGSection(title: "Results (\(results.count))", icon: "list.bullet") {
+                    SectionCard(title: "Results (\(results.count))", icon: "list.bullet") {
                         ForEach(results) { r in
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
@@ -3204,7 +3204,7 @@ struct HiddenPowerCalcView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                RNGSection(title: "IVs", icon: "number.square") {
+                SectionCard(title: "IVs", icon: "number.square") {
                     IVSliderRow(label: "HP", value: $ivHP)
                     IVSliderRow(label: "Attack", value: $ivAtk)
                     IVSliderRow(label: "Defense", value: $ivDef)
@@ -3213,7 +3213,7 @@ struct HiddenPowerCalcView: View {
                     IVSliderRow(label: "Speed", value: $ivSpeed)
                 }
 
-                RNGSection(title: "Hidden Power", icon: "questionmark.diamond") {
+                SectionCard(title: "Hidden Power", icon: "questionmark.diamond") {
                     HStack {
                         Text("Type"); Spacer()
                         Text(hpType).bold().padding(.horizontal, 12).padding(.vertical, 4)
@@ -3227,7 +3227,7 @@ struct HiddenPowerCalcView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
 
-                RNGSection(title: "Common Hidden Power IVs", icon: "table") {
+                SectionCard(title: "Common Hidden Power IVs", icon: "table") {
                     VStack(spacing: 6) {
                         hpPreset("Fire", ivs: "31/30/31/30/31/30")
                         hpPreset("Ice", ivs: "31/30/30/31/31/31")
@@ -3458,7 +3458,7 @@ struct FinderRootView: View {
                 }
 
                 // Encounter
-                RNGSection(title: "Encounter", icon: "sparkles") {
+                SectionCard(title: "Encounter", icon: "sparkles") {
                     Picker("Game", selection: $selectedGame) {
                         ForEach(FinderGameVersion.games(for: generation)) { g in
                             Text(g.rawValue).tag(g)
@@ -3584,7 +3584,7 @@ struct FinderRootView: View {
                 }
 
                 // Profile
-                RNGSection(title: "Trainer", icon: "person") {
+                SectionCard(title: "Trainer", icon: "person") {
                     if !savedProfiles.isEmpty {
                         Picker("Profile", selection: $selectedProfileID) {
                             Text("None").tag(UUID?.none)
@@ -3638,7 +3638,7 @@ struct FinderRootView: View {
 
                 // Gen 5 DS Parameters
                 if generation == .gen5 {
-                    RNGSection(title: "DS Parameters", icon: "wifi") {
+                    SectionCard(title: "DS Parameters", icon: "wifi") {
                         HStack {
                             Text("MAC Address")
                             Spacer()
@@ -3703,7 +3703,7 @@ struct FinderRootView: View {
 
                 // Gen 8 Parameters
                 if generation == .gen8 {
-                    RNGSection(title: "Gen 8 Options", icon: "sparkles") {
+                    SectionCard(title: "Gen 8 Options", icon: "sparkles") {
                         Toggle("Shiny Charm", isOn: $gen8ShinyCharm)
                         if encounterMode == .egg {
                             Toggle("Oval Charm", isOn: $gen8OvalCharm)
@@ -3713,7 +3713,7 @@ struct FinderRootView: View {
 
                 // Method (hidden for ID mode)
                 if encounterMode != .id {
-                    RNGSection(title: "Method", icon: "cpu") {
+                    SectionCard(title: "Method", icon: "cpu") {
                     Picker("Method", selection: $method) {
                         ForEach(FinderMethod.methods(for: generation)) { m in
                             Text(m.rawValue).tag(m)
@@ -3766,7 +3766,7 @@ struct FinderRootView: View {
                     FinderNatureGrid(selected: $selectedNatures)
 
                     // Additional filters
-                    RNGSection(title: "Filters", icon: "line.3.horizontal.decrease.circle") {
+                    SectionCard(title: "Filters", icon: "line.3.horizontal.decrease.circle") {
                         Toggle("Shiny Only", isOn: $shinyOnly)
 
                         Picker("Gender", selection: $filterGender) {
@@ -3824,7 +3824,7 @@ struct FinderRootView: View {
                 }
 
                 if !activeResults.isEmpty {
-                    RNGSection(title: "Results (\(activeResults.count))", icon: "list.bullet") {
+                    SectionCard(title: "Results (\(activeResults.count))", icon: "list.bullet") {
                         ForEach(activeResults.prefix(500)) { r in
                             Button { selectedResult = r } label: {
                                 resultRowView(r)
@@ -4223,7 +4223,7 @@ struct FinderRootView: View {
 
     private var searcherInputs: some View {
         Group {
-            RNGSection(title: "IV Ranges", icon: "number.square") {
+            SectionCard(title: "IV Ranges", icon: "number.square") {
                 FinderIVRangeRow(label: "HP", min: $minHP, max: $maxHP)
                 FinderIVRangeRow(label: "Attack", min: $minAtk, max: $maxAtk)
                 FinderIVRangeRow(label: "Defense", min: $minDef, max: $maxDef)
@@ -4233,7 +4233,7 @@ struct FinderRootView: View {
             }
 
             if generation == .gen4 {
-                RNGSection(title: "Delay & Advance Range", icon: "clock") {
+                SectionCard(title: "Delay & Advance Range", icon: "clock") {
                     FinderUInt16Field(label: "Min Delay", value: $minDelay)
                     FinderUInt16Field(label: "Max Delay", value: $maxDelay)
                     RNGIntField(label: "Min Advance", value: $searcherMinAdvance)
@@ -4242,11 +4242,11 @@ struct FinderRootView: View {
             }
 
             if generation == .gen5 {
-                RNGSection(title: "Date Range", icon: "calendar") {
+                SectionCard(title: "Date Range", icon: "calendar") {
                     DatePicker("Start Date", selection: $gen5StartDate, displayedComponents: .date)
                     DatePicker("End Date", selection: $gen5EndDate, displayedComponents: .date)
                 }
-                RNGSection(title: "IV Advance Range", icon: "number") {
+                SectionCard(title: "IV Advance Range", icon: "number") {
                     RNGIntField(label: "Min IV Advance", value: $gen5IVMinAdvance)
                     RNGIntField(label: "Max IV Advance", value: $gen5IVMaxAdvance)
                     RNGIntField(label: "Min PID Advance", value: $searcherMinAdvance)
@@ -4259,7 +4259,7 @@ struct FinderRootView: View {
     // MARK: Generator Inputs
 
     private var generatorInputs: some View {
-        RNGSection(title: "Seed & Advances", icon: "number") {
+        SectionCard(title: "Seed & Advances", icon: "number") {
             if generation == .gen8 {
                 HStack {
                     Text("Seed 0 (hex)")
@@ -4306,7 +4306,7 @@ struct FinderRootView: View {
 
     private var seedVerificationSection: some View {
         let seed = UInt32(genSeedText, radix: 16) ?? 0
-        return RNGSection(title: "Seed Verification", icon: "checkmark.seal") {
+        return SectionCard(title: "Seed Verification", icon: "checkmark.seal") {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Coin Flips (Poketch)")
                     .font(.caption).foregroundStyle(.secondary)
@@ -4370,7 +4370,7 @@ struct FinderRootView: View {
     // MARK: - Coin Flip Finder
 
     private var coinFlipSearchSection: some View {
-        RNGSection(title: "Coin Flip Finder", icon: "circle.lefthalf.filled") {
+        SectionCard(title: "Coin Flip Finder", icon: "circle.lefthalf.filled") {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Tap to record observed Poketch coin flips")
                     .font(.caption).foregroundStyle(.secondary)
@@ -4492,7 +4492,7 @@ struct FinderRootView: View {
     // MARK: - Elm/Irwin Call Finder
 
     private var callSearchSection: some View {
-        RNGSection(title: "Elm/Irwin Call Finder", icon: "phone.fill") {
+        SectionCard(title: "Elm/Irwin Call Finder", icon: "phone.fill") {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Tap to record observed Elm/Irwin calls")
                     .font(.caption).foregroundStyle(.secondary)
@@ -5057,7 +5057,7 @@ struct SeedToTimeView: View {
 
     private var targetSummary: some View {
         Group {
-            RNGSection(title: "Target", icon: "target") {
+            SectionCard(title: "Target", icon: "target") {
                 if let dtStr = result.dateTimeString {
                     LabeledContent("Date/Time", value: dtStr)
                         .font(.system(.body, design: .monospaced))
@@ -5103,7 +5103,7 @@ struct SeedToTimeView: View {
             }
 
             if generation == .gen3 {
-                RNGSection(title: "Origin Seed", icon: "arrow.uturn.backward") {
+                SectionCard(title: "Origin Seed", icon: "arrow.uturn.backward") {
                     LabeledContent("16-bit Seed", value: String(format: "%04X", originSeed))
                         .font(.system(.body, design: .monospaced))
                     LabeledContent("Advances", value: "\(advances)")
@@ -5139,7 +5139,7 @@ struct SeedToTimeView: View {
     }
 
     private var verifySection: some View {
-        RNGSection(title: "Verify Catch", icon: "checkmark.shield") {
+        SectionCard(title: "Verify Catch", icon: "checkmark.shield") {
             DisclosureGroup("Enter Caught Pokemon IVs", isExpanded: $showVerify) {
                 VStack(spacing: 8) {
                     IVSliderRow8(label: "HP", value: $verifyHP)
@@ -5282,10 +5282,7 @@ struct SeedToTimeListGen3: View {
                 SeedToTimeRow3(time: t, onSelect: onSelect)
             }
         }
-        .padding()
-        .background(.background)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+        .card()
     }
 }
 
@@ -5325,10 +5322,7 @@ struct SeedToTimeListGen4: View {
                 SeedToTimeRow4(time: t, onSelect: onSelect)
             }
         }
-        .padding()
-        .background(.background)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+        .card()
     }
 }
 
@@ -5404,7 +5398,7 @@ struct FinderNatureGrid: View {
     @Binding var selected: Set<UInt8>
 
     var body: some View {
-        RNGSection(title: "Nature Filter", icon: "leaf") {
+        SectionCard(title: "Nature Filter", icon: "leaf") {
             Text("Tap natures to filter (none = all)")
                 .font(.caption).foregroundStyle(.secondary)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 6) {
@@ -5510,7 +5504,7 @@ struct RNGCreditsView: View {
                     Text("Pokemon RNG manipulation utilities").font(.subheadline).foregroundStyle(.secondary)
                 }.padding(.top, 24)
 
-                RNGSection(title: "Timer", icon: "timer") {
+                SectionCard(title: "Timer", icon: "timer") {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Ported from EonTimer").font(.headline)
                         Text("by DasAmpharos (MIT License)").foregroundStyle(.secondary)
@@ -5522,7 +5516,7 @@ struct RNGCreditsView: View {
                     }
                 }
 
-                RNGSection(title: "RNG Calculator", icon: "function") {
+                SectionCard(title: "RNG Calculator", icon: "function") {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Ported from PokeFinder").font(.headline)
                         Text("by Admiral_Fish, bumba, and EzPzStreamz (GPLv3)").foregroundStyle(.secondary)
@@ -5534,7 +5528,7 @@ struct RNGCreditsView: View {
                     }
                 }
 
-                RNGSection(title: "Acknowledgments", icon: "heart") {
+                SectionCard(title: "Acknowledgments", icon: "heart") {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Built on research from the Pokemon RNG community, including insights from RNG Reporter, PPRNG, and 3DSRNG Tool.")
                             .font(.caption).foregroundStyle(.secondary)
@@ -5550,24 +5544,6 @@ struct RNGCreditsView: View {
 // ============================================================================
 // MARK: - Reusable Components
 // ============================================================================
-
-struct RNGSection<Content: View>: View {
-    let title: String
-    let icon: String
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: icon).font(.headline)
-            Divider()
-            content
-        }
-        .padding()
-        .background(.background)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
-    }
-}
 
 struct RNGIntField: View {
     let label: String
