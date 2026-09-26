@@ -558,7 +558,8 @@ private struct PokemonRow: View {
         HStack {
             Text("#\(pokemon.nationalPokedexNumber)")
                 .foregroundStyle(.secondary)
-                .frame(width: 48, alignment: .leading)
+                .lineLimit(1)
+                .scaledWidth(50, alignment: .leading)
             Text(pokemon.name)
             // Claim the full row width so the highlight and hit target cover
             // the whole cell rather than just the two labels.

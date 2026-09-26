@@ -498,7 +498,7 @@ private struct SetFormContent: View {
                             side.moveSearchTexts = ["", "", "", ""]
                         } label: {
                             HStack {
-                                Text("#\(p.id)").foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
+                                Text("#\(p.id)").foregroundStyle(.secondary).lineLimit(1).scaledWidth(50, alignment: .leading)
                                 Text(p.name)
                                 Spacer()
                                 TypeBadge(type: p.type1)
@@ -546,7 +546,7 @@ private struct SetFormContent: View {
                         Text("Level")
                         Spacer()
                         TextField("Lv", value: $side.level, format: .number)
-                            .frame(width: 60)
+                            .scaledWidth(60)
                             .textFieldStyle(.roundedBorder)
                             .multilineTextAlignment(.trailing)
                             #if os(iOS)
@@ -687,7 +687,7 @@ private struct SetEVRow: View {
 
     var body: some View {
         HStack {
-            Text(label).frame(width: 55, alignment: .leading)
+            Text(label).lineLimit(1).scaledWidth(58, alignment: .leading)
             Slider(value: Binding(
                 get: { Double(side[keyPath: keyPath]) },
                 set: { side[keyPath: keyPath] = max(0, min(Int($0), cap)) }
@@ -695,7 +695,8 @@ private struct SetEVRow: View {
             .tint(.red)
             Text("\(side[keyPath: keyPath])")
                 .font(.caption.monospacedDigit())
-                .frame(width: 36, alignment: .trailing)
+                .lineLimit(1)
+                .scaledWidth(36, relativeTo: .caption, alignment: .trailing)
         }
     }
 }
@@ -706,7 +707,7 @@ private struct SetIVRow: View {
 
     var body: some View {
         HStack {
-            Text(label).frame(width: 55, alignment: .leading)
+            Text(label).lineLimit(1).scaledWidth(58, alignment: .leading)
             Slider(value: Binding(
                 get: { Double(value) },
                 set: { value = max(0, min(Int($0), 31)) }
@@ -714,7 +715,8 @@ private struct SetIVRow: View {
             .tint(.red)
             Text("\(value)")
                 .font(.caption.monospacedDigit())
-                .frame(width: 36, alignment: .trailing)
+                .lineLimit(1)
+                .scaledWidth(36, relativeTo: .caption, alignment: .trailing)
         }
     }
 }

@@ -433,7 +433,8 @@ private struct StandingRow: View {
                 Text(standing.placing.map { "#\($0)" } ?? "—")
                     .font(.headline)
                     .foregroundStyle(placingColor)
-                    .frame(width: 44, alignment: .leading)
+                    .lineLimit(1)
+                    .scaledWidth(44, relativeTo: .headline, alignment: .leading)
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {

@@ -647,7 +647,7 @@ private struct ResultCard: View {
             // marker says whose it is.
             VStack(alignment: .leading, spacing: 6) {
                 if hasFieldConditions {
-                    HStack(spacing: 6) {
+                    FlowLayout(spacing: 6) {
                         if vm.weather != .none {
                             InfoBadge(text: vm.weather.rawValue, color: .cyan)
                         }
@@ -659,7 +659,6 @@ private struct ResultCard: View {
                         if vm.gravity { InfoBadge(text: "Gravity", color: .indigo) }
                         if vm.wonderRoom { InfoBadge(text: "Wonder Room", color: .indigo) }
                         if vm.magicRoom { InfoBadge(text: "Magic Room", color: .indigo) }
-                        Spacer()
                     }
                 }
                 if SideModifiersRow.hasModifiers(vm.side1) {
@@ -721,13 +720,13 @@ private struct SideModifiersRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 6) {
-            SideMarker(role: role).font(.caption)
-            Text(name)
-                .font(.caption.bold())
-                .lineLimit(1)
-                // Truncate the name before any badge.
-                .layoutPriority(-1)
+        FlowLayout(spacing: 6) {
+            HStack(spacing: 6) {
+                SideMarker(role: role).font(.caption)
+                Text(name)
+                    .font(.caption.bold())
+                    .lineLimit(1)
+            }
             if side.status != .none {
                 InfoBadge(text: statusLabel(side.status), color: .primary)
             }
@@ -737,7 +736,6 @@ private struct SideModifiersRow: View {
             if side.effectiveHeldItem != .none {
                 InfoBadge(text: side.effectiveHeldItem.rawValue, color: ColorRole.item.color)
             }
-            Spacer(minLength: 0)
         }
     }
 }
@@ -770,13 +768,19 @@ private struct DirectionResultsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 4) {
-                SideMarker(role: attackerRole).font(.subheadline)
-                Text(attackerName).font(.subheadline.bold())
-                Image(systemName: "arrow.right").font(.caption).foregroundStyle(.secondary)
-                SideMarker(role: defenderRole).font(.subheadline)
-                Text(defenderName).font(.subheadline.bold())
-                Spacer()
+            AdaptiveStack(spacing: 4) {
+                FlowLayout(spacing: 4) {
+                    HStack(spacing: 4) {
+                        SideMarker(role: attackerRole).font(.subheadline)
+                        Text(attackerName).font(.subheadline.bold())
+                    }
+                    Image(systemName: "arrow.right").font(.caption).foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        SideMarker(role: defenderRole).font(.subheadline)
+                        Text(defenderName).font(.subheadline.bold())
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 Text("\(defenderHP) HP")
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
@@ -801,31 +805,38 @@ private struct MoveResultRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Text(result.move.name)
-                    .font(.subheadline.bold())
-                    .lineLimit(1)
-                TypeBadge(type: result.move.type)
-                DamageClassBadge(damageClass: result.move.damageClass)
-                if result.isSTAB && !isStatus {
-                    Text("STAB")
-                        .font(.system(size: 9, weight: .bold))
-                        .padding(.horizontal, 4).padding(.vertical, 1)
-                        .foregroundStyle(.yellow)
-                        .background(Color.yellow.opacity(0.2), in: Capsule())
+            AdaptiveStack(spacing: 6) {
+                FlowLayout(spacing: 6) {
+                    Text(result.move.name)
+                        .font(.subheadline.bold())
+                        .lineLimit(1)
+                    TypeBadge(type: result.move.type)
+                    DamageClassBadge(damageClass: result.move.damageClass)
+                    if result.isSTAB && !isStatus {
+                        Text("STAB")
+                            .scaledFont(size: 9, weight: .bold, relativeTo: .caption2)
+                            .fixedSize()
+                            .padding(.horizontal, 4).padding(.vertical, 1)
+                            .foregroundStyle(.yellow)
+                            .background(Color.yellow.opacity(0.2), in: Capsule())
+                    }
                 }
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
                 if !isStatus {
-                    Text(result.effectivenessLabel)
-                        .font(.caption.bold())
-                        .foregroundStyle(result.effectivenessColor)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(result.effectivenessColor.opacity(0.15), in: Capsule())
-                    Text(result.hitsToKO)
-                        .font(.caption.bold())
-                        .foregroundStyle(.red)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Color.red.opacity(0.15), in: Capsule())
+                    HStack(spacing: 6) {
+                        Text(result.effectivenessLabel)
+                            .font(.caption.bold())
+                            .fixedSize()
+                            .foregroundStyle(result.effectivenessColor)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(result.effectivenessColor.opacity(0.15), in: Capsule())
+                        Text(result.hitsToKO)
+                            .font(.caption.bold())
+                            .fixedSize()
+                            .foregroundStyle(.red)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Color.red.opacity(0.15), in: Capsule())
+                    }
                 }
             }
 
@@ -833,13 +844,15 @@ private struct MoveResultRow: View {
                 Text("Status move — no damage")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
-                HStack(spacing: 4) {
-                    Text("\(String(format: "%.0f", result.damageMin))-\(String(format: "%.0f", result.damageMax))")
-                        .font(.caption.monospacedDigit())
-                    Text("(\(String(format: "%.1f", result.minPercent))% - \(String(format: "%.1f", result.maxPercent))%)")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                    Spacer()
+                AdaptiveStack(spacing: 4) {
+                    HStack(spacing: 4) {
+                        Text("\(String(format: "%.0f", result.damageMin))-\(String(format: "%.0f", result.damageMax))")
+                            .font(.caption.monospacedDigit())
+                        Text("(\(String(format: "%.1f", result.minPercent))% - \(String(format: "%.1f", result.maxPercent))%)")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     if let onSolve {
                         Button(action: onSolve) {
                             Label("Solve EVs", systemImage: "wand.and.stars")
@@ -863,6 +876,8 @@ private struct InfoBadge: View {
     var body: some View {
         Text(text)
             .font(.caption2.bold())
+            .lineLimit(1)
+            .fixedSize()
             .padding(.horizontal, 6).padding(.vertical, 2)
             .foregroundStyle(color)
             .background(color.opacity(0.15), in: Capsule())
@@ -973,19 +988,21 @@ private struct SideCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 if let p = side.pokemon {
                     HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(side.effectiveDisplayName).font(.title3.bold())
-                            if side.activeMegaForm != nil {
-                                Text("Mega Evolved")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.purple)
-                            } else if p.isForm, let form = p.formName {
-                                Text(form.split(separator: "-").map { $0.capitalized }.joined(separator: " "))
-                                    .font(.caption).foregroundStyle(.secondary)
+                        AdaptiveStack(spacing: 6) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(side.effectiveDisplayName).font(.title3.bold())
+                                if side.activeMegaForm != nil {
+                                    Text("Mega Evolved")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.purple)
+                                } else if p.isForm, let form = p.formName {
+                                    Text(form.split(separator: "-").map { $0.capitalized }.joined(separator: " "))
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            HStack { ForEach(side.effectiveTypes, id: \.self) { TypeBadge(type: $0) } }
                         }
-                        Spacer()
-                        ForEach(side.effectiveTypes, id: \.self) { TypeBadge(type: $0) }
                         Button {
                             side.pokemon = nil
                             side.searchText = ""
@@ -1059,7 +1076,7 @@ private struct SideCard: View {
                                         side.loadedSpreadName = nil
                                     } label: {
                                         HStack {
-                                            Text("#\(p.id)").foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
+                                            Text("#\(p.id)").foregroundStyle(.secondary).lineLimit(1).scaledWidth(50, alignment: .leading)
                                             Text(p.name)
                                             Spacer()
                                             TypeBadge(type: p.type1)
@@ -1120,7 +1137,9 @@ private struct SideCard: View {
                 // calc is actually using (`effectiveAbility`). The underlying
                 // `selectedAbility` storage is intentionally NOT mutated so
                 // toggling Mega off restores the user's pre-Mega pick.
-                HStack {
+                // At accessibility sizes each picker gets its own line: a menu
+                // picker doesn't grow taller when its value wraps.
+                AdaptiveStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Ability").font(.caption).foregroundStyle(.secondary)
                         if let mega = side.activeMegaForm {
@@ -1155,7 +1174,7 @@ private struct SideCard: View {
                 }
 
                 // Status + Current HP (Showdown-parity per-Pokemon options).
-                HStack {
+                AdaptiveStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Status").font(.caption).foregroundStyle(.secondary)
                         Picker("Status", selection: $side.status) {
@@ -1177,7 +1196,7 @@ private struct SideCard: View {
                                     side.atFullHP = c >= 100
                                 }
                             ), format: .number)
-                            .textFieldStyle(.roundedBorder).frame(width: 54)
+                            .textFieldStyle(.roundedBorder).scaledWidth(54)
                             #if os(iOS)
                             .keyboardType(.numberPad)
                             #endif
@@ -1191,12 +1210,12 @@ private struct SideCard: View {
                     .tint(.red)
 
                 // Level + Nature
-                HStack {
+                AdaptiveStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Level").font(.caption).foregroundStyle(.secondary)
                         TextField("Lv", value: $side.level, format: .number)
                             .textFieldStyle(.roundedBorder)
-                            .frame(width: 60)
+                            .scaledWidth(60)
                             #if os(iOS)
                             .keyboardType(.numberPad)
                             #endif
@@ -1371,12 +1390,15 @@ private struct MoveSlotView: View {
         if let move = side.moves[index] {
             HStack(spacing: 6) {
                 Text("\(index + 1).").font(.caption).foregroundStyle(.tertiary)
-                Text(move.name).font(.subheadline.bold()).lineLimit(1)
-                TypeBadge(type: move.type)
-                Text("\(move.power ?? 0) BP")
-                    .font(.caption).foregroundStyle(.secondary)
-                DamageClassBadge(damageClass: move.damageClass)
-                Spacer()
+                FlowLayout(spacing: 6) {
+                    Text(move.name).font(.subheadline.bold()).lineLimit(1)
+                    TypeBadge(type: move.type)
+                    Text("\(move.power ?? 0) BP")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize()
+                    DamageClassBadge(damageClass: move.damageClass)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 Button { side.moves[index] = nil } label: {
                     Image(systemName: "xmark.circle.fill").font(.caption).foregroundStyle(.secondary)
                 }
@@ -1504,7 +1526,7 @@ private struct ModifiersCard: View {
                 Text("Misc Multiplier").font(.subheadline)
                 Spacer()
                 TextField("x", value: $vm.miscMultiplier, format: .number)
-                    .textFieldStyle(.roundedBorder).frame(width: 70)
+                    .textFieldStyle(.roundedBorder).scaledWidth(70)
                     #if os(iOS)
                     .keyboardType(.decimalPad)
                     #endif
@@ -1672,7 +1694,8 @@ struct DamageClassBadge: View {
     }
     var body: some View {
         Text(label)
-            .font(.system(size: 9, weight: .semibold))
+            .scaledFont(size: 9, weight: .semibold, relativeTo: .caption2)
+            .fixedSize()
             .padding(.horizontal, 4).padding(.vertical, 1)
             .foregroundStyle(color)
             .background(color.opacity(0.15), in: Capsule())
@@ -1704,7 +1727,7 @@ private struct CappedEVRow: View {
     var body: some View {
         let perStatMax = side.evPerStatMax
         HStack {
-            Text(label).frame(width: 55, alignment: .leading)
+            Text(label).lineLimit(1).scaledWidth(58, alignment: .leading)
             Slider(value: Binding(
                 get: { Double(side[keyPath: keyPath]) },
                 set: { newVal in
@@ -1722,7 +1745,7 @@ private struct CappedEVRow: View {
                     side.loadedSpreadName = nil
                 }
             ), format: .number)
-                .textFieldStyle(.roundedBorder).frame(width: 50)
+                .textFieldStyle(.roundedBorder).scaledWidth(50)
                 #if os(iOS)
                 .keyboardType(.numberPad)
                 #endif
@@ -1738,7 +1761,7 @@ private struct EVIVRow: View {
 
     var body: some View {
         HStack {
-            Text(label).frame(width: 55, alignment: .leading)
+            Text(label).lineLimit(1).scaledWidth(58, alignment: .leading)
             Slider(value: Binding(
                 get: { Double(min(max(value, range.lowerBound), range.upperBound)) },
                 set: { value = max(range.lowerBound, min(Int($0), range.upperBound)) }
@@ -1748,7 +1771,7 @@ private struct EVIVRow: View {
                 get: { min(max(value, range.lowerBound), range.upperBound) },
                 set: { value = max(range.lowerBound, min($0, range.upperBound)) }
             ), format: .number)
-                .textFieldStyle(.roundedBorder).frame(width: 50)
+                .textFieldStyle(.roundedBorder).scaledWidth(50)
                 #if os(iOS)
                 .keyboardType(.numberPad)
                 #endif
@@ -1761,7 +1784,7 @@ private struct StageRow: View {
     @Binding var stage: Int
     var body: some View {
         HStack {
-            Text(label).frame(width: 55, alignment: .leading)
+            Text(label).lineLimit(1).scaledWidth(58, alignment: .leading)
             Stepper(value: $stage, in: -6...6) {
                 Text(stage > 0 ? "+\(stage)" : "\(stage)")
                     .font(.subheadline.monospacedDigit())

@@ -636,11 +636,13 @@ private struct StatBar: View {
         HStack(spacing: 8) {
             Text(label)
                 .font(.caption.bold())
-                .frame(width: 40, alignment: .leading)
+                .lineLimit(1)
+                .scaledWidth(40, relativeTo: .caption, alignment: .leading)
                 .foregroundStyle(.secondary)
             Text("\(value)")
                 .font(.caption.monospacedDigit())
-                .frame(width: 36, alignment: .trailing)
+                .lineLimit(1)
+                .scaledWidth(36, relativeTo: .caption, alignment: .trailing)
             GeometryReader { geo in
                 let fraction = min(max(Double(value) / Self.maxStat, 0), 1)
                 ZStack(alignment: .leading) {
@@ -1041,21 +1043,24 @@ private struct StatCompareRow: View {
             Text("\(left)")
                 .font(.caption.monospacedDigit().weight(leftWins ? .bold : .regular))
                 .foregroundStyle(leftWins ? Color.green : .secondary)
-                .frame(width: 38, alignment: .trailing)
+                .lineLimit(1)
+                .scaledWidth(38, relativeTo: .caption, alignment: .trailing)
 
             bar(value: left, alignment: .trailing, win: leftWins)
 
             Text(label)
                 .font(.caption2.bold())
                 .foregroundStyle(.secondary)
-                .frame(width: 34)
+                .lineLimit(1)
+                .scaledWidth(34, relativeTo: .caption2)
 
             bar(value: right, alignment: .leading, win: rightWins)
 
             Text("\(right)")
                 .font(.caption.monospacedDigit().weight(rightWins ? .bold : .regular))
                 .foregroundStyle(rightWins ? Color.green : .secondary)
-                .frame(width: 38, alignment: .leading)
+                .lineLimit(1)
+                .scaledWidth(38, relativeTo: .caption, alignment: .leading)
         }
     }
 

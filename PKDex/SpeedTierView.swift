@@ -290,7 +290,7 @@ struct SpeedTierView: View {
                 Text("Level")
                 Spacer()
                 TextField("Lv", value: $side.level, format: .number)
-                    .frame(width: 60)
+                    .scaledWidth(60)
                     .textFieldStyle(.roundedBorder)
                     .multilineTextAlignment(.trailing)
                     #if os(iOS)
@@ -312,7 +312,7 @@ struct SpeedTierView: View {
                     get: { side.evSpeed },
                     set: { side.evSpeed = max(0, min($0, side.evPerStatMax)) }
                 ), format: .number)
-                    .textFieldStyle(.roundedBorder).frame(width: 50)
+                    .textFieldStyle(.roundedBorder).scaledWidth(50)
                     #if os(iOS)
                     .keyboardType(.numberPad)
                     #endif
@@ -332,7 +332,7 @@ struct SpeedTierView: View {
                         get: { side.ivSpeed },
                         set: { side.ivSpeed = max(0, min($0, 31)) }
                     ), format: .number)
-                        .textFieldStyle(.roundedBorder).frame(width: 50)
+                        .textFieldStyle(.roundedBorder).scaledWidth(50)
                         #if os(iOS)
                         .keyboardType(.numberPad)
                         #endif
@@ -369,7 +369,7 @@ struct SpeedTierView: View {
                     side.heldItem = .none
                 } label: {
                     HStack {
-                        Text("#\(p.id)").foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
+                        Text("#\(p.id)").foregroundStyle(.secondary).lineLimit(1).scaledWidth(50, alignment: .leading)
                         Text(p.name)
                         Spacer()
                         Text("Spe \(p.baseSpeed)").font(.caption).foregroundStyle(.secondary)
@@ -537,18 +537,23 @@ private struct SpeedRow: View {
                 .font(.subheadline.bold().monospacedDigit())
                 .foregroundStyle(entry.finalSpeed > userSpeed ? .red :
                                  entry.finalSpeed == userSpeed ? .orange : .green)
-                .frame(width: 40, alignment: .trailing)
+                .lineLimit(1)
+                .scaledWidth(40, relativeTo: .subheadline, alignment: .trailing)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(entry.pokemonName).font(.subheadline).lineLimit(1)
-                Text("Base \(entry.baseSpeed)")
-                    .font(.caption2).foregroundStyle(.secondary)
+            // At accessibility sizes the types move under the name.
+            AdaptiveStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(entry.pokemonName).font(.subheadline).lineLimit(1)
+                    Text("Base \(entry.baseSpeed)")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                HStack(spacing: 8) {
+                    TypeBadge(type: entry.type1)
+                    if let t2 = entry.type2 { TypeBadge(type: t2) }
+                }
             }
-
-            Spacer()
-
-            TypeBadge(type: entry.type1)
-            if let t2 = entry.type2 { TypeBadge(type: t2) }
         }
     }
 }

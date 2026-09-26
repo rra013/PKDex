@@ -410,14 +410,14 @@ private struct TeamSlotCard: View {
             }
 
             if !slot.moveSlots.isEmpty {
-                HStack(spacing: 6) {
+                FlowLayout(spacing: 6) {
                     ForEach(slot.moveSlots) { move in
                         HStack(spacing: 3) {
                             Text(move.moveName)
                                 .font(.caption2)
                             if move.isSTAB {
                                 Text("STAB")
-                                    .font(.system(size: 8, weight: .bold))
+                                    .scaledFont(size: 8, weight: .bold, relativeTo: .caption2)
                                     .foregroundStyle(.yellow)
                             }
                         }
@@ -706,7 +706,7 @@ private struct CoverageSectionView: View {
 
                     let sources = showSTAB ? entry.stabSources : entry.nonStabSources
                     ForEach(sources) { source in
-                        HStack(spacing: 4) {
+                        FlowLayout(spacing: 4) {
                             Text(source.pokemonName)
                                 .font(.caption.bold())
                             Text("with")
@@ -716,7 +716,7 @@ private struct CoverageSectionView: View {
                             TypeBadge(type: source.moveType)
                             if source.isSTAB {
                                 Text("STAB")
-                                    .font(.system(size: 8, weight: .bold))
+                                    .scaledFont(size: 8, weight: .bold, relativeTo: .caption2)
                                     .padding(.horizontal, 3).padding(.vertical, 1)
                                     .foregroundStyle(.yellow)
                                     .background(Color.yellow.opacity(0.2), in: Capsule())
@@ -727,48 +727,5 @@ private struct CoverageSectionView: View {
                 .padding(.vertical, 2)
             }
         }
-    }
-}
-
-// MARK: - Flow Layout (for type badges)
-
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 6
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = arrange(proposal: proposal, subviews: subviews)
-        return result.size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = arrange(proposal: proposal, subviews: subviews)
-        for (index, position) in result.positions.enumerated() {
-            subviews[index].place(at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y),
-                                  proposal: .unspecified)
-        }
-    }
-
-    private func arrange(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
-        let maxWidth = proposal.width ?? .infinity
-        var positions: [CGPoint] = []
-        var x: CGFloat = 0
-        var y: CGFloat = 0
-        var rowHeight: CGFloat = 0
-        var maxX: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x + size.width > maxWidth && x > 0 {
-                x = 0
-                y += rowHeight + spacing
-                rowHeight = 0
-            }
-            positions.append(CGPoint(x: x, y: y))
-            rowHeight = max(rowHeight, size.height)
-            x += size.width + spacing
-            maxX = max(maxX, x)
-        }
-
-        return (CGSize(width: maxX, height: y + rowHeight), positions)
     }
 }
