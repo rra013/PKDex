@@ -61,7 +61,7 @@ struct TeamListView: View {
                     Text("Create a team of six to see type coverage analysis.")
                 } actions: {
                     Button("New Team") { showNewTeam = true }
-                        .buttonStyle(.borderedProminent).tint(.red)
+                        .buttonStyle(.borderedProminent)
                     Button("Import Paste") { showImportTeam = true }
                         .buttonStyle(.bordered)
                 }
@@ -358,7 +358,7 @@ private struct TeamEditorContent: View {
                                 Label("Add", systemImage: "plus.circle.fill")
                                     .font(.subheadline)
                             }
-                            .buttonStyle(.bordered).tint(.red)
+                            .buttonStyle(.bordered)
                         }
                     }
                     Divider()
