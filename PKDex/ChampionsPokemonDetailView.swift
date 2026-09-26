@@ -679,8 +679,8 @@ private struct AbilityChip: View {
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(Color.orange.opacity(0.15), in: Capsule())
-        .foregroundStyle(.orange)
+        .background(ColorRole.ability.color.opacity(0.15), in: Capsule())
+        .foregroundStyle(ColorRole.ability.color)
     }
 }
 

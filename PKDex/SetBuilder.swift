@@ -171,15 +171,15 @@ private struct SetRowView: View {
                         Text(formatAbilityName(ability))
                             .font(.caption2)
                             .padding(.horizontal, 4).padding(.vertical, 1)
-                            .foregroundStyle(.orange)
-                            .background(Color.orange.opacity(0.12), in: Capsule())
+                            .foregroundStyle(ColorRole.ability.color)
+                            .background(ColorRole.ability.color.opacity(0.12), in: Capsule())
                     }
                     if let item = spread.itemRawValue, item != HeldItem.none.rawValue {
                         Text(item)
                             .font(.caption2)
                             .padding(.horizontal, 4).padding(.vertical, 1)
-                            .foregroundStyle(.green)
-                            .background(Color.green.opacity(0.12), in: Capsule())
+                            .foregroundStyle(ColorRole.item.color)
+                            .background(ColorRole.item.color.opacity(0.12), in: Capsule())
                     }
                     if let nature = allNatures.first(where: { $0.id == spread.natureID }) {
                         Text(nature.name)

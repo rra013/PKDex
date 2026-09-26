@@ -579,8 +579,8 @@ struct DamageCalculatorView: View {
                         // visible while tweaking either mon.
                         HStack(alignment: .top, spacing: 16) {
                             VStack(spacing: 16) {
-                                SideCard(title: "Pokemon 1", icon: "circle.fill", side: vm.side1, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
-                                SideCard(title: "Pokemon 2", icon: "circle.fill", side: vm.side2, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
+                                SideCard(title: "Pokemon 1", role: .side1, side: vm.side1, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
+                                SideCard(title: "Pokemon 2", role: .side2, side: vm.side2, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
                             }
                             .frame(maxWidth: .infinity, alignment: .top)
                             VStack(spacing: 16) {
@@ -593,8 +593,8 @@ struct DamageCalculatorView: View {
                         // Compact layout: original single column, unchanged.
                         VStack(spacing: 16) {
                             ResultCard(vm: vm)
-                            SideCard(title: "Pokemon 1", icon: "circle.fill", side: vm.side1, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
-                            SideCard(title: "Pokemon 2", icon: "circle.fill", side: vm.side2, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
+                            SideCard(title: "Pokemon 1", role: .side1, side: vm.side1, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
+                            SideCard(title: "Pokemon 2", role: .side2, side: vm.side2, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
                             ModifiersCard(vm: vm)
                         }
                     }
@@ -642,42 +642,37 @@ private struct ResultCard: View {
 
     var body: some View {
         CalcSection(title: "Results", icon: "bolt.fill") {
-            // Active modifier badges
-            HStack(spacing: 6) {
-                if vm.weather != .none {
-                    InfoBadge(text: vm.weather.rawValue, color: .cyan)
+            // Field conditions, then each side's modifiers on its own row: a
+            // badge's color says what it is (ability, item), and the row's
+            // marker says whose it is.
+            VStack(alignment: .leading, spacing: 6) {
+                if hasFieldConditions {
+                    HStack(spacing: 6) {
+                        if vm.weather != .none {
+                            InfoBadge(text: vm.weather.rawValue, color: .cyan)
+                        }
+                        if vm.terrain != .none {
+                            InfoBadge(text: "\(vm.terrain.rawValue) Terrain", color: .green)
+                        }
+                        if vm.crit { InfoBadge(text: "Crit", color: .orange) }
+                        if vm.burn { InfoBadge(text: "Burn", color: .red) }
+                        if vm.gravity { InfoBadge(text: "Gravity", color: .indigo) }
+                        if vm.wonderRoom { InfoBadge(text: "Wonder Room", color: .indigo) }
+                        if vm.magicRoom { InfoBadge(text: "Magic Room", color: .indigo) }
+                        Spacer()
+                    }
                 }
-                if vm.terrain != .none {
-                    InfoBadge(text: "\(vm.terrain.rawValue) Terrain", color: .green)
+                if SideModifiersRow.hasModifiers(vm.side1) {
+                    SideModifiersRow(role: .side1, name: vm.side1.pokemon?.name ?? "Pokemon 1", side: vm.side1)
                 }
-                if vm.crit { InfoBadge(text: "Crit", color: .orange) }
-                if vm.burn { InfoBadge(text: "Burn", color: .red) }
-                if vm.gravity { InfoBadge(text: "Gravity", color: .indigo) }
-                if vm.wonderRoom { InfoBadge(text: "Wonder Room", color: .indigo) }
-                if vm.magicRoom { InfoBadge(text: "Magic Room", color: .indigo) }
-                if vm.side1.status != .none {
-                    InfoBadge(text: statusLabel(vm.side1.status), color: .orange)
+                if SideModifiersRow.hasModifiers(vm.side2) {
+                    SideModifiersRow(role: .side2, name: vm.side2.pokemon?.name ?? "Pokemon 2", side: vm.side2)
                 }
-                if vm.side2.status != .none {
-                    InfoBadge(text: statusLabel(vm.side2.status), color: .purple)
-                }
-                if let a1 = vm.side1.effectiveAbility, !a1.isEmpty {
-                    InfoBadge(text: formatAbilityName(a1), color: .orange)
-                }
-                if let a2 = vm.side2.effectiveAbility, !a2.isEmpty {
-                    InfoBadge(text: formatAbilityName(a2), color: .purple)
-                }
-                if vm.side1.effectiveHeldItem != .none {
-                    InfoBadge(text: vm.side1.effectiveHeldItem.rawValue, color: .green)
-                }
-                if vm.side2.effectiveHeldItem != .none {
-                    InfoBadge(text: vm.side2.effectiveHeldItem.rawValue, color: .mint)
-                }
-                Spacer()
             }
 
             if vm.side1.pokemon != nil && vm.side2.pokemon != nil {
                 DirectionResultsView(
+                    attackerRole: .side1,
                     attackerName: vm.side1.pokemon?.name ?? "???",
                     defenderName: vm.side2.pokemon?.name ?? "???",
                     defenderHP: vm.side2.hp,
@@ -688,6 +683,7 @@ private struct ResultCard: View {
                 Divider()
 
                 DirectionResultsView(
+                    attackerRole: .side2,
                     attackerName: vm.side2.pokemon?.name ?? "???",
                     defenderName: vm.side1.pokemon?.name ?? "???",
                     defenderHP: vm.side1.hp,
@@ -705,9 +701,64 @@ private struct ResultCard: View {
             EVSolverSheet(vm: vm, request: request)
         }
     }
+
+    private var hasFieldConditions: Bool {
+        vm.weather != .none || vm.terrain != .none || vm.crit || vm.burn
+            || vm.gravity || vm.wonderRoom || vm.magicRoom
+    }
+}
+
+/// One side's status, ability and item, after the side's marker and name.
+private struct SideModifiersRow: View {
+    let role: ColorRole
+    let name: String
+    let side: CalcSide
+
+    static func hasModifiers(_ side: CalcSide) -> Bool {
+        side.status != .none
+            || !(side.effectiveAbility ?? "").isEmpty
+            || side.effectiveHeldItem != .none
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            SideMarker(role: role).font(.caption)
+            Text(name)
+                .font(.caption.bold())
+                .lineLimit(1)
+                // Truncate the name before any badge.
+                .layoutPriority(-1)
+            if side.status != .none {
+                InfoBadge(text: statusLabel(side.status), color: .primary)
+            }
+            if let ability = side.effectiveAbility, !ability.isEmpty {
+                InfoBadge(text: formatAbilityName(ability), color: ColorRole.ability.color)
+            }
+            if side.effectiveHeldItem != .none {
+                InfoBadge(text: side.effectiveHeldItem.rawValue, color: ColorRole.item.color)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+/// Marks Pokémon 1 or 2 wherever Results names them, matching the marker
+/// on each side's card. The number carries the meaning without the color.
+private struct SideMarker: View {
+    let role: ColorRole
+    var body: some View {
+        Image(systemName: Self.symbol(for: role))
+            .foregroundStyle(role.color)
+            .accessibilityHidden(true)
+    }
+
+    static func symbol(for role: ColorRole) -> String {
+        role == .side2 ? "2.circle.fill" : "1.circle.fill"
+    }
 }
 
 private struct DirectionResultsView: View {
+    let attackerRole: ColorRole
     let attackerName: String
     let defenderName: String
     let defenderHP: Int
@@ -715,11 +766,15 @@ private struct DirectionResultsView: View {
     /// Opens the EV solver for a move in this direction.
     var onSolve: ((MoveData) -> Void)? = nil
 
+    private var defenderRole: ColorRole { attackerRole == .side1 ? .side2 : .side1 }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 4) {
+                SideMarker(role: attackerRole).font(.subheadline)
                 Text(attackerName).font(.subheadline.bold())
                 Image(systemName: "arrow.right").font(.caption).foregroundStyle(.secondary)
+                SideMarker(role: defenderRole).font(.subheadline)
                 Text(defenderName).font(.subheadline.bold())
                 Spacer()
                 Text("\(defenderHP) HP")
@@ -846,7 +901,9 @@ private struct PercentageBar: View {
 
 private struct SideCard: View {
     let title: String
-    let icon: String
+    /// `.side1` or `.side2`; the header's numbered marker is the key for
+    /// the markers in Results.
+    let role: ColorRole
     @Bindable var side: CalcSide
     let allPokemon: [PKMNStats]
     let allMoves: [MoveData]
@@ -864,7 +921,7 @@ private struct SideCard: View {
             Label("Save Spread", systemImage: "square.and.arrow.down")
                 .font(.caption).lineLimit(1)
         }
-        .buttonStyle(.bordered).tint(.red)
+        .buttonStyle(.bordered)
 
         Button { showLoadSheet = true } label: {
             Label("Load", systemImage: "tray.and.arrow.up")
@@ -911,7 +968,7 @@ private struct SideCard: View {
     }
 
     var body: some View {
-        CalcSection(title: title, icon: icon) {
+        CalcSection(title: title, icon: SideMarker.symbol(for: role), iconColor: role.color) {
             // Pokemon Picker
             VStack(alignment: .leading, spacing: 8) {
                 if let p = side.pokemon {
@@ -1552,15 +1609,15 @@ private struct LoadSpreadSheet: View {
                                     Text(formatAbilityName(ability))
                                         .font(.caption2)
                                         .padding(.horizontal, 4).padding(.vertical, 1)
-                                        .foregroundStyle(.orange)
-                                        .background(Color.orange.opacity(0.12), in: Capsule())
+                                        .foregroundStyle(ColorRole.ability.color)
+                                        .background(ColorRole.ability.color.opacity(0.12), in: Capsule())
                                 }
                                 if let item = spread.itemRawValue {
                                     Text(item)
                                         .font(.caption2)
                                         .padding(.horizontal, 4).padding(.vertical, 1)
-                                        .foregroundStyle(.green)
-                                        .background(Color.green.opacity(0.12), in: Capsule())
+                                        .foregroundStyle(ColorRole.item.color)
+                                        .background(ColorRole.item.color.opacity(0.12), in: Capsule())
                                 }
                             }
                             Text("EVs: \(spread.evHP)/\(spread.evAtk)/\(spread.evDef)/\(spread.evSpAtk)/\(spread.evSpDef)/\(spread.evSpeed)")
@@ -1596,10 +1653,16 @@ private struct LoadSpreadSheet: View {
 private struct CalcSection<Content: View>: View {
     let title: String
     let icon: String
+    var iconColor: Color = .primary
     @ViewBuilder let content: Content
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label(title, systemImage: icon).font(.headline)
+            Label {
+                Text(title)
+            } icon: {
+                Image(systemName: icon).foregroundStyle(iconColor)
+            }
+            .font(.headline)
             Divider()
             content
         }

@@ -2,8 +2,9 @@
 //  Theme.swift
 //  PKDex
 //
-//  Styles shared across screens, so a type looks the same wherever it
-//  appears: the type palette and the type badge.
+//  Styles shared across screens, so a type or a role looks the same
+//  wherever it appears: the type palette and badge, and the role colors
+//  for the two sides of a matchup, abilities and items.
 //
 //  The fills are the type colors players know from the games and most
 //  community tools, which keeps all eighteen distinct. The system colors
@@ -49,10 +50,7 @@ enum TypePalette {
     }
 
     static func fill(for type: String) -> Color {
-        let hex = hex(for: type)
-        return Color(red: Double((hex >> 16) & 0xFF) / 255,
-                     green: Double((hex >> 8) & 0xFF) / 255,
-                     blue: Double(hex & 0xFF) / 255)
+        Color(hex: hex(for: type))
     }
 
     /// Black or white, whichever contrasts more with the type's fill.
@@ -78,6 +76,76 @@ enum TypePalette {
     static func contrastRatio(_ a: Double, _ b: Double) -> Double {
         (max(a, b) + 0.05) / (min(a, b) + 0.05)
     }
+}
+
+// MARK: - Role Colors
+
+/// Colors with one meaning across the app.
+///
+/// Each role has a light- and a dark-mode value, chosen to clear WCAG AA
+/// (4.5:1) as small text on the page, on grouped rows, and on a 15% tint
+/// of itself (the chip style most screens use), and as a fill under
+/// `textOnFill`. `ColorRoleTests` checks all of it. System colors miss
+/// this in light mode: orange text on white is about 2:1.
+enum ColorRole: String, CaseIterable {
+    /// The two sides of a matchup: Pokémon 1 and Pokémon 2 in the calc.
+    /// Teal and pink, because the calc already uses red (Champions,
+    /// warnings, KOs) and blue (the default accent) for other things.
+    case side1, side2
+    case ability, item
+
+    var color: Color { Color(light: light, dark: dark) }
+
+    var light: UInt32 {
+        switch self {
+        case .side1:   return 0x00687A
+        case .side2:   return 0xAC187C
+        case .ability: return 0xA73800
+        case .item:    return 0x186D2E
+        }
+    }
+
+    var dark: UInt32 {
+        switch self {
+        case .side1:   return 0x40CBE0
+        case .side2:   return 0xFF7FD0
+        case .ability: return 0xFFB340
+        case .item:    return 0x30DB5B
+        }
+    }
+
+    /// Text on a solid fill of any role: white in light mode, black in dark.
+    static let textOnFill = Color(light: 0xFFFFFF, dark: 0x000000)
+}
+
+// MARK: - Hex Colors
+
+extension Color {
+    /// An sRGB color from a 0xRRGGBB value.
+    init(hex: UInt32) {
+        let (red, green, blue) = rgb(hex)
+        self.init(red: red, green: green, blue: blue)
+    }
+
+    /// A color with separate light- and dark-mode values.
+    init(light: UInt32, dark: UInt32) {
+        #if canImport(UIKit)
+        self.init(uiColor: UIColor { traits in
+            let (red, green, blue) = rgb(traits.userInterfaceStyle == .dark ? dark : light)
+            return UIColor(red: red, green: green, blue: blue, alpha: 1)
+        })
+        #else
+        self.init(nsColor: NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            let (red, green, blue) = rgb(isDark ? dark : light)
+            return NSColor(srgbRed: red, green: green, blue: blue, alpha: 1)
+        })
+        #endif
+    }
+}
+
+private func rgb(_ hex: UInt32) -> (Double, Double, Double) {
+    (Double((hex >> 16) & 0xFF) / 255, Double((hex >> 8) & 0xFF) / 255, Double(hex & 0xFF) / 255)
 }
 
 // MARK: - Type Badge
