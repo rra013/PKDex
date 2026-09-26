@@ -181,7 +181,7 @@ struct EncounterAreaCard: View {
                 .padding(.vertical, 4)
             }
         }
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .card(padding: 0)
     }
 }
 
@@ -262,7 +262,7 @@ struct StaticEncounterBrowserView: View {
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                            .card(padding: 0)
                         }
                     }
                 }

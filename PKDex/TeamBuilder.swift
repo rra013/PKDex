@@ -346,9 +346,7 @@ private struct TeamEditorContent: View {
                     TextField("Team Name", text: $name)
                         .textFieldStyle(.roundedBorder)
                 }
-                .padding()
-                .background(.background, in: RoundedRectangle(cornerRadius: 14))
-                .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+                .card()
 
                 // Team Slots
                 VStack(alignment: .leading, spacing: 14) {
@@ -375,9 +373,7 @@ private struct TeamEditorContent: View {
                         }
                     }
                 }
-                .padding()
-                .background(.background, in: RoundedRectangle(cornerRadius: 14))
-                .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+                .card()
 
                 // Coverage Analysis
                 if !slots.isEmpty {
@@ -388,7 +384,7 @@ private struct TeamEditorContent: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
-        .background(Color(.systemGroupedBackground))
+        .cardPage()
         .sheet(isPresented: $showAddSlot) {
             AddSlotSheet(slots: $slots, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
         }
@@ -448,8 +444,7 @@ private struct TeamSlotCard: View {
             Text("EVs: \(slot.evHP)/\(slot.evAtk)/\(slot.evDef)/\(slot.evSpAtk)/\(slot.evSpDef)/\(slot.evSpeed)")
                 .font(.caption2.monospaced()).foregroundStyle(.tertiary)
         }
-        .padding(10)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+        .insetCard()
     }
 }
 
@@ -672,9 +667,7 @@ private struct TypeCoverageCard: View {
                 }
             }
         }
-        .padding()
-        .background(.background, in: RoundedRectangle(cornerRadius: 14))
-        .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+        .card()
     }
 }
 

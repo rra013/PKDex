@@ -139,6 +139,7 @@ struct ChampionsPokemonDetailView: View {
                 .padding(.bottom, 24)
             }
             .scrollDismissesKeyboard(.interactively)
+            .cardPage()
             .safeAreaInset(edge: .top, spacing: 0) {
                 sectionNav(proxy: proxy)
             }
@@ -205,7 +206,7 @@ struct ChampionsPokemonDetailView: View {
                 }
                 .padding(.vertical, 10)
                 .padding(.horizontal, 12)
-                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
                 .contentShape(RoundedRectangle(cornerRadius: 10))
             }
             .buttonStyle(.plain)
@@ -284,7 +285,7 @@ struct ChampionsPokemonDetailView: View {
             }
             .buttonStyle(.plain)
         }
-        .cardStyle()
+        .card()
     }
 
     @ViewBuilder
@@ -314,7 +315,7 @@ struct ChampionsPokemonDetailView: View {
                 }
             }
         }
-        .cardStyle()
+        .card()
     }
 
     @ViewBuilder
@@ -351,7 +352,7 @@ struct ChampionsPokemonDetailView: View {
                 }
             }
         }
-        .cardStyle()
+        .card()
     }
 
     @ViewBuilder
@@ -378,7 +379,7 @@ struct ChampionsPokemonDetailView: View {
                 }
             }
             .padding(.horizontal, 10).padding(.vertical, 8)
-            .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+            .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
 
             HStack {
                 Text(moveSearch.isEmpty ? "\(moves.count) moves"
@@ -416,7 +417,7 @@ struct ChampionsPokemonDetailView: View {
                 .id("moves-\(display.name)")
             }
         }
-        .cardStyle()
+        .card()
     }
 
     @ViewBuilder
@@ -733,22 +734,6 @@ private struct MoveRow: View {
     }
 }
 
-// MARK: - Card Modifier
-
-private struct CardStyle: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemBackground),
-                        in: RoundedRectangle(cornerRadius: 12))
-    }
-}
-
-private extension View {
-    func cardStyle() -> some View { modifier(CardStyle()) }
-}
-
 // MARK: - Comparison: shared helpers
 
 /// Display name for a form choice, given its species (mirrors the detail
@@ -890,6 +875,7 @@ struct ChampionsComparisonView: View {
             .padding(.bottom, 24)
         }
         .scrollDismissesKeyboard(.interactively)
+        .cardPage()
     }
 
     // MARK: Header
@@ -932,7 +918,7 @@ struct ChampionsComparisonView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .cardStyle()
+        .card()
     }
 
     // MARK: Moves
@@ -967,7 +953,7 @@ struct ChampionsComparisonView: View {
                 }
             }
             .padding(.horizontal, 10).padding(.vertical, 8)
-            .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+            .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
 
             HStack(alignment: .top, spacing: 12) {
                 MoveColumn(title: l.name, moves: l.moves, shared: shared,
@@ -979,7 +965,7 @@ struct ChampionsComparisonView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .cardStyle()
+        .card()
     }
 }
 
@@ -1030,7 +1016,7 @@ private struct FormMenu: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 8).padding(.horizontal, 10)
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
             .contentShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)

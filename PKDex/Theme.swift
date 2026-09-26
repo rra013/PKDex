@@ -2,9 +2,10 @@
 //  Theme.swift
 //  PKDex
 //
-//  Styles shared across screens, so a type or a role looks the same
-//  wherever it appears: the type palette and badge, and the role colors
-//  for the two sides of a matchup, abilities and items.
+//  Styles shared across screens, so a type, a role or a card looks the
+//  same wherever it appears: the type palette and badge, the role colors
+//  for the two sides of a matchup, abilities and items, and the card
+//  styles.
 //
 //  The fills are the type colors players know from the games and most
 //  community tools, which keeps all eighteen distinct. The system colors
@@ -146,6 +147,66 @@ extension Color {
 
 private func rgb(_ hex: UInt32) -> (Double, Double, Double) {
     (Double((hex >> 16) & 0xFF) / 255, Double((hex >> 8) & 0xFF) / 255, Double(hex & 0xFF) / 255)
+}
+
+// MARK: - Cards
+
+/// Card geometry shared by every screen.
+enum CardMetrics {
+    static let cornerRadius: CGFloat = 14
+    static let padding: CGFloat = 16
+    static let insetCornerRadius: CGFloat = 10
+    static let insetPadding: CGFloat = 12
+}
+
+extension View {
+    /// A section of a page that sits on `cardPage()`: full width, content
+    /// leading. Uses the grouped background colors, so a card is white on
+    /// light gray in light mode and dark gray on black in dark mode. A
+    /// `.background` card is black on black in dark mode, with nothing to
+    /// show its edge.
+    func card(padding: CGFloat = CardMetrics.padding) -> some View {
+        self.frame(maxWidth: .infinity, alignment: .leading)
+            .padding(padding)
+            .background(Color(.secondarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: CardMetrics.cornerRadius, style: .continuous))
+            .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+    }
+
+    /// A box set into a card: light gray in light mode, a lighter gray than
+    /// the card in dark mode.
+    func insetCard(padding: CGFloat = CardMetrics.insetPadding) -> some View {
+        self.padding(padding)
+            .background(Color(.tertiarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: CardMetrics.insetCornerRadius, style: .continuous))
+    }
+
+    /// The page behind cards.
+    func cardPage() -> some View {
+        background(Color(.systemGroupedBackground))
+    }
+}
+
+/// A titled card: an icon and title, a divider, then the content.
+struct SectionCard<Content: View>: View {
+    let title: String
+    let icon: String
+    var iconColor: Color = .primary
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label {
+                Text(title)
+            } icon: {
+                Image(systemName: icon).foregroundStyle(iconColor)
+            }
+            .font(.headline)
+            Divider()
+            content
+        }
+        .card()
+    }
 }
 
 // MARK: - Type Badge
