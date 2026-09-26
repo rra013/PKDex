@@ -62,7 +62,6 @@ enum AppTab: String, CaseIterable, Identifiable {
     }
 
     static let allUserTabs: [AppTab] = [.monIndex, .moveIndex, .abilityIndex, .damageCalc, .sets, .teams, .speedTiers, .battleSim, .rngTools, .tournaments, .teamSearch]
-    static let defaultEnabledRaw = allUserTabs.map(\.rawValue).joined(separator: ",")
 }
 
 // MARK: - Accent Color
@@ -109,21 +108,20 @@ enum AppAppearance: String, CaseIterable, Identifiable {
 }
 
 struct ContentView: View {
-    @AppStorage("enabledTabs") private var enabledTabsRaw: String = AppTab.defaultEnabledRaw
+    @AppStorage(TabLayout.orderKey) private var tabOrderRaw = ""
+    @AppStorage(TabLayout.hiddenKey) private var hiddenTabsRaw = ""
     @AppStorage("defaultTab") private var defaultTabRaw: String = AppTab.monIndex.rawValue
     @AppStorage("appAccentColor") private var accentColorRaw: String = AppAccentColor.blue.rawValue
     @AppStorage("appAppearance") private var appearanceRaw: String = AppAppearance.system.rawValue
 
     @State private var selectedTab: AppTab?
 
-    private var enabledTabs: [AppTab] {
-        let raw = enabledTabsRaw.split(separator: ",").map(String.init)
-        let tabs = raw.compactMap { AppTab(rawValue: $0) }
-        return tabs.isEmpty ? AppTab.allUserTabs : tabs
+    private var tabLayout: TabLayout {
+        TabLayout(orderRaw: tabOrderRaw, hiddenRaw: hiddenTabsRaw)
     }
 
     private var visibleTabs: [AppTab] {
-        enabledTabs + [.settings]
+        tabLayout.visible + [.settings]
     }
 
     private var accentColor: Color {
@@ -136,7 +134,7 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: Binding(
-            get: { selectedTab ?? AppTab(rawValue: defaultTabRaw) ?? .monIndex },
+            get: { selectedTab ?? tabLayout.launchTab(for: defaultTabRaw) },
             set: { selectedTab = $0 }
         )) {
             ForEach(visibleTabs) { tab in
@@ -147,13 +145,6 @@ struct ContentView: View {
         }
         .tint(accentColor)
         .preferredColorScheme(appearance)
-        .onAppear {
-            let stored = Set(enabledTabsRaw.split(separator: ",").map(String.init))
-            let missing = AppTab.allUserTabs.filter { !stored.contains($0.rawValue) }
-            if !missing.isEmpty {
-                enabledTabsRaw += "," + missing.map(\.rawValue).joined(separator: ",")
-            }
-        }
     }
 
     @ViewBuilder
@@ -170,7 +161,13 @@ struct ContentView: View {
         case .rngTools:     RNGToolsView()
         case .tournaments:  TournamentsTab()
         case .teamSearch:   TeamSearchView()
-        case .settings:     SettingsView()
+        case .settings:
+            SettingsView()
+                // Opening a tab from the More list doesn't update the
+                // selection, so it would still name the last tab-bar tab.
+                // Arranging tabs rebuilds the bar, which reapplies the
+                // selection and would jump away from Settings mid-edit.
+                .onAppear { selectedTab = .settings }
         }
     }
 }
