@@ -434,13 +434,8 @@ struct ChampionsPokemonDetailView: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .foregroundStyle(.white)
-                .background(Color.accentColor)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.primaryAction)
             .padding(.horizontal)
             .padding(.vertical, 10)
             .disabled(basePKMNStats == nil)

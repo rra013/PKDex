@@ -2715,12 +2715,9 @@ struct RNGTimerView: View {
                 } label: {
                     Label(engine.isRunning ? "Stop" : "Start Timer",
                           systemImage: engine.isRunning ? "stop.fill" : "play.fill")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(engine.isRunning ? Color.red : Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
+                .buttonStyle(.primaryAction)
+                .tint(engine.isRunning ? .red : nil)
                 .disabled(!engine.isRunning && computePhases().isEmpty)
 
                 // Phase preview
@@ -3063,10 +3060,8 @@ struct IVCalculatorView: View {
             results = pfCalculateIVRange(baseStats: baseStats, stats: stats, levels: [level], nature: natureIndex)
         } label: {
             Label("Calculate IVs", systemImage: "function")
-                .frame(maxWidth: .infinity).padding()
-                .background(Color.accentColor).foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
         }
+        .buttonStyle(.primaryAction)
     }
 
     private var resultsSection: some View {
@@ -3148,10 +3143,8 @@ struct IVToPIDView: View {
                                                           nature: nature, tid: tid)
                 } label: {
                     Label("Find PIDs", systemImage: "magnifyingglass")
-                        .frame(maxWidth: .infinity).padding()
-                        .background(Color.accentColor).foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
+                .buttonStyle(.primaryAction)
 
                 if !results.isEmpty {
                     SectionCard(title: "Results (\(results.count))", icon: "list.bullet") {
@@ -3804,11 +3797,9 @@ struct FinderRootView: View {
                         } label: {
                             Label("Stop",
                                   systemImage: "stop.fill")
-                                .frame(maxWidth: .infinity).padding()
-                                .background(Color.red)
-                                .foregroundStyle(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
+                        .buttonStyle(.primaryAction)
+                        .tint(.red)
                     }
                 } else {
                     Button {
@@ -3816,11 +3807,8 @@ struct FinderRootView: View {
                     } label: {
                         Label(mode == .searcher ? "Search" : "Generate",
                               systemImage: "magnifyingglass")
-                            .frame(maxWidth: .infinity).padding()
-                            .background(Color.accentColor)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
+                    .buttonStyle(.primaryAction)
                 }
 
                 if !activeResults.isEmpty {
@@ -5166,10 +5154,8 @@ struct SeedToTimeView: View {
                         )
                     } label: {
                         Label("Verify", systemImage: "checkmark.circle")
-                            .frame(maxWidth: .infinity).padding()
-                            .background(Color.accentColor).foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
+                    .buttonStyle(.primaryAction)
 
                     if let vr = verificationResult {
                         VStack(alignment: .leading, spacing: 4) {

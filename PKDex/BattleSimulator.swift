@@ -5220,10 +5220,8 @@ struct BattleSimulatorView: View {
             startBattle()
         } label: {
             Label("Start Battle", systemImage: "play.fill")
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 4)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.primaryAction)
         .disabled(!canStart)
     }
 
@@ -5797,7 +5795,7 @@ private struct BattleView: View {
         if let winner = engine.winner {
             VStack(spacing: 12) {
                 Text(winner == 1 ? "Side 1 Wins!" : "Side 2 Wins!").font(.title2.bold())
-                Button("New Battle", action: onExit).buttonStyle(.borderedProminent)
+                Button("New Battle", action: onExit).buttonStyle(.primaryAction)
             }
             .frame(maxWidth: .infinity)
             .padding()
@@ -5932,10 +5930,8 @@ private struct ActionChooserPanel: View {
                 engine.executeTurn()
             } label: {
                 Label("Execute Turn", systemImage: "forward.end.fill")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.primaryAction)
             .disabled(!engine.allActionsChosen)
         }
     }

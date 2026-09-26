@@ -161,11 +161,8 @@ struct GameCubeRNGView: View {
                 } label: {
                     Label(searchMode == .searcher && mode != .pokeSpot ? "Search" : "Generate",
                           systemImage: "sparkles")
-                        .frame(maxWidth: .infinity).padding()
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
+                .buttonStyle(.primaryAction)
 
                 if mode == .pokeSpot && !pokeSpotResults.isEmpty {
                     pokeSpotResultsSection
@@ -689,11 +686,8 @@ struct SeedSearcherView: View {
                         startSearch()
                     } label: {
                         Label("Search", systemImage: "magnifyingglass")
-                            .frame(maxWidth: .infinity).padding()
-                            .background(Color.accentColor)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
+                    .buttonStyle(.primaryAction)
                 }
 
                 if !seedResults.isEmpty {
@@ -881,11 +875,8 @@ struct JirachiPatternView: View {
                     calculate()
                 } label: {
                     Label("Calculate", systemImage: "function")
-                        .frame(maxWidth: .infinity).padding()
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
+                .buttonStyle(.primaryAction)
 
                 if let jSeed = jirachiSeed {
                     SectionCard(title: "Jirachi Seed", icon: "star") {

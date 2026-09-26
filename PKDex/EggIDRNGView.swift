@@ -174,11 +174,8 @@ struct EggRNGView: View {
                     generateEggs()
                 } label: {
                     Label("Generate", systemImage: "sparkles")
-                        .frame(maxWidth: .infinity).padding()
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
+                .buttonStyle(.primaryAction)
 
                 if generation == .gen3 && !results3.isEmpty {
                     eggResults3Section
@@ -468,11 +465,8 @@ struct IDRNGView: View {
                         generateIDs()
                     } label: {
                         Label("Generate", systemImage: "magnifyingglass")
-                            .frame(maxWidth: .infinity).padding()
-                            .background(Color.accentColor)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
+                    .buttonStyle(.primaryAction)
                 }
 
                 if generation == .gen4 && gen4Mode == 1 {
@@ -651,21 +645,16 @@ struct IDRNGView: View {
                     cancelSearch()
                 } label: {
                     Label("Cancel", systemImage: "xmark.circle")
-                        .frame(maxWidth: .infinity).padding()
-                        .background(Color.red)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
+                .buttonStyle(.primaryAction)
+                .tint(.red)
             } else {
                 Button {
                     startSearch()
                 } label: {
                     Label("Search", systemImage: "magnifyingglass")
-                        .frame(maxWidth: .infinity).padding()
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
+                .buttonStyle(.primaryAction)
             }
         }
     }

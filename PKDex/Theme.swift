@@ -2,10 +2,10 @@
 //  Theme.swift
 //  PKDex
 //
-//  Styles shared across screens, so a type, a role or a card looks the
-//  same wherever it appears: the type palette and badge, the role colors
-//  for the two sides of a matchup, abilities and items, and the card
-//  styles.
+//  Styles shared across screens, so a type, a role, a card or a button
+//  looks the same wherever it appears: the type palette and badge, the
+//  role colors for the two sides of a matchup, abilities and items, the
+//  card styles, and the primary action button.
 //
 //  The fills are the type colors players know from the games and most
 //  community tools, which keeps all eighteen distinct. The system colors
@@ -207,6 +207,26 @@ struct SectionCard<Content: View>: View {
         }
         .card()
     }
+}
+
+// MARK: - Buttons
+
+/// The main action on a screen, such as Generate, Search or Start Battle:
+/// the system's prominent button at large size, filled with the tint,
+/// with the label spanning the full width. For a red action such as Stop,
+/// add `.tint(.red)`.
+struct PrimaryActionButtonStyle: PrimitiveButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button(role: configuration.role, action: configuration.trigger) {
+            configuration.label.frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+    }
+}
+
+extension PrimitiveButtonStyle where Self == PrimaryActionButtonStyle {
+    static var primaryAction: PrimaryActionButtonStyle { PrimaryActionButtonStyle() }
 }
 
 // MARK: - Type Badge

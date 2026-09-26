@@ -65,7 +65,7 @@ struct SetListView: View {
                     Text("Create a set to get started. Sets can be loaded into teams for coverage analysis.")
                 } actions: {
                     Button("New Set") { showNewSetSheet = true }
-                        .buttonStyle(.borderedProminent).tint(.red)
+                        .buttonStyle(.borderedProminent)
                 }
             } else if let selection {
                 // Wide: selection-driven rows feed the split editor pane.
