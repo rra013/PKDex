@@ -2769,7 +2769,9 @@ struct RNGTimerView: View {
     private var timerDisplay: some View {
         VStack(spacing: 8) {
             Text(String(format: "%.3f", engine.displaySeconds))
-                .font(.system(size: 64, weight: .bold, design: .monospaced))
+                .scaledFont(size: 64, weight: .bold, design: .monospaced, relativeTo: .largeTitle)
+                .lineLimit(1)
+                .minimumScaleFactor(0.4)
                 .foregroundStyle(engine.isRunning ? .primary : .secondary)
                 .contentTransition(.numericText())
 
@@ -2831,25 +2833,26 @@ struct RNGTimerView: View {
             ForEach(customPhases.indices, id: \.self) { i in
                 HStack(spacing: 8) {
                     Text("Phase \(i + 1)").font(.caption).foregroundStyle(.secondary)
-                        .frame(width: 56, alignment: .leading)
+                        .lineLimit(1)
+                        .scaledWidth(56, relativeTo: .caption, alignment: .leading)
                     TextField("Value", value: Binding(
                         get: { customPhases[i].target },
                         set: { customPhases[i].target = $0 }
                     ), format: .number)
-                    .textFieldStyle(.roundedBorder).frame(width: 80)
+                    .textFieldStyle(.roundedBorder).scaledWidth(80)
 
                     Picker("", selection: Binding(
                         get: { customPhases[i].unit },
                         set: { customPhases[i].unit = $0 }
                     )) {
                         ForEach(CustomTimerUnit.allCases) { u in Text(u.rawValue).tag(u) }
-                    }.frame(width: 100)
+                    }.scaledWidth(100)
 
                     TextField("Cal", value: Binding(
                         get: { customPhases[i].calibration },
                         set: { customPhases[i].calibration = $0 }
                     ), format: .number)
-                    .textFieldStyle(.roundedBorder).frame(width: 60)
+                    .textFieldStyle(.roundedBorder).scaledWidth(60)
 
                     if customPhases.count > 1 {
                         Button { customPhases.remove(at: i) } label: {
@@ -3026,7 +3029,7 @@ struct IVCalculatorView: View {
                 Text("Level")
                 Spacer()
                 TextField("Lv", value: $level, format: .number)
-                    .textFieldStyle(.roundedBorder).frame(width: 60)
+                    .textFieldStyle(.roundedBorder).scaledWidth(60)
             }
             Picker("Nature", selection: $natureIndex) {
                 ForEach(Array(allNatures.enumerated()), id: \.element.id) { i, n in
@@ -3070,7 +3073,7 @@ struct IVCalculatorView: View {
                 SectionCard(title: "Results", icon: "checkmark.circle") {
                     ForEach(results) { r in
                         HStack {
-                            Text(r.statName).frame(width: 80, alignment: .leading)
+                            Text(r.statName).lineLimit(1).scaledWidth(80, alignment: .leading)
                             Spacer()
                             if r.possibleIVs.isEmpty {
                                 Text("Invalid").foregroundStyle(.red).bold()
@@ -3127,13 +3130,13 @@ struct IVToPIDView: View {
                         Text("Nature (0-24)")
                         Spacer()
                         TextField("", value: $nature, format: .number)
-                            .textFieldStyle(.roundedBorder).frame(width: 60)
+                            .textFieldStyle(.roundedBorder).scaledWidth(60)
                     }
                     HStack {
                         Text("Trainer ID")
                         Spacer()
                         TextField("", value: $tid, format: .number)
-                            .textFieldStyle(.roundedBorder).frame(width: 80)
+                            .textFieldStyle(.roundedBorder).scaledWidth(80)
                     }
                 }
 
@@ -3237,7 +3240,7 @@ struct HiddenPowerCalcView: View {
 
     private func hpPreset(_ type: String, ivs: String) -> some View {
         HStack {
-            TypeBadge(type: type).frame(width: 80, alignment: .leading)
+            TypeBadge(type: type).scaledWidth(80, relativeTo: .caption2, alignment: .leading)
             Spacer()
             Text(ivs).font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
         }
@@ -3637,7 +3640,7 @@ struct FinderRootView: View {
                             Spacer()
                             TextField("e.g. 0009BF123456", text: $gen5MacText)
                                 .textFieldStyle(.roundedBorder)
-                                .frame(width: 160)
+                                .scaledWidth(160)
                                 .multilineTextAlignment(.trailing)
                                 .autocorrectionDisabled()
                                 #if os(iOS)
@@ -3900,7 +3903,8 @@ struct FinderRootView: View {
                 HStack {
                     Text(slot.slotRate)
                         .font(.system(.caption2, design: .monospaced))
-                        .frame(width: 36, alignment: .trailing)
+                        .lineLimit(1)
+                        .scaledWidth(36, relativeTo: .caption2, alignment: .trailing)
                         .foregroundStyle(.secondary)
                     Text(slot.speciesName)
                         .font(.caption)
@@ -4139,7 +4143,7 @@ struct FinderRootView: View {
                 Spacer()
                 TextField("0", value: $gen8RaidDen, format: .number)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 80)
+                    .scaledWidth(80)
                     .multilineTextAlignment(.trailing)
             }
             Picker("Rarity", selection: $gen8RaidRarity) {
@@ -4151,7 +4155,7 @@ struct FinderRootView: View {
                 Spacer()
                 TextField("0", value: $gen8RaidIndex, format: .number)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 80)
+                    .scaledWidth(80)
                     .multilineTextAlignment(.trailing)
             }
             HStack {
@@ -4159,7 +4163,7 @@ struct FinderRootView: View {
                 Spacer()
                 TextField("60", value: $gen8RaidLevel, format: .number)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 80)
+                    .scaledWidth(80)
                     .multilineTextAlignment(.trailing)
             }
         }
@@ -4182,7 +4186,7 @@ struct FinderRootView: View {
                 Spacer()
                 TextField("Optional", text: $gen8FilterTIDText)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 120)
+                    .scaledWidth(120)
                     .multilineTextAlignment(.trailing)
                     .autocorrectionDisabled()
             }
@@ -4191,7 +4195,7 @@ struct FinderRootView: View {
                 Spacer()
                 TextField("Optional", text: $gen8FilterSIDText)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 120)
+                    .scaledWidth(120)
                     .multilineTextAlignment(.trailing)
                     .autocorrectionDisabled()
             }
@@ -4200,7 +4204,7 @@ struct FinderRootView: View {
                 Spacer()
                 TextField("Optional", text: $gen8FilterDisplayTIDText)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 120)
+                    .scaledWidth(120)
                     .multilineTextAlignment(.trailing)
                     .autocorrectionDisabled()
             }
@@ -4254,7 +4258,7 @@ struct FinderRootView: View {
                     Spacer()
                     TextField("e.g. 1A2B3C4D5E6F7890", text: $genSeedText)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 190)
+                        .scaledWidth(190)
                         .multilineTextAlignment(.trailing)
                         .autocorrectionDisabled()
                         #if os(iOS)
@@ -4266,7 +4270,7 @@ struct FinderRootView: View {
                     Spacer()
                     TextField("e.g. 1A2B3C4D5E6F7890", text: $gen8Seed1Text)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 190)
+                        .scaledWidth(190)
                         .multilineTextAlignment(.trailing)
                         .autocorrectionDisabled()
                         #if os(iOS)
@@ -4394,7 +4398,7 @@ struct FinderRootView: View {
                     TextField("200", value: $flipSearchRange, format: .number)
                         .keyboardType(.numberPad)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 80)
+                        .scaledWidth(80)
                         .font(.caption)
                 }
 
@@ -4519,7 +4523,7 @@ struct FinderRootView: View {
                     TextField("200", value: $callSearchRange, format: .number)
                         .keyboardType(.numberPad)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 80)
+                        .scaledWidth(80)
                         .font(.caption)
                 }
 
@@ -5338,13 +5342,13 @@ struct FinderIVRangeRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(label).frame(width: 70, alignment: .leading)
+            Text(label).lineLimit(1).scaledWidth(70, alignment: .leading)
             TextField("Min", value: $min, format: .number)
-                .textFieldStyle(.roundedBorder).frame(width: 50)
+                .textFieldStyle(.roundedBorder).scaledWidth(50)
                 .multilineTextAlignment(.trailing)
             Text("–")
             TextField("Max", value: $max, format: .number)
-                .textFieldStyle(.roundedBorder).frame(width: 50)
+                .textFieldStyle(.roundedBorder).scaledWidth(50)
                 .multilineTextAlignment(.trailing)
             Spacer()
         }
@@ -5360,7 +5364,7 @@ struct FinderUInt16Field: View {
             Text(label)
             Spacer()
             TextField("00000", text: $text)
-                .textFieldStyle(.roundedBorder).frame(width: 100).multilineTextAlignment(.trailing)
+                .textFieldStyle(.roundedBorder).scaledWidth(100).multilineTextAlignment(.trailing)
                 #if os(iOS)
                 .keyboardType(.numberPad)
                 #endif
@@ -5485,7 +5489,7 @@ struct RNGCreditsView: View {
         ScrollView {
             VStack(spacing: 24) {
                 VStack(spacing: 8) {
-                    Image(systemName: "dice").font(.system(size: 48)).foregroundColor(.accentColor)
+                    Image(systemName: "dice").scaledFont(size: 48, relativeTo: .largeTitle).foregroundColor(.accentColor)
                     Text("RNG Tools").font(.title2.bold())
                     Text("Pokemon RNG manipulation utilities").font(.subheadline).foregroundStyle(.secondary)
                 }.padding(.top, 24)
@@ -5535,11 +5539,12 @@ struct RNGIntField: View {
     let label: String
     @Binding var value: Int
     var body: some View {
-        HStack {
+        // At accessibility sizes the field moves under its label.
+        AdaptiveStack(spacing: 6) {
             Text(label).lineLimit(1).minimumScaleFactor(0.8)
-            Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
             TextField("", value: $value, format: .number)
-                .textFieldStyle(.roundedBorder).frame(width: 100).multilineTextAlignment(.trailing)
+                .textFieldStyle(.roundedBorder).scaledWidth(100).multilineTextAlignment(.trailing)
         }
     }
 }
@@ -5548,11 +5553,12 @@ struct RNGDoubleField: View {
     let label: String
     @Binding var value: Double
     var body: some View {
-        HStack {
+        // At accessibility sizes the field moves under its label.
+        AdaptiveStack(spacing: 6) {
             Text(label).lineLimit(1).minimumScaleFactor(0.8)
-            Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
             TextField("", value: $value, format: .number)
-                .textFieldStyle(.roundedBorder).frame(width: 100).multilineTextAlignment(.trailing)
+                .textFieldStyle(.roundedBorder).scaledWidth(100).multilineTextAlignment(.trailing)
         }
     }
 }
@@ -5561,11 +5567,12 @@ struct RNGOptIntField: View {
     let label: String
     @Binding var value: Int?
     var body: some View {
-        HStack {
+        // At accessibility sizes the field moves under its label.
+        AdaptiveStack(spacing: 6) {
             Text(label).lineLimit(1).minimumScaleFactor(0.8)
-            Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
             TextField("", value: $value, format: .number, prompt: Text("—"))
-                .textFieldStyle(.roundedBorder).frame(width: 100).multilineTextAlignment(.trailing)
+                .textFieldStyle(.roundedBorder).scaledWidth(100).multilineTextAlignment(.trailing)
         }
     }
 }
@@ -5576,12 +5583,12 @@ struct IVCalcRow16: View {
     @Binding var ev: Int
     var body: some View {
         HStack(spacing: 8) {
-            Text(label).frame(width: 70, alignment: .leading)
+            Text(label).lineLimit(1).scaledWidth(70, alignment: .leading)
             TextField("Stat", value: $stat, format: .number)
-                .textFieldStyle(.roundedBorder).frame(width: 70)
+                .textFieldStyle(.roundedBorder).scaledWidth(70)
             Text("EV:").font(.caption).foregroundStyle(.secondary)
             TextField("EV", value: $ev, format: .number)
-                .textFieldStyle(.roundedBorder).frame(width: 60)
+                .textFieldStyle(.roundedBorder).scaledWidth(60)
         }
     }
 }
@@ -5591,9 +5598,9 @@ struct IVSliderRow: View {
     @Binding var value: Int
     var body: some View {
         HStack {
-            Text(label).frame(width: 70, alignment: .leading)
+            Text(label).lineLimit(1).scaledWidth(70, alignment: .leading)
             Slider(value: Binding(get: { Double(value) }, set: { value = Int($0) }), in: 0...31, step: 1)
-            Text("\(value)").frame(width: 30, alignment: .trailing).font(.system(.body, design: .monospaced))
+            Text("\(value)").font(.system(.body, design: .monospaced)).lineLimit(1).scaledWidth(30, alignment: .trailing)
         }
     }
 }
@@ -5603,9 +5610,9 @@ struct IVSliderRow8: View {
     @Binding var value: UInt8
     var body: some View {
         HStack {
-            Text(label).frame(width: 70, alignment: .leading)
+            Text(label).lineLimit(1).scaledWidth(70, alignment: .leading)
             Slider(value: Binding(get: { Double(value) }, set: { value = UInt8($0) }), in: 0...31, step: 1)
-            Text("\(value)").frame(width: 30, alignment: .trailing).font(.system(.body, design: .monospaced))
+            Text("\(value)").font(.system(.body, design: .monospaced)).lineLimit(1).scaledWidth(30, alignment: .trailing)
         }
     }
 }

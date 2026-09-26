@@ -5,7 +5,8 @@
 //  Styles shared across screens, so a type, a role, a card or a button
 //  looks the same wherever it appears: the type palette and badge, the
 //  role colors for the two sides of a matchup, abilities and items, the
-//  card styles, and the primary action button.
+//  card styles, the primary action button, and the layout tools that keep
+//  screens working at large Dynamic Type sizes.
 //
 //  The fills are the type colors players know from the games and most
 //  community tools, which keeps all eighteen distinct. The system colors
@@ -229,6 +230,159 @@ extension PrimitiveButtonStyle where Self == PrimaryActionButtonStyle {
     static var primaryAction: PrimaryActionButtonStyle { PrimaryActionButtonStyle() }
 }
 
+// MARK: - Dynamic Type
+
+extension View {
+    /// `frame(width:alignment:)` for a column of text. The width grows with
+    /// Dynamic Type by the same factor as `style`, the column's font, so a
+    /// label that fits at the default size fits at every size.
+    func scaledWidth(_ width: CGFloat, relativeTo style: Font.TextStyle = .body,
+                     alignment: Alignment = .center) -> some View {
+        modifier(ScaledWidth(width: width, style: style, alignment: alignment))
+    }
+
+    /// A deliberate point size that still scales with Dynamic Type, by the
+    /// same factor as `style`.
+    func scaledFont(size: CGFloat, weight: Font.Weight = .regular,
+                    design: Font.Design = .default,
+                    relativeTo style: Font.TextStyle = .body) -> some View {
+        modifier(ScaledFont(size: size, weight: weight, design: design, style: style))
+    }
+}
+
+private struct ScaledWidth: ViewModifier {
+    @ScaledMetric private var width: CGFloat
+    private let alignment: Alignment
+
+    init(width: CGFloat, style: Font.TextStyle, alignment: Alignment) {
+        _width = ScaledMetric(wrappedValue: width, relativeTo: style)
+        self.alignment = alignment
+    }
+
+    func body(content: Content) -> some View {
+        content.frame(width: width, alignment: alignment)
+    }
+}
+
+private struct ScaledFont: ViewModifier {
+    @ScaledMetric private var size: CGFloat
+    private let weight: Font.Weight
+    private let design: Font.Design
+
+    init(size: CGFloat, weight: Font.Weight, design: Font.Design, style: Font.TextStyle) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: style)
+        self.weight = weight
+        self.design = design
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: size, weight: weight, design: design))
+    }
+}
+
+/// A row that becomes a column at accessibility text sizes, where its
+/// pieces no longer fit side by side.
+struct AdaptiveStack<Content: View>: View {
+    var horizontalAlignment: HorizontalAlignment = .leading
+    var verticalAlignment: VerticalAlignment = .center
+    var spacing: CGFloat? = nil
+    @ViewBuilder var content: Content
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: horizontalAlignment, spacing: spacing))
+            : AnyLayout(HStackLayout(alignment: verticalAlignment, spacing: spacing))
+        layout { content }
+    }
+}
+
+/// Lays views out left to right, starting a new line when the next one
+/// doesn't fit: for rows of chips that outgrow the width at large text
+/// sizes. Each view gets at most a line's width, and views are centered
+/// vertically within their line.
+struct FlowLayout: Layout {
+    var spacing: CGFloat
+    var lineSpacing: CGFloat
+
+    /// `lineSpacing` defaults to `spacing`.
+    init(spacing: CGFloat = 6, lineSpacing: CGFloat? = nil) {
+        self.spacing = spacing
+        self.lineSpacing = lineSpacing ?? spacing
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        let sizes = subviews.map { $0.sizeThatFits(Self.proposal(maxWidth: maxWidth)) }
+        let lines = Self.lines(widths: sizes.map(\.width), maxWidth: maxWidth, spacing: spacing)
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+        for (number, line) in lines.enumerated() {
+            var lineWidth: CGFloat = 0
+            var lineHeight: CGFloat = 0
+            for (position, index) in line.enumerated() {
+                lineWidth += sizes[index].width + (position > 0 ? spacing : 0)
+                lineHeight = max(lineHeight, sizes[index].height)
+            }
+            width = max(width, lineWidth)
+            height += lineHeight + (number > 0 ? lineSpacing : 0)
+        }
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        // Break lines against the width `sizeThatFits` measured with, not
+        // `bounds`: bounds come back at the reported width, which rounding
+        // can shave just enough to push the last view onto a line the
+        // reported height doesn't include.
+        let maxWidth = proposal.width ?? bounds.width
+        let childProposal = Self.proposal(maxWidth: maxWidth)
+        let sizes = subviews.map { $0.sizeThatFits(childProposal) }
+        var y = bounds.minY
+        for line in Self.lines(widths: sizes.map(\.width), maxWidth: maxWidth, spacing: spacing) {
+            let lineHeight = line.map { sizes[$0].height }.max() ?? 0
+            var x = bounds.minX
+            for index in line {
+                subviews[index].place(at: CGPoint(x: x, y: y + (lineHeight - sizes[index].height) / 2),
+                                      proposal: childProposal)
+                x += sizes[index].width + spacing
+            }
+            y += lineHeight + lineSpacing
+        }
+    }
+
+    static let roundingSlack: CGFloat = 0.5
+
+    /// Each view at its ideal width, but no wider than a line.
+    private static func proposal(maxWidth: CGFloat) -> ProposedViewSize {
+        ProposedViewSize(width: maxWidth.isFinite ? maxWidth : nil, height: nil)
+    }
+
+    /// Indices of the views on each line, filling lines in order. A view
+    /// wider than `maxWidth` gets a line to itself. Overshooting by less
+    /// than `roundingSlack` still fits, so sub-point rounding in the
+    /// widths never wraps a view.
+    static func lines(widths: [CGFloat], maxWidth: CGFloat, spacing: CGFloat) -> [[Int]] {
+        var lines: [[Int]] = []
+        var current: [Int] = []
+        var used: CGFloat = 0
+        for (index, width) in widths.enumerated() {
+            let needed = current.isEmpty ? width : used + spacing + width
+            if !current.isEmpty && needed > maxWidth + roundingSlack {
+                lines.append(current)
+                current = [index]
+                used = width
+            } else {
+                current.append(index)
+                used = needed
+            }
+        }
+        if !current.isEmpty { lines.append(current) }
+        return lines
+    }
+}
+
 // MARK: - Type Badge
 
 struct TypeBadge: View {
@@ -236,6 +390,8 @@ struct TypeBadge: View {
     var body: some View {
         Text(type)
             .font(.caption2.bold())
+            .lineLimit(1)
+            .fixedSize()
             .padding(.horizontal, 8).padding(.vertical, 3)
             .foregroundStyle(TypePalette.text(for: type))
             .background(TypePalette.fill(for: type), in: Capsule())

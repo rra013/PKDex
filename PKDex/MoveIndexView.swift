@@ -135,25 +135,32 @@ private struct MoveRow: View {
     let move: MoveData
 
     var body: some View {
-        HStack(spacing: 8) {
+        // At accessibility sizes the details move under the name.
+        AdaptiveStack(spacing: 8) {
             Text(move.name)
                 .lineLimit(1)
-            Spacer()
-            Text(move.type)
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(TypePalette.fill(for: move.type))
-                .foregroundStyle(TypePalette.text(for: move.type))
-                .clipShape(Capsule())
-            Text(move.damageClass.capitalized)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 52, alignment: .center)
-            Text(move.power.map { "\($0)" } ?? "—")
-                .font(.subheadline.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 32, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 8) {
+                Text(move.type)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(TypePalette.fill(for: move.type))
+                    .foregroundStyle(TypePalette.text(for: move.type))
+                    .clipShape(Capsule())
+                Text(move.damageClass.capitalized)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .scaledWidth(52, relativeTo: .caption)
+                Text(move.power.map { "\($0)" } ?? "—")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .scaledWidth(32, relativeTo: .subheadline, alignment: .trailing)
+            }
         }
     }
 }

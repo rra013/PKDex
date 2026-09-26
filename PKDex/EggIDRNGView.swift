@@ -110,7 +110,7 @@ struct EggRNGView: View {
                         Text("Held Seed")
                         Spacer()
                         TextField("Hex", text: $seedHeldText)
-                            .textFieldStyle(.roundedBorder).frame(width: 120)
+                            .textFieldStyle(.roundedBorder).scaledWidth(120)
                             .multilineTextAlignment(.trailing)
                             .autocorrectionDisabled()
                     }
@@ -118,7 +118,7 @@ struct EggRNGView: View {
                         Text("Pickup Seed")
                         Spacer()
                         TextField("Hex", text: $seedPickupText)
-                            .textFieldStyle(.roundedBorder).frame(width: 120)
+                            .textFieldStyle(.roundedBorder).scaledWidth(120)
                             .multilineTextAlignment(.trailing)
                             .autocorrectionDisabled()
                     }
@@ -148,7 +148,7 @@ struct EggRNGView: View {
                         Text("Egg Species #")
                         Spacer()
                         TextField("", value: $eggSpecie, format: .number)
-                            .textFieldStyle(.roundedBorder).frame(width: 80)
+                            .textFieldStyle(.roundedBorder).scaledWidth(80)
                             .multilineTextAlignment(.trailing)
                     }
                 }
@@ -504,7 +504,7 @@ struct IDRNGView: View {
                     Text("Initial Seed")
                     Spacer()
                     TextField("Hex", text: $gen3SeedText)
-                        .textFieldStyle(.roundedBorder).frame(width: 120)
+                        .textFieldStyle(.roundedBorder).scaledWidth(120)
                         .multilineTextAlignment(.trailing)
                         .autocorrectionDisabled()
                 }
@@ -515,7 +515,7 @@ struct IDRNGView: View {
                     Text("Initial Seed")
                     Spacer()
                     TextField("Hex", text: $gen3SeedText)
-                        .textFieldStyle(.roundedBorder).frame(width: 120)
+                        .textFieldStyle(.roundedBorder).scaledWidth(120)
                         .multilineTextAlignment(.trailing)
                         .autocorrectionDisabled()
                 }
@@ -558,15 +558,15 @@ struct IDRNGView: View {
                 Text("Date")
                 Spacer()
                 TextField("Y", value: $gen4Year, format: .number.grouping(.never))
-                    .textFieldStyle(.roundedBorder).frame(width: 60)
+                    .textFieldStyle(.roundedBorder).scaledWidth(60)
                     .keyboardType(.numberPad)
                 Text("/")
                 TextField("M", value: $gen4Month, format: .number.grouping(.never))
-                    .textFieldStyle(.roundedBorder).frame(width: 40)
+                    .textFieldStyle(.roundedBorder).scaledWidth(40)
                     .keyboardType(.numberPad)
                 Text("/")
                 TextField("D", value: $gen4Day, format: .number.grouping(.never))
-                    .textFieldStyle(.roundedBorder).frame(width: 40)
+                    .textFieldStyle(.roundedBorder).scaledWidth(40)
                     .keyboardType(.numberPad)
             }
 
@@ -574,11 +574,11 @@ struct IDRNGView: View {
                 Text("Time")
                 Spacer()
                 TextField("H", value: $gen4Hour, format: .number.grouping(.never))
-                    .textFieldStyle(.roundedBorder).frame(width: 40)
+                    .textFieldStyle(.roundedBorder).scaledWidth(40)
                     .keyboardType(.numberPad)
                 Text(":")
                 TextField("M", value: $gen4Minute, format: .number.grouping(.never))
-                    .textFieldStyle(.roundedBorder).frame(width: 40)
+                    .textFieldStyle(.roundedBorder).scaledWidth(40)
                     .keyboardType(.numberPad)
             }
 
@@ -597,7 +597,7 @@ struct IDRNGView: View {
                 Text("Year")
                 Spacer()
                 TextField("", value: $gen4SearchYear, format: .number.grouping(.never))
-                    .textFieldStyle(.roundedBorder).frame(width: 100).multilineTextAlignment(.trailing)
+                    .textFieldStyle(.roundedBorder).scaledWidth(100).multilineTextAlignment(.trailing)
                     .keyboardType(.numberPad)
             }
             RNGIntField(label: "Min Delay", value: $gen4SearchMinDelay)

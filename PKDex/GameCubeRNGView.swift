@@ -232,7 +232,7 @@ struct GameCubeRNGView: View {
                 Text("Seed")
                 Spacer()
                 TextField("Hex", text: $seedText)
-                    .textFieldStyle(.roundedBorder).frame(width: 120)
+                    .textFieldStyle(.roundedBorder).scaledWidth(120)
                     .multilineTextAlignment(.trailing)
                     .autocorrectionDisabled()
             }
@@ -258,7 +258,7 @@ struct GameCubeRNGView: View {
                 Text("Food Seed")
                 Spacer()
                 TextField("Hex", text: $seedFoodText)
-                    .textFieldStyle(.roundedBorder).frame(width: 120)
+                    .textFieldStyle(.roundedBorder).scaledWidth(120)
                     .multilineTextAlignment(.trailing)
                     .autocorrectionDisabled()
             }
@@ -266,7 +266,7 @@ struct GameCubeRNGView: View {
                 Text("Encounter Seed")
                 Spacer()
                 TextField("Hex", text: $seedEncounterText)
-                    .textFieldStyle(.roundedBorder).frame(width: 120)
+                    .textFieldStyle(.roundedBorder).scaledWidth(120)
                     .multilineTextAlignment(.trailing)
                     .autocorrectionDisabled()
             }
@@ -731,19 +731,19 @@ struct SeedSearcherView: View {
                 Text("Enemy HP")
                 Spacer()
                 TextField("Min", value: $galesEnemyHP0, format: .number)
-                    .textFieldStyle(.roundedBorder).frame(width: 60)
+                    .textFieldStyle(.roundedBorder).scaledWidth(60)
                 Text("-")
                 TextField("Max", value: $galesEnemyHP1, format: .number)
-                    .textFieldStyle(.roundedBorder).frame(width: 60)
+                    .textFieldStyle(.roundedBorder).scaledWidth(60)
             }
             HStack {
                 Text("Player HP")
                 Spacer()
                 TextField("Min", value: $galesPlayerHP0, format: .number)
-                    .textFieldStyle(.roundedBorder).frame(width: 60)
+                    .textFieldStyle(.roundedBorder).scaledWidth(60)
                 Text("-")
                 TextField("Max", value: $galesPlayerHP1, format: .number)
-                    .textFieldStyle(.roundedBorder).frame(width: 60)
+                    .textFieldStyle(.roundedBorder).scaledWidth(60)
             }
             Picker("Enemy Lead", selection: $galesEnemyIndex) {
                 ForEach(0..<6, id: \.self) { i in
@@ -863,7 +863,7 @@ struct JirachiPatternView: View {
                         Text("Seed")
                         Spacer()
                         TextField("Hex", text: $seedText)
-                            .textFieldStyle(.roundedBorder).frame(width: 120)
+                            .textFieldStyle(.roundedBorder).scaledWidth(120)
                             .multilineTextAlignment(.trailing)
                             .autocorrectionDisabled()
                     }
@@ -893,7 +893,8 @@ struct JirachiPatternView: View {
                             HStack {
                                 Text("\(idx + 1).")
                                     .font(.system(.caption, design: .monospaced))
-                                    .frame(width: 30, alignment: .trailing)
+                                    .lineLimit(1)
+                                    .scaledWidth(30, relativeTo: .caption, alignment: .trailing)
                                 Text(Int(action) < labels.count ? labels[Int(action)] : "Action \(action)")
                                     .font(.caption)
                                 Spacer()
