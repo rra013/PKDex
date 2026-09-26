@@ -40,6 +40,10 @@ struct PokedexApp: App {
         }
     }()
 
+    init() {
+        TabLayout.migrateLegacyStorage()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

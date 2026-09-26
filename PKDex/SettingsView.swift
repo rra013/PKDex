@@ -10,7 +10,8 @@ import SwiftData
 
 struct SettingsView: View {
     @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
-    @AppStorage("enabledTabs") private var enabledTabsRaw: String = AppTab.defaultEnabledRaw
+    @AppStorage(TabLayout.orderKey) private var tabOrderRaw = ""
+    @AppStorage(TabLayout.hiddenKey) private var hiddenTabsRaw = ""
     @AppStorage("defaultTab") private var defaultTabRaw: String = AppTab.monIndex.rawValue
     @AppStorage("appAccentColor") private var accentColorRaw: String = AppAccentColor.blue.rawValue
     @AppStorage("appAppearance") private var appearanceRaw: String = AppAppearance.system.rawValue
@@ -27,33 +28,14 @@ struct SettingsView: View {
     /// Size of Team Search's cached tournament data; nil until measured.
     @State private var teamSearchCacheBytes: Int?
 
-    private var enabledTabSet: Set<String> {
-        Set(enabledTabsRaw.split(separator: ",").map(String.init))
+    private var tabLayout: TabLayout {
+        TabLayout(orderRaw: tabOrderRaw, hiddenRaw: hiddenTabsRaw)
     }
 
-    private func isTabEnabled(_ tab: AppTab) -> Bool {
-        enabledTabSet.contains(tab.rawValue)
-    }
-
-    private func toggleTab(_ tab: AppTab) {
-        var current = enabledTabsRaw.split(separator: ",").map(String.init)
-        if let idx = current.firstIndex(of: tab.rawValue) {
-            if current.count > 1 {
-                current.remove(at: idx)
-            }
-        } else {
-            current.append(tab.rawValue)
-        }
-        enabledTabsRaw = current.joined(separator: ",")
-
-        if !current.contains(defaultTabRaw) {
-            defaultTabRaw = current.first ?? AppTab.monIndex.rawValue
-        }
-    }
-
-    private var enabledUserTabs: [AppTab] {
-        let raw = enabledTabsRaw.split(separator: ",").map(String.init)
-        return raw.compactMap { AppTab(rawValue: $0) }
+    private var shownTabsSummary: String {
+        let shown = tabLayout.visible.count
+        let total = AppTab.allUserTabs.count
+        return shown == total ? "All shown" : "\(shown) of \(total) shown"
     }
 
     var body: some View {
@@ -91,33 +73,23 @@ struct SettingsView: View {
                     Text("Appearance")
                 }
 
-                // MARK: - Tab Bar
+                // MARK: - Tabs
                 Section {
-                    ForEach(AppTab.allUserTabs) { tab in
-                        Toggle(isOn: Binding(
-                            get: { isTabEnabled(tab) },
-                            set: { _ in toggleTab(tab) }
-                        )) {
-                            Label(tab.label, systemImage: tab.icon)
-                        }
+                    NavigationLink {
+                        TabSettingsView()
+                    } label: {
+                        LabeledContent("Arrange Tabs", value: shownTabsSummary)
                     }
-                } header: {
-                    Text("Visible Tabs")
-                } footer: {
-                    Text("At least one tab must remain enabled. Settings is always visible.")
-                }
 
-                // MARK: - Default Tab
-                Section {
                     Picker("Open To", selection: $defaultTabRaw) {
-                        ForEach(enabledUserTabs) { tab in
+                        ForEach(tabLayout.visible) { tab in
                             Label(tab.label, systemImage: tab.icon).tag(tab.rawValue)
                         }
                     }
                 } header: {
-                    Text("Default Tab")
+                    Text("Tabs")
                 } footer: {
-                    Text("The tab shown when the app launches.")
+                    Text("Choose which tabs appear and in what order, and which one the app opens to.")
                 }
 
                 // MARK: - Default Generation
@@ -338,5 +310,79 @@ struct SettingsView: View {
         let teams = await TeamCorpusStore.shared.cacheSize()
         let usage = await SmogonUsageStore.shared.cacheSize()
         return teams + usage
+    }
+}
+
+// MARK: - Arrange Tabs
+
+/// Reorders and hides tabs. Each row's switch hides or shows its tab, and
+/// Reorder shows the drag handles. The two can't share a mode: a list in
+/// edit mode ignores taps on its rows' switches.
+private struct TabSettingsView: View {
+    @AppStorage(TabLayout.orderKey) private var tabOrderRaw = ""
+    @AppStorage(TabLayout.hiddenKey) private var hiddenTabsRaw = ""
+    @AppStorage("defaultTab") private var defaultTabRaw: String = AppTab.monIndex.rawValue
+    @Environment(\.horizontalSizeClass) private var hSize
+    @State private var editMode: EditMode = .inactive
+
+    private var layout: TabLayout {
+        get { TabLayout(orderRaw: tabOrderRaw, hiddenRaw: hiddenTabsRaw) }
+        nonmutating set {
+            tabOrderRaw = newValue.orderRaw
+            hiddenTabsRaw = newValue.hiddenRaw
+            defaultTabRaw = newValue.launchTab(for: defaultTabRaw).rawValue
+        }
+    }
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(layout.order) { tab in
+                    Toggle(isOn: Binding(
+                        get: { !layout.hidden.contains(tab) },
+                        set: { layout.setHidden(tab, !$0) }
+                    )) {
+                        row(for: tab)
+                    }
+                    .disabled(editMode.isEditing || !layout.canHide(tab))
+                }
+                .onMove { layout.move(fromOffsets: $0, toOffset: $1) }
+            } footer: {
+                Text("Tap Reorder, then drag tabs to change the order. With more than five tabs, iPhone shows the first four in the tab bar and the rest under More. Settings always comes last, and at least one other tab stays shown.")
+            }
+        }
+        .environment(\.editMode, $editMode)
+        .toolbar {
+            Button(editMode.isEditing ? "Done" : "Reorder") {
+                withAnimation { editMode = editMode.isEditing ? .inactive : .active }
+            }
+            .fontWeight(editMode.isEditing ? .semibold : .regular)
+        }
+        .navigationTitle("Arrange Tabs")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func row(for tab: AppTab) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tab.label)
+                // Only a compact tab bar splits into bar and More.
+                if hSize == .compact, let note = placementNote(for: tab) {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } icon: {
+            Image(systemName: tab.icon)
+        }
+    }
+
+    private func placementNote(for tab: AppTab) -> String? {
+        switch layout.compactPlacement(of: tab) {
+        case .tabBar: return "In tab bar"
+        case .more:   return "Under More"
+        case .hidden: return nil
+        }
     }
 }
