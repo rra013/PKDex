@@ -1079,7 +1079,7 @@ private struct SideCard: View {
                                         side.loadedSpreadName = nil
                                     } label: {
                                         HStack {
-                                            Text("#\(p.id)").foregroundStyle(.secondary).lineLimit(1).scaledWidth(50, alignment: .leading)
+                                            Text(p.dexLabel).foregroundStyle(.secondary).lineLimit(1).scaledWidth(50, alignment: .leading)
                                             Text(p.name)
                                             Spacer()
                                             TypeBadge(type: p.type1)
