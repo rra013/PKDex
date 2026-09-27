@@ -176,7 +176,7 @@ struct SpeedTierView: View {
     @State private var searchText = ""
 
     var body: some View {
-        NavigationStack {
+        TabNavigationStack {
             List {
                 // User's Pokemon section
                 Section("Your Pokemon") {
@@ -237,6 +237,7 @@ struct SpeedTierView: View {
                 }
             }
         }
+        .leaveWarning(side.pokemon != nil ? "The Pokémon you entered will be cleared." : nil)
     }
 
     // MARK: - User Pokemon Section

@@ -568,7 +568,7 @@ struct DamageCalculatorView: View {
     @Environment(\.horizontalSizeClass) private var hSize
 
     var body: some View {
-        NavigationStack {
+        TabNavigationStack {
             ScrollView {
                 Group {
                     if allPokemon.isEmpty {
@@ -615,6 +615,8 @@ struct DamageCalculatorView: View {
                 }
             }
         }
+        .leaveWarning(vm.side1.pokemon != nil || vm.side2.pokemon != nil
+                      ? "The Pokémon you entered will be cleared." : nil)
     }
 }
 

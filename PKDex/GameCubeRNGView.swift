@@ -704,6 +704,7 @@ struct SeedSearcherView: View {
             .padding()
         }
         .scrollDismissesKeyboard(.interactively)
+        .leaveWarning(searching ? "The search in progress will stop." : nil)
     }
 
     private var availableTypes: [SeedSearchType] {

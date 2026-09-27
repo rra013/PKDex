@@ -133,6 +133,35 @@ struct TabLayoutTests {
         #expect(layout.compactPlacement(of: layout.visible[4]) == .more)
     }
 
+    @Test("With overflow, the bar holds four tabs and More holds the rest, Settings last")
+    func splitOverflow() {
+        let split = TabLayout().compactSplit
+        #expect(split.bar == Array(AppTab.allUserTabs.prefix(4)))
+        #expect(split.more == Array(AppTab.allUserTabs.dropFirst(4)) + [.settings])
+    }
+
+    @Test("When everything fits, the bar holds it all and there's no More list")
+    func splitFits() {
+        var layout = TabLayout()
+        for tab in AppTab.allUserTabs.dropFirst(4) {
+            layout.setHidden(tab, true)
+        }
+        let split = layout.compactSplit
+        #expect(split.bar == Array(AppTab.allUserTabs.prefix(4)) + [.settings])
+        #expect(split.more.isEmpty)
+    }
+
+    @Test("The split follows the user's order and skips hidden tabs")
+    func splitOrderAndHidden() {
+        var layout = TabLayout()
+        layout.move(fromOffsets: IndexSet(integer: layout.order.firstIndex(of: .teams)!), toOffset: 0)
+        layout.setHidden(.moveIndex, true)
+        let split = layout.compactSplit
+        #expect(split.bar.first == .teams)
+        #expect(!split.bar.contains(.moveIndex) && !split.more.contains(.moveIndex))
+        #expect(split.bar.count + split.more.count == AppTab.allUserTabs.count)  // 10 shown + Settings
+    }
+
     // MARK: Converting the retired format
 
     /// A throwaway defaults suite, removed when `body` returns.

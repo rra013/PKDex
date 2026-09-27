@@ -2539,7 +2539,7 @@ struct RNGToolsView: View {
     @State private var selectedTool = 0
 
     var body: some View {
-        NavigationStack {
+        TabNavigationStack {
             VStack(spacing: 0) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -2764,6 +2764,7 @@ struct RNGTimerView: View {
                 bridge.clear()
             }
         }
+        .leaveWarning(engine.isRunning ? "The running timer will stop." : nil)
     }
 
     private var timerDisplay: some View {
@@ -3855,6 +3856,7 @@ struct FinderRootView: View {
         } message: {
             Text(verbatim: "Save profile for \(selectedGame.rawValue) TID \(tid) / SID \(sid)")
         }
+        .leaveWarning(isSearching ? "The search in progress will stop." : nil)
     }
 
     // MARK: Encounter Helpers

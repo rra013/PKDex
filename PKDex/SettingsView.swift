@@ -18,6 +18,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.typeBadgeStyle) private var typeBadgeStyle: TypeBadgeStyle
     @AppStorage(AppSettings.density) private var density: Density
     @AppStorage(AppSettings.typeBackgrounds) private var typeBackgrounds: Bool
+    @AppStorage(AppSettings.warnBeforeLeavingTab) private var warnBeforeLeavingTab: Bool
     @AppStorage(AppSettings.championsRegulation) private var championsRegulationRaw: String
     @Environment(\.modelContext) private var modelContext
 
@@ -41,7 +42,7 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        TabNavigationStack {
             Form {
                 // MARK: - Appearance
                 Section {
@@ -111,10 +112,19 @@ struct SettingsView: View {
                             Label(tab.label, systemImage: tab.icon).tag(tab.rawValue)
                         }
                     }
+
+                    // Only iPhone has the More list this applies to.
+                    if TabLayout.usesMoreList {
+                        Toggle("Warn Before Leaving a Tab", isOn: $warnBeforeLeavingTab)
+                    }
                 } header: {
                     Text("Tabs")
                 } footer: {
-                    Text("Choose which tabs appear and in what order, and which one the app opens to.")
+                    if TabLayout.usesMoreList {
+                        Text("Choose which tabs appear and in what order, and which one the app opens to. Leaving a tab under More closes it, so with a battle, a running timer or search, or Pokémon entered, going back asks first.")
+                    } else {
+                        Text("Choose which tabs appear and in what order, and which one the app opens to.")
+                    }
                 }
 
                 // MARK: - Default Generation
@@ -342,12 +352,14 @@ struct SettingsView: View {
 
 /// Reorders and hides tabs. Each row's switch hides or shows its tab, and
 /// Reorder shows the drag handles. The two can't share a mode: a list in
-/// edit mode ignores taps on its rows' switches.
+/// edit mode ignores taps on its rows' switches. Changes are saved as they're
+/// made; the tab bar applies them when the page closes, and each row's note
+/// previews where its tab will land.
 private struct TabSettingsView: View {
     @AppStorage(AppSettings.tabOrder) private var tabOrderRaw: String
     @AppStorage(AppSettings.hiddenTabs) private var hiddenTabsRaw: String
     @AppStorage(AppSettings.defaultTab) private var defaultTabRaw: String
-    @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.isArrangingTabs) private var isArrangingTabs
     @State private var editMode: EditMode = .inactive
 
     private var layout: TabLayout {
@@ -373,7 +385,7 @@ private struct TabSettingsView: View {
                 }
                 .onMove { layout.move(fromOffsets: $0, toOffset: $1) }
             } footer: {
-                Text("Tap Reorder, then drag tabs to change the order. With more than five tabs, iPhone shows the first four in the tab bar and the rest under More. Settings always comes last, and at least one other tab stays shown.")
+                Text("Tap Reorder, then drag tabs to change the order. With more than five tabs, iPhone shows the first four in the tab bar and the rest under More. Settings always comes last, and at least one other tab stays shown. The tab bar updates when you leave this page.")
             }
         }
         .environment(\.editMode, $editMode)
@@ -385,14 +397,16 @@ private struct TabSettingsView: View {
         }
         .navigationTitle("Arrange Tabs")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { isArrangingTabs.wrappedValue = true }
+        .onDisappear { isArrangingTabs.wrappedValue = false }
     }
 
     private func row(for tab: AppTab) -> some View {
         Label {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tab.label)
-                // Only a compact tab bar splits into bar and More.
-                if hSize == .compact, let note = placementNote(for: tab) {
+                // Only iPhone's tab bar splits into bar and More.
+                if TabLayout.usesMoreList, let note = placementNote(for: tab) {
                     Text(note)
                         .font(.caption)
                         .foregroundStyle(.secondary)

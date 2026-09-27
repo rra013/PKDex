@@ -23,7 +23,8 @@ struct AppSettingsTests {
          AppSettings.accentColor.name, AppSettings.appearance.name,
          AppSettings.typeBadgeStyle.name, AppSettings.density.name,
          AppSettings.typeBackgrounds.name,
-         AppSettings.championsRegulation.name, AppSettings.instantSetDelete.name]
+         AppSettings.championsRegulation.name, AppSettings.instantSetDelete.name,
+         AppSettings.warnBeforeLeavingTab.name]
     }
 
     @Test("Key names match what earlier versions stored")
@@ -33,7 +34,8 @@ struct AppSettingsTests {
                           "appAccentColor", "appAppearance",
                           "typeBadgeStyle", "density",
                           "typeBackgrounds",
-                          "championsRegulationRaw", "instantSetDelete"])
+                          "championsRegulationRaw", "instantSetDelete",
+                          "warnBeforeLeavingTab"])
     }
 
     @Test("No two settings share a key")
@@ -51,6 +53,7 @@ struct AppSettingsTests {
         #expect(AppSettings.density.defaultValue == .standard)
         #expect(AppSettings.typeBackgrounds.defaultValue == false)
         #expect(AppSettings.instantSetDelete.defaultValue == false)
+        #expect(AppSettings.warnBeforeLeavingTab.defaultValue == true)
     }
 
     /// A throwaway defaults suite, removed when `body` returns.
