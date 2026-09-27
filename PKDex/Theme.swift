@@ -6,7 +6,8 @@
 //  looks the same wherever it appears: the type palette and badge, the
 //  role colors for the two sides of a matchup, abilities and items, the
 //  card styles, the primary action button, and the layout tools that keep
-//  screens working at large Dynamic Type sizes.
+//  screens working at large Dynamic Type sizes. The badge style and card
+//  density follow the viewer's choices in Settings.
 //
 //  The fills are the type colors players know from the games and most
 //  community tools, which keeps all eighteen distinct. The system colors
@@ -54,6 +55,10 @@ enum TypePalette {
     static func fill(for type: String) -> Color {
         Color(hex: hex(for: type))
     }
+
+    /// The fill's opacity in the tinted badge style, over which text is
+    /// the ordinary primary color.
+    static let tintOpacity = 0.22
 
     /// Black or white, whichever contrasts more with the type's fill.
     static func text(for type: String) -> Color {
@@ -152,12 +157,34 @@ private func rgb(_ hex: UInt32) -> (Double, Double, Double) {
 
 // MARK: - Cards
 
-/// Card geometry shared by every screen.
+/// Card geometry shared by every screen, at standard density. Compact
+/// density scales the spacings with `Density.spacing(_:)`.
 enum CardMetrics {
     static let cornerRadius: CGFloat = 14
     static let padding: CGFloat = 16
     static let insetCornerRadius: CGFloat = 10
     static let insetPadding: CGFloat = 12
+    /// Between a `SectionCard`'s title, divider and content.
+    static let sectionSpacing: CGFloat = 12
+    /// Between the cards on a page.
+    static let stackSpacing: CGFloat = 16
+}
+
+/// How tightly card screens are laid out. Compact trims the padding in and
+/// between cards so more fits on screen; corner radii and text don't change.
+nonisolated enum Density: String, CaseIterable, Identifiable {
+    case standard, compact
+
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+
+    /// One of `CardMetrics`' spacings at this density.
+    func spacing(_ standard: CGFloat) -> CGFloat {
+        switch self {
+        case .standard: return standard
+        case .compact:  return (standard * 0.75).rounded()
+        }
+    }
 }
 
 extension View {
@@ -165,26 +192,61 @@ extension View {
     /// leading. Uses the grouped background colors, so a card is white on
     /// light gray in light mode and dark gray on black in dark mode. A
     /// `.background` card is black on black in dark mode, with nothing to
-    /// show its edge.
-    func card(padding: CGFloat = CardMetrics.padding) -> some View {
-        self.frame(maxWidth: .infinity, alignment: .leading)
-            .padding(padding)
-            .background(Color(.secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: CardMetrics.cornerRadius, style: .continuous))
-            .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+    /// show its edge. `padding` replaces the density's padding, for cards
+    /// that set their own, such as empty states.
+    func card(padding: CGFloat? = nil) -> some View {
+        modifier(CardModifier(padding: padding))
     }
 
     /// A box set into a card: light gray in light mode, a lighter gray than
     /// the card in dark mode.
-    func insetCard(padding: CGFloat = CardMetrics.insetPadding) -> some View {
-        self.padding(padding)
-            .background(Color(.tertiarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: CardMetrics.insetCornerRadius, style: .continuous))
+    func insetCard(padding: CGFloat? = nil) -> some View {
+        modifier(InsetCardModifier(padding: padding))
     }
 
     /// The page behind cards.
     func cardPage() -> some View {
         background(Color(.systemGroupedBackground))
+    }
+}
+
+private struct CardModifier: ViewModifier {
+    let padding: CGFloat?
+    @Environment(\.density) private var density
+
+    func body(content: Content) -> some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(padding ?? density.spacing(CardMetrics.padding))
+            .background(Color(.secondarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: CardMetrics.cornerRadius, style: .continuous))
+            .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
+    }
+}
+
+private struct InsetCardModifier: ViewModifier {
+    let padding: CGFloat?
+    @Environment(\.density) private var density
+
+    func body(content: Content) -> some View {
+        content
+            .padding(padding ?? density.spacing(CardMetrics.insetPadding))
+            .background(Color(.tertiarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: CardMetrics.insetCornerRadius, style: .continuous))
+    }
+}
+
+/// A page's column of cards, spaced for the viewer's density.
+struct CardStack<Content: View>: View {
+    var alignment: HorizontalAlignment = .center
+    /// The gap at standard density.
+    var spacing: CGFloat = CardMetrics.stackSpacing
+    @ViewBuilder var content: Content
+
+    @Environment(\.density) private var density
+
+    var body: some View {
+        VStack(alignment: alignment, spacing: density.spacing(spacing)) { content }
     }
 }
 
@@ -195,8 +257,10 @@ struct SectionCard<Content: View>: View {
     var iconColor: Color = .primary
     @ViewBuilder let content: Content
 
+    @Environment(\.density) private var density
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: density.spacing(CardMetrics.sectionSpacing)) {
             Label {
                 Text(title)
             } icon: {
@@ -394,6 +458,15 @@ struct FlowLayout: Layout {
 
 // MARK: - Type Badge
 
+/// How type badges are drawn: solid in the type's color with black or
+/// white text, or a light tint of it with an outline and ordinary text.
+nonisolated enum TypeBadgeStyle: String, CaseIterable, Identifiable {
+    case filled, tinted
+
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+}
+
 struct TypeBadge: View {
     let type: String
     var body: some View {
@@ -402,7 +475,43 @@ struct TypeBadge: View {
             .lineLimit(1)
             .fixedSize()
             .padding(.horizontal, 8).padding(.vertical, 3)
-            .foregroundStyle(TypePalette.text(for: type))
-            .background(TypePalette.fill(for: type), in: Capsule())
+            .typeBadgeBackground(type)
     }
+}
+
+extension View {
+    /// The capsule behind a type's name, and its text color, in the
+    /// viewer's badge style.
+    func typeBadgeBackground(_ type: String) -> some View {
+        modifier(TypeBadgeBackground(type: type))
+    }
+}
+
+private struct TypeBadgeBackground: ViewModifier {
+    let type: String
+    @Environment(\.typeBadgeStyle) private var style
+
+    func body(content: Content) -> some View {
+        let fill = TypePalette.fill(for: type)
+        switch style {
+        case .filled:
+            content
+                .foregroundStyle(TypePalette.text(for: type))
+                .background(fill, in: Capsule())
+        case .tinted:
+            content
+                .foregroundStyle(.primary)
+                .background(fill.opacity(TypePalette.tintOpacity), in: Capsule())
+                .overlay(Capsule().strokeBorder(fill, lineWidth: 1))
+        }
+    }
+}
+
+// MARK: - Environment
+
+extension EnvironmentValues {
+    /// The viewer's choices from Settings > Appearance, set once at the
+    /// app's root so each badge and card doesn't watch UserDefaults.
+    @Entry var typeBadgeStyle: TypeBadgeStyle = .filled
+    @Entry var density: Density = .standard
 }

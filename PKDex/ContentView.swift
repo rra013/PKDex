@@ -108,11 +108,13 @@ enum AppAppearance: String, CaseIterable, Identifiable {
 }
 
 struct ContentView: View {
-    @AppStorage(TabLayout.orderKey) private var tabOrderRaw = ""
-    @AppStorage(TabLayout.hiddenKey) private var hiddenTabsRaw = ""
-    @AppStorage("defaultTab") private var defaultTabRaw: String = AppTab.monIndex.rawValue
-    @AppStorage("appAccentColor") private var accentColorRaw: String = AppAccentColor.blue.rawValue
-    @AppStorage("appAppearance") private var appearanceRaw: String = AppAppearance.system.rawValue
+    @AppStorage(AppSettings.tabOrder) private var tabOrderRaw: String
+    @AppStorage(AppSettings.hiddenTabs) private var hiddenTabsRaw: String
+    @AppStorage(AppSettings.defaultTab) private var defaultTabRaw: String
+    @AppStorage(AppSettings.accentColor) private var accentColorRaw: String
+    @AppStorage(AppSettings.appearance) private var appearanceRaw: String
+    @AppStorage(AppSettings.typeBadgeStyle) private var typeBadgeStyle: TypeBadgeStyle
+    @AppStorage(AppSettings.density) private var density: Density
 
     @State private var selectedTab: AppTab?
 
@@ -145,6 +147,8 @@ struct ContentView: View {
         }
         .tint(accentColor)
         .preferredColorScheme(appearance)
+        .environment(\.typeBadgeStyle, typeBadgeStyle)
+        .environment(\.density, density)
     }
 
     @ViewBuilder
@@ -176,7 +180,7 @@ struct ContentView: View {
 
 private struct PokedexTab: View {
     @Query(sort: \PKMN.nationalPokedexNumber) private var allPokemon: [PKMN]
-    @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
+    @AppStorage(AppSettings.defaultGeneration) private var defaultGeneration: String
     @State private var selectedFilter: PokedexFilter?
     @State private var searchText = ""
     @State private var championsFilters: ChampionsFilters = .none

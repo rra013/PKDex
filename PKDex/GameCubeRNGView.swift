@@ -93,7 +93,7 @@ struct GameCubeRNGView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            CardStack {
                 Picker("Game", selection: $selectedGame) {
                     ForEach(GameCubeGame.allCases) { g in Text(g.rawValue).tag(g) }
                 }
@@ -657,7 +657,7 @@ struct SeedSearcherView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            CardStack {
                 Picker("Type", selection: $searchType) {
                     ForEach(availableTypes) { t in Text(t.rawValue).tag(t) }
                 }
@@ -857,7 +857,7 @@ struct JirachiPatternView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            CardStack {
                 SectionCard(title: "Input", icon: "number") {
                     HStack {
                         Text("Seed")

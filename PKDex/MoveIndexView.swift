@@ -38,7 +38,7 @@ enum MoveTypeFilter: String, CaseIterable, Identifiable {
 
 struct MoveIndexTab: View {
     @Query(sort: \MoveData.name) private var allMoves: [MoveData]
-    @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
+    @AppStorage(AppSettings.defaultGeneration) private var defaultGeneration: String
     @State private var selectedGenFilter: PokedexFilter?
     @State private var selectedTypeFilter: MoveTypeFilter = .all
     @State private var searchText = ""
@@ -147,9 +147,7 @@ private struct MoveRow: View {
                     .fixedSize()
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(TypePalette.fill(for: move.type))
-                    .foregroundStyle(TypePalette.text(for: move.type))
-                    .clipShape(Capsule())
+                    .typeBadgeBackground(move.type)
                 Text(move.damageClass.capitalized)
                     .font(.caption)
                     .foregroundStyle(.secondary)

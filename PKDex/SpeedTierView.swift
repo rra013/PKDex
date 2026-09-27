@@ -157,7 +157,7 @@ struct SpeedTierView: View {
     @Query(sort: \PKMNStats.baseSpeed, order: .reverse) private var allPokemon: [PKMNStats]
     @Query(sort: \SavedSpread.createdAt, order: .reverse) private var savedSpreads: [SavedSpread]
     @Query(sort: \MoveData.name) private var allMoves: [MoveData]
-    @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
+    @AppStorage(AppSettings.defaultGeneration) private var defaultGeneration: String
 
     @State private var side = CalcSide()
     @State private var showLoadSpread = false

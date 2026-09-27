@@ -338,7 +338,7 @@ private struct TeamEditorContent: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            CardStack {
                 // Team Name
                 VStack(alignment: .leading, spacing: 6) {
                     Label("Team Name", systemImage: "pencil")
