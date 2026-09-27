@@ -358,7 +358,7 @@ the git history.
   computational types, such as the damage port, calc snapshots, EV solver,
   paste parser and tournament data store, are explicitly `nonisolated`, so
   solvers and network work run off the main thread. See
-  [`CalcCore-HANDOFF.md`](CalcCore-HANDOFF.md).
+  [`HANDOFF.md`](HANDOFF.md#conventions).
 - **C++ core:** PokéFinder's generators and searchers live in `PKDex/Core`,
   and `PFBridge.h/.mm` wraps them. `PFBridgeSwift.swift` gives the RNG
   views a Swift interface to them.
@@ -367,8 +367,8 @@ the git history.
   which retries after rate limits and server errors).
 
 More internal documentation:
-[`PKDex/ProjectDocumentation.md`](PKDex/ProjectDocumentation.md) (an early
-file-by-file reference),
+[`HANDOFF.md`](HANDOFF.md) (where the code lives, conventions, known
+limitations and what's next),
 [`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md)
 (moving game data into JSON), and
 [`PKDex/ShowdownPort-NOTES.md`](PKDex/ShowdownPort-NOTES.md).
@@ -430,6 +430,7 @@ xcodebuild test -project PKDex.xcodeproj -scheme PKDex -destination 'platform=iO
 | `PKDex/Licenses/` | License and notice texts for the app and the bundled third-party code, shipped in the app |
 | `LICENSE` | The GNU General Public License, version 3 |
 | `THIRD_PARTY_NOTICES.md` | Every third-party component, its copyright and its license |
+| `HANDOFF.md` | Notes for contributors: where the code lives, conventions, known limitations and what's next |
 | `tools/` | Regulation scrapers, the Showdown data generator, and vendored upstream sources |
 
 ---

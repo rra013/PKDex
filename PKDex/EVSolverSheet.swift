@@ -13,7 +13,7 @@
 //  The solves run off the main actor on `Sendable` snapshots taken when the
 //  sheet opens (see `CalcSnapshot.swift`), so a 64 x 64 defensive sweep
 //  never blocks the UI. Everything the detached task touches is
-//  `nonisolated`, per the convention in CalcCore-HANDOFF.md.
+//  `nonisolated`, per the convention in HANDOFF.md.
 //
 
 import SwiftUI
