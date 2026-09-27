@@ -983,7 +983,8 @@ private struct SideCard: View {
     }
 
     var body: some View {
-        SectionCard(title: title, icon: SideMarker.symbol(for: role), iconColor: role.color) {
+        SectionCard(title: title, icon: SideMarker.symbol(for: role), iconColor: role.color,
+                    types: side.effectiveTypes) {
             // Pokemon Picker
             VStack(alignment: .leading, spacing: 8) {
                 if let p = side.pokemon {

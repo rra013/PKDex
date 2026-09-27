@@ -17,6 +17,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.appearance) private var appearanceRaw: String
     @AppStorage(AppSettings.typeBadgeStyle) private var typeBadgeStyle: TypeBadgeStyle
     @AppStorage(AppSettings.density) private var density: Density
+    @AppStorage(AppSettings.typeBackgrounds) private var typeBackgrounds: Bool
     @AppStorage(AppSettings.championsRegulation) private var championsRegulationRaw: String
     @Environment(\.modelContext) private var modelContext
 
@@ -89,10 +90,12 @@ struct SettingsView: View {
                             Text(density.label).tag(density)
                         }
                     }
+
+                    Toggle("Type-Colored Backgrounds", isOn: $typeBackgrounds)
                 } header: {
                     Text("Appearance")
                 } footer: {
-                    Text("Compact density tightens the spacing in and between cards on the Damage Calc, the builders, Battle Sim, RNG Tools and Pokémon pages.")
+                    Text("Compact density tightens the spacing in and between cards on the Damage Calc, the builders, Battle Sim, RNG Tools and Pokémon pages. Type-colored backgrounds tint a Pokémon's page and the Set Builder with its types, and faintly tint its card on the calc and in teams.")
                 }
 
                 // MARK: - Tabs

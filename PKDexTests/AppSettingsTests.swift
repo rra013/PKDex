@@ -22,6 +22,7 @@ struct AppSettingsTests {
          AppSettings.tabOrder.name, AppSettings.hiddenTabs.name,
          AppSettings.accentColor.name, AppSettings.appearance.name,
          AppSettings.typeBadgeStyle.name, AppSettings.density.name,
+         AppSettings.typeBackgrounds.name,
          AppSettings.championsRegulation.name, AppSettings.instantSetDelete.name]
     }
 
@@ -31,6 +32,7 @@ struct AppSettingsTests {
                           "tabOrder", "hiddenTabs",
                           "appAccentColor", "appAppearance",
                           "typeBadgeStyle", "density",
+                          "typeBackgrounds",
                           "championsRegulationRaw", "instantSetDelete"])
     }
 
@@ -47,6 +49,7 @@ struct AppSettingsTests {
         #expect(AppSettings.appearance.defaultValue == AppAppearance.system.rawValue)
         #expect(AppSettings.typeBadgeStyle.defaultValue == .filled)
         #expect(AppSettings.density.defaultValue == .standard)
+        #expect(AppSettings.typeBackgrounds.defaultValue == false)
         #expect(AppSettings.instantSetDelete.defaultValue == false)
     }
 

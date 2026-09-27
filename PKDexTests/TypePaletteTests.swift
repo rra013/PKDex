@@ -83,4 +83,34 @@ struct TypePaletteTests {
             #expect(TypePalette.contrastRatio(tint, 1) >= 4.5, "\(type) on dark")
         }
     }
+
+    /// Each type's color, plus the midpoint of every pair: a gradient's
+    /// midpoint can be darker than either end.
+    private var washColors: [UInt32] {
+        let fills = MoveTypeFilter.allCases.filter { $0 != .all }.map { TypePalette.hex(for: $0.rawValue) }
+        var colors = fills
+        for (i, a) in fills.enumerated() {
+            for b in fills[(i + 1)...] { colors.append(blend(a, over: b, alpha: 0.5)) }
+        }
+        return colors
+    }
+
+    @Test("Text keeps 4.5:1 on type-colored pages and cards, light and dark")
+    func washContrast() {
+        let page = (light: TypePalette.pageWashOpacity(dark: false), dark: TypePalette.pageWashOpacity(dark: true))
+        let card = (light: TypePalette.cardWashOpacity(dark: false), dark: TypePalette.cardWashOpacity(dark: true))
+        // Page, card and inset box backgrounds in each mode.
+        let light: [(UInt32, Double)] = [(0xF2F2F7, page.light), (0xFFFFFF, card.light), (0xF2F2F7, card.light)]
+        let dark: [(UInt32, Double)] = [(0x000000, page.dark), (0x1C1C1E, card.dark), (0x2C2C2E, card.dark)]
+        for color in washColors {
+            for (background, alpha) in light {
+                let wash = TypePalette.relativeLuminance(blend(color, over: background, alpha: alpha))
+                #expect(TypePalette.contrastRatio(wash, 0) >= 4.5)
+            }
+            for (background, alpha) in dark {
+                let wash = TypePalette.relativeLuminance(blend(color, over: background, alpha: alpha))
+                #expect(TypePalette.contrastRatio(wash, 1) >= 4.5)
+            }
+        }
+    }
 }

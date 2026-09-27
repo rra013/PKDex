@@ -115,6 +115,7 @@ struct ContentView: View {
     @AppStorage(AppSettings.appearance) private var appearanceRaw: String
     @AppStorage(AppSettings.typeBadgeStyle) private var typeBadgeStyle: TypeBadgeStyle
     @AppStorage(AppSettings.density) private var density: Density
+    @AppStorage(AppSettings.typeBackgrounds) private var typeBackgrounds: Bool
 
     @State private var selectedTab: AppTab?
 
@@ -149,6 +150,7 @@ struct ContentView: View {
         .preferredColorScheme(appearance)
         .environment(\.typeBadgeStyle, typeBadgeStyle)
         .environment(\.density, density)
+        .environment(\.typeBackgrounds, typeBackgrounds)
     }
 
     @ViewBuilder

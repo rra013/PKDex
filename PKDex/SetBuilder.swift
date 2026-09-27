@@ -599,6 +599,10 @@ private struct SetFormContent: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
+        // The same gray as the Form's own background, plus the type glow
+        // when that's on.
+        .scrollContentBackground(.hidden)
+        .cardPage(types: side.effectiveTypes)
     }
 }
 

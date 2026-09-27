@@ -444,7 +444,7 @@ private struct TeamSlotCard: View {
             Text("EVs: \(slot.evHP)/\(slot.evAtk)/\(slot.evDef)/\(slot.evSpAtk)/\(slot.evSpDef)/\(slot.evSpeed)")
                 .font(.caption2.monospaced()).foregroundStyle(.tertiary)
         }
-        .insetCard()
+        .insetCard(types: [slot.type1] + [slot.type2].compactMap { $0 })
     }
 }
 

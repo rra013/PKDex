@@ -6,8 +6,9 @@
 //  looks the same wherever it appears: the type palette and badge, the
 //  role colors for the two sides of a matchup, abilities and items, the
 //  card styles, the primary action button, and the layout tools that keep
-//  screens working at large Dynamic Type sizes. The badge style and card
-//  density follow the viewer's choices in Settings.
+//  screens working at large Dynamic Type sizes. The badge style, card
+//  density and type-colored backgrounds follow the viewer's choices in
+//  Settings.
 //
 //  The fills are the type colors players know from the games and most
 //  community tools, which keeps all eighteen distinct. The system colors
@@ -59,6 +60,14 @@ enum TypePalette {
     /// The fill's opacity in the tinted badge style, over which text is
     /// the ordinary primary color.
     static let tintOpacity = 0.22
+
+    /// Peak opacity of the type-colored glow at the top of a Pokémon's page.
+    /// Dark mode needs more to show on a near-black page.
+    static func pageWashOpacity(dark: Bool) -> Double { dark ? 0.36 : 0.32 }
+
+    /// Opacity of the type-colored wash on a single Pokémon's card, kept
+    /// faint because text sits on it.
+    static func cardWashOpacity(dark: Bool) -> Double { dark ? 0.16 : 0.10 }
 
     /// Black or white, whichever contrasts more with the type's fill.
     static func text(for type: String) -> Color {
@@ -193,46 +202,116 @@ extension View {
     /// light gray in light mode and dark gray on black in dark mode. A
     /// `.background` card is black on black in dark mode, with nothing to
     /// show its edge. `padding` replaces the density's padding, for cards
-    /// that set their own, such as empty states.
-    func card(padding: CGFloat? = nil) -> some View {
-        modifier(CardModifier(padding: padding))
+    /// that set their own, such as empty states. A card about one Pokémon
+    /// passes its `types`, which wash the card when the viewer has
+    /// type-colored backgrounds on.
+    func card(padding: CGFloat? = nil, types: [String] = []) -> some View {
+        modifier(CardModifier(padding: padding, types: types))
     }
 
     /// A box set into a card: light gray in light mode, a lighter gray than
-    /// the card in dark mode.
-    func insetCard(padding: CGFloat? = nil) -> some View {
-        modifier(InsetCardModifier(padding: padding))
+    /// the card in dark mode. `types` as for `card`.
+    func insetCard(padding: CGFloat? = nil, types: [String] = []) -> some View {
+        modifier(InsetCardModifier(padding: padding, types: types))
     }
 
-    /// The page behind cards.
-    func cardPage() -> some View {
-        background(Color(.systemGroupedBackground))
+    /// The page behind cards. A page about one Pokémon passes its `types`,
+    /// which glow from the top of the page when the viewer has type-colored
+    /// backgrounds on.
+    func cardPage(types: [String] = []) -> some View {
+        modifier(CardPageModifier(types: types))
+    }
+}
+
+private struct CardPageModifier: ViewModifier {
+    let types: [String]
+    @Environment(\.typeBackgrounds) private var typeBackgrounds
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        content.background {
+            ZStack {
+                Color(.systemGroupedBackground)
+                if typeBackgrounds && !types.isEmpty {
+                    // Strongest at the top, gone by the lower fifth, so the
+                    // bottom of a long page sits on the plain background.
+                    TypeWash(types: types,
+                             opacity: TypePalette.pageWashOpacity(dark: colorScheme == .dark))
+                        .mask(LinearGradient(colors: [.black, .clear],
+                                             startPoint: .top,
+                                             endPoint: UnitPoint(x: 0.5, y: 0.8)))
+                }
+            }
+            .ignoresSafeArea()
+        }
     }
 }
 
 private struct CardModifier: ViewModifier {
     let padding: CGFloat?
+    let types: [String]
     @Environment(\.density) private var density
 
     func body(content: Content) -> some View {
         content
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(padding ?? density.spacing(CardMetrics.padding))
-            .background(Color(.secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: CardMetrics.cornerRadius, style: .continuous))
+            .background {
+                WashedSurface(color: Color(.secondarySystemGroupedBackground),
+                              cornerRadius: CardMetrics.cornerRadius, types: types)
+            }
             .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
     }
 }
 
 private struct InsetCardModifier: ViewModifier {
     let padding: CGFloat?
+    let types: [String]
     @Environment(\.density) private var density
 
     func body(content: Content) -> some View {
         content
             .padding(padding ?? density.spacing(CardMetrics.insetPadding))
-            .background(Color(.tertiarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: CardMetrics.insetCornerRadius, style: .continuous))
+            .background {
+                WashedSurface(color: Color(.tertiarySystemGroupedBackground),
+                              cornerRadius: CardMetrics.insetCornerRadius, types: types)
+            }
+    }
+}
+
+/// A card's rounded surface, with a faint wash of `types` over it when the
+/// viewer has type-colored backgrounds on.
+private struct WashedSurface: View {
+    let color: Color
+    let cornerRadius: CGFloat
+    let types: [String]
+    @Environment(\.typeBackgrounds) private var typeBackgrounds
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        ZStack {
+            color
+            if typeBackgrounds && !types.isEmpty {
+                TypeWash(types: types,
+                         opacity: TypePalette.cardWashOpacity(dark: colorScheme == .dark))
+            }
+        }
+        .clipShape(shape)
+    }
+}
+
+/// Up to two types' colors blended left to right: the tint behind
+/// type-colored backgrounds.
+private struct TypeWash: View {
+    let types: [String]
+    let opacity: Double
+
+    var body: some View {
+        let colors = types.prefix(2).map(TypePalette.fill(for:))
+        LinearGradient(colors: colors.count == 1 ? colors + colors : colors,
+                       startPoint: .leading, endPoint: .trailing)
+            .opacity(opacity)
     }
 }
 
@@ -255,6 +334,8 @@ struct SectionCard<Content: View>: View {
     let title: String
     let icon: String
     var iconColor: Color = .primary
+    /// For a card about one Pokémon; see `card(padding:types:)`.
+    var types: [String] = []
     @ViewBuilder let content: Content
 
     @Environment(\.density) private var density
@@ -270,7 +351,7 @@ struct SectionCard<Content: View>: View {
             Divider()
             content
         }
-        .card()
+        .card(types: types)
     }
 }
 
@@ -514,4 +595,5 @@ extension EnvironmentValues {
     /// app's root so each badge and card doesn't watch UserDefaults.
     @Entry var typeBadgeStyle: TypeBadgeStyle = .filled
     @Entry var density: Density = .standard
+    @Entry var typeBackgrounds: Bool = false
 }
