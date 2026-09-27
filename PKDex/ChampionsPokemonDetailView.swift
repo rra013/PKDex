@@ -139,7 +139,7 @@ struct ChampionsPokemonDetailView: View {
                 .padding(.bottom, 24)
             }
             .scrollDismissesKeyboard(.interactively)
-            .cardPage()
+            .cardPage(types: displayedTypes)
             .safeAreaInset(edge: .top, spacing: 0) {
                 sectionNav(proxy: proxy)
             }

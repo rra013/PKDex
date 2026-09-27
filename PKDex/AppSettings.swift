@@ -32,6 +32,8 @@ enum AppSettings {
     static let appearance = SettingKey(name: "appAppearance", defaultValue: AppAppearance.system.rawValue)
     static let typeBadgeStyle = SettingKey(name: "typeBadgeStyle", defaultValue: TypeBadgeStyle.filled)
     static let density = SettingKey(name: "density", defaultValue: Density.standard)
+    /// Off by default: tints a Pokémon's page and cards with its types.
+    static let typeBackgrounds = SettingKey(name: "typeBackgrounds", defaultValue: false)
     /// Defaults to `latest`, the same fallback `ChampionsRegulation.current`
     /// uses, so before anything is stored the picker shows the format the
     /// app is actually using.
