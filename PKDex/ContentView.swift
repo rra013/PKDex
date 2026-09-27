@@ -382,23 +382,11 @@ private struct PokedexTab: View {
                                  championsFilters: effectiveChampionsFilters,
                                  selection: selection)
                 }
-                // Wide layout only: tap anywhere in the roster area (not the
-                // search bar, which lives in the nav chrome above this VStack)
-                // to dismiss the search keyboard.
-                //
-                // The gate has to be on the gesture *mask*, not just inside
-                // `onEnded`. Gating only the action still installs a live tap
-                // recognizer on the VStack wrapping the `List`, and an ancestor
-                // TapGesture competes with row activation — despite the name,
-                // `simultaneousGesture` doesn't reliably coexist with the
-                // UICollectionView-backed `List`, so compact-layout
-                // `NavigationLink` rows stop pushing. `including: .none`
-                // disables the recognizer outright while keeping the modifier
-                // attached, so view identity doesn't change between layouts.
-                .simultaneousGesture(
-                    TapGesture().onEnded { dismissSearchKeyboard() },
-                    including: selection != nil && hSize == .regular ? .all : .none
-                )
+                // No tap-to-dismiss gesture on the roster: a tap recognizer
+                // above the `List` swallows row taps, so rows stopped
+                // selecting in the wide layout (iOS 26.4) as they once
+                // stopped pushing in the compact one. Picking a Pokémon,
+                // the Search key and scrolling all put the keyboard away.
             }
         }
         .navigationTitle("Mon Index")
