@@ -66,7 +66,7 @@ struct MoveIndexTab: View {
     }
 
     var body: some View {
-        NavigationStack {
+        TabNavigationStack {
             Group {
                 if allMoves.isEmpty {
                     ContentUnavailableView {

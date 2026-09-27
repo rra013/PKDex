@@ -117,14 +117,43 @@ struct ContentView: View {
     @AppStorage(AppSettings.density) private var density: Density
     @AppStorage(AppSettings.typeBackgrounds) private var typeBackgrounds: Bool
 
-    @State private var selectedTab: AppTab?
+    /// The arrangement the tab bar shows. It follows the stored one, except
+    /// while the Arrange Tabs page is open.
+    @State private var shownLayout: TabLayout
+    @State private var selectedTab: RootTab
+    /// The More tab's navigation, and the tab open in it (nil while the
+    /// list shows).
+    @State private var morePath = NavigationPath()
+    @State private var moreOpenTab: AppTab?
+    /// The default tab, when it lives under More: opened right after
+    /// launch. A page in the stack's initial path is drawn without its
+    /// large title until it's scrolled. Pages with a search field still
+    /// are when opened in code rather than by a tap (iOS 26.4).
+    @State private var launchTabInMore: AppTab?
+    @State private var isArrangingTabs = false
 
-    private var tabLayout: TabLayout {
-        TabLayout(orderRaw: tabOrderRaw, hiddenRaw: hiddenTabsRaw)
+    init() {
+        // Read storage directly: `@AppStorage` values aren't available
+        // until the view is installed, and the first frame should already
+        // select the default tab, even one that lives under More.
+        let defaults = UserDefaults.standard
+        let layout = TabLayout(
+            orderRaw: defaults.string(forKey: AppSettings.tabOrder.name) ?? AppSettings.tabOrder.defaultValue,
+            hiddenRaw: defaults.string(forKey: AppSettings.hiddenTabs.name) ?? AppSettings.hiddenTabs.defaultValue)
+        let launch = layout.launchTab(
+            for: defaults.string(forKey: AppSettings.defaultTab.name) ?? AppSettings.defaultTab.defaultValue)
+        _shownLayout = State(initialValue: layout)
+        if Self.split(of: layout).more.contains(launch) {
+            _selectedTab = State(initialValue: .more)
+            _launchTabInMore = State(initialValue: launch)
+        } else {
+            _selectedTab = State(initialValue: .tab(launch))
+        }
     }
 
-    private var visibleTabs: [AppTab] {
-        tabLayout.visible + [.settings]
+    /// The tabs in the bar and in the More list. Only iPhone has a More list.
+    private static func split(of layout: TabLayout) -> (bar: [AppTab], more: [AppTab]) {
+        TabLayout.usesMoreList ? layout.compactSplit : (layout.visible + [.settings], [])
     }
 
     private var accentColor: Color {
@@ -136,14 +165,17 @@ struct ContentView: View {
     }
 
     var body: some View {
-        TabView(selection: Binding(
-            get: { selectedTab ?? tabLayout.launchTab(for: defaultTabRaw) },
-            set: { selectedTab = $0 }
-        )) {
-            ForEach(visibleTabs) { tab in
+        let split = Self.split(of: shownLayout)
+        TabView(selection: $selectedTab) {
+            ForEach(split.bar) { tab in
                 tabContent(for: tab)
                     .tabItem { Label(tab.label, systemImage: tab.icon) }
-                    .tag(tab)
+                    .tag(RootTab.tab(tab))
+            }
+            if !split.more.isEmpty {
+                MoreList(tabs: split.more, path: $morePath, openTab: $moreOpenTab) { tabContent(for: $0) }
+                    .tabItem { Label("More", systemImage: "ellipsis") }
+                    .tag(RootTab.more)
             }
         }
         .tint(accentColor)
@@ -151,6 +183,63 @@ struct ContentView: View {
         .environment(\.typeBadgeStyle, typeBadgeStyle)
         .environment(\.density, density)
         .environment(\.typeBackgrounds, typeBackgrounds)
+        .environment(\.isArrangingTabs, $isArrangingTabs)
+        .onChange(of: tabOrderRaw) { applyStoredLayout() }
+        .onChange(of: hiddenTabsRaw) { applyStoredLayout() }
+        .onChange(of: isArrangingTabs) { applyStoredLayout() }
+        .task {
+            guard let tab = launchTabInMore else { return }
+            launchTabInMore = nil
+            await Task.yield()
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                morePath = NavigationPath([tab])
+                moreOpenTab = tab
+            }
+        }
+    }
+
+    /// Brings the tab bar up to date with the stored arrangement, keeping
+    /// the open tab in view if it moved between the bar and the More list.
+    private func applyStoredLayout() {
+        guard !isArrangingTabs else { return }
+        let layout = TabLayout(orderRaw: tabOrderRaw, hiddenRaw: hiddenTabsRaw)
+        guard layout != shownLayout else { return }
+
+        let wasInMore = selectedTab == .more
+        let open: AppTab? = switch selectedTab {
+        case .tab(let tab): tab
+        case .more: moreOpenTab
+        }
+        let split = Self.split(of: layout)
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            shownLayout = layout
+            if let open {
+                let nowInBar = split.bar.contains(open)
+                let nowInMore = split.more.contains(open)
+                if nowInBar && wasInMore {
+                    selectedTab = .tab(open)
+                    morePath = NavigationPath()
+                    moreOpenTab = nil
+                } else if nowInMore && !wasInMore {
+                    selectedTab = .more
+                    morePath = NavigationPath([open])
+                    moreOpenTab = open
+                } else if !nowInBar && !nowInMore {
+                    // The open tab was hidden.
+                    selectedTab = .tab(split.bar[0])
+                    morePath = NavigationPath()
+                    moreOpenTab = nil
+                }
+                // Otherwise it's still where it was.
+            } else if split.more.isEmpty {
+                // The More list was showing, and it's gone.
+                selectedTab = .tab(split.bar[0])
+            }
+        }
     }
 
     @ViewBuilder
@@ -160,20 +249,14 @@ struct ContentView: View {
         case .moveIndex:    MoveIndexTab()
         case .abilityIndex: AbilityIndexTab()
         case .damageCalc:   DamageCalculatorView()
-        case .sets:       SetListView()
-        case .teams:      TeamListView()
-        case .speedTiers: SpeedTierView()
+        case .sets:         SetListView()
+        case .teams:        TeamListView()
+        case .speedTiers:   SpeedTierView()
         case .battleSim:    BattleSimulatorView()
         case .rngTools:     RNGToolsView()
         case .tournaments:  TournamentsTab()
         case .teamSearch:   TeamSearchView()
-        case .settings:
-            SettingsView()
-                // Opening a tab from the More list doesn't update the
-                // selection, so it would still name the last tab-bar tab.
-                // Arranging tabs rebuilds the bar, which reapplies the
-                // selection and would jump away from Settings mid-edit.
-                .onAppear { selectedTab = .settings }
+        case .settings:     SettingsView()
         }
     }
 }
@@ -188,6 +271,7 @@ private struct PokedexTab: View {
     @State private var championsFilters: ChampionsFilters = .none
     @State private var showFilterSheet: Bool = false
     @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.isInMoreList) private var isInMoreList
     @State private var selectedMon: PKMN?
     /// Compact-layout navigation path. Value-based navigation rather than
     /// destination-based `NavigationLink` so there's an observable value to
@@ -211,18 +295,26 @@ private struct PokedexTab: View {
         // original single-column push navigation, unchanged.
         if hSize == .regular {
             wideBody
+        } else if isInMoreList {
+            // Opened from the More list: its stack does the pushing, so
+            // there's no path of ours to tick the haptic on.
+            compactColumn
         } else {
             NavigationStack(path: $path) {
-                indexColumn(selection: nil)
-                    .navigationDestination(for: PKMN.self) { mon in
-                        monIndexDestination(for: mon, filter: activeFilter)
-                    }
+                compactColumn
             }
             // The push animation reads as "something happened next" rather
             // than "your tap landed". Ticking on the path change confirms the
             // hit at the moment it registers.
             .sensoryFeedback(.selection, trigger: path)
         }
+    }
+
+    private var compactColumn: some View {
+        indexColumn(selection: nil)
+            .navigationDestination(for: PKMN.self) { mon in
+                monIndexDestination(for: mon, filter: activeFilter)
+            }
     }
 
     /// Two-pane split for wide layouts: roster list on the left, live detail on

@@ -97,7 +97,7 @@ struct TournamentsTab: View {
     @State private var showFilters = false
 
     var body: some View {
-        NavigationStack {
+        TabNavigationStack {
             Group {
                 if vm.isLoading && vm.tournaments.isEmpty {
                     ProgressView("Loading tournaments…")

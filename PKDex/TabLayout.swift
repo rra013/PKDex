@@ -82,11 +82,32 @@ struct TabLayout: Equatable {
 
     enum Placement: Equatable { case tabBar, more, hidden }
 
-    /// Where `tab` lands in a compact-width tab bar, counting Settings.
+    /// A compact tab bar's contents, Settings included: the tabs in the bar,
+    /// and the rest, which go in the More list. When everything fits there's
+    /// no More list; otherwise the bar keeps one slot for the More tab.
+    var compactSplit: (bar: [AppTab], more: [AppTab]) {
+        let all = visible + [.settings]
+        guard all.count > Self.compactBarCapacity else { return (all, []) }
+        let fit = Self.compactBarCapacity - 1
+        return (Array(all.prefix(fit)), Array(all.dropFirst(fit)))
+    }
+
+    /// Where `tab` lands in a compact-width tab bar.
     func compactPlacement(of tab: AppTab) -> Placement {
-        guard let index = visible.firstIndex(of: tab) else { return .hidden }
-        let fitsInBar = visible.count + 1 <= Self.compactBarCapacity
-        return fitsInBar || index < Self.compactBarCapacity - 1 ? .tabBar : .more
+        let split = compactSplit
+        if split.bar.contains(tab) { return .tabBar }
+        if split.more.contains(tab) { return .more }
+        return .hidden
+    }
+
+    /// Whether the tab bar overflows into the app's own More list: iPhone
+    /// only. On iPad the system tab bar has room for every tab.
+    static var usesMoreList: Bool {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .phone
+        #else
+        false
+        #endif
     }
 
     /// Converts the retired `enabledTabs` list, keeping its order and

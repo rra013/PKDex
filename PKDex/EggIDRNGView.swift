@@ -491,6 +491,7 @@ struct IDRNGView: View {
         .scrollDismissesKeyboard(.interactively)
         .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
         .onDisappear { cancelSearch() }
+        .leaveWarning(gen4Searching ? "The search in progress will stop." : nil)
     }
 
     @State private var gen3IsGameCube: Bool = false

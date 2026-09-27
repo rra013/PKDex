@@ -5125,7 +5125,7 @@ struct BattleSimulatorView: View {
     @Environment(\.horizontalSizeClass) private var hSize
 
     var body: some View {
-        NavigationStack {
+        TabNavigationStack {
             Group {
                 if let engine {
                     BattleView(engine: engine, ai: ai) {
@@ -5140,6 +5140,7 @@ struct BattleSimulatorView: View {
             }
             .cardPage()
         }
+        .leaveWarning(engine != nil && engine?.winner == nil ? "The battle in progress will end." : nil)
     }
 
     private var setupView: some View {

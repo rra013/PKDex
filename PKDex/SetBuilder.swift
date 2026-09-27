@@ -31,7 +31,7 @@ struct SetListView: View {
         if hSize == .regular {
             wideBody
         } else {
-            NavigationStack {
+            TabNavigationStack {
                 listColumn(selection: nil)
             }
         }

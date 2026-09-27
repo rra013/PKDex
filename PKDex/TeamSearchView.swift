@@ -38,7 +38,7 @@ struct TeamSearchView: View {
                 }
             }
         } else {
-            NavigationStack {
+            TabNavigationStack {
                 screen(selection: nil)
             }
         }

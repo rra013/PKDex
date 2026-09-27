@@ -35,7 +35,7 @@ struct AbilityIndexTab: View {
     }
 
     var body: some View {
-        NavigationStack {
+        TabNavigationStack {
             Group {
                 if allPokemon.isEmpty {
                     ContentUnavailableView {
