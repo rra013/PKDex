@@ -195,35 +195,32 @@ From the recent PRs, each also noted in its description:
 
 Roughly in order of value for effort.
 
-1. **Undo "Always Delete".** The set list's "Delete & Always Delete" sets
-   `AppSettings.instantSetDelete`, and nothing turns it back off short of
-   Reset All Data. Add a Settings switch, like "Warn Before Leaving a Tab".
-2. **Matchup Colors.** A setting to choose the Pokémon 1/2 colors, following
+1. **Matchup Colors.** A setting to choose the Pokémon 1/2 colors, following
    the badge style and density pattern. `ColorRole.side1`/`side2` would read
    the choice from the environment.
-3. **Color leftovers.** Nature chips still use system purple, which looks
+2. **Color leftovers.** Nature chips still use system purple, which looks
    pale beside the `ColorRole` chips, and the crit and terrain badges are
    close to ability and item.
-4. **Data compartmentalization.** [`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md)
+3. **Data compartmentalization.** [`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md)
    lists seven migrations of game data into JSON. None is started; the first,
    reading the regulation JSON's `rules` block (Tera, Mega and so on), has
    the most leverage. Its line numbers date from June.
-5. **Team Search open risks.**
+4. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last
      regulation's teams" option (keeping only teams legal now) was planned
      but not built.
    - Names Limitless writes that the alias table doesn't know still search,
      but saving a team reports them; a log of them would show the gaps.
-6. **Gen 9 in the Showdown port.** Only Champions is ported; other
+5. **Gen 9 in the Showdown port.** Only Champions is ported; other
    generations use the legacy engine, and `calculateShowdown` stops with a
    clear error for them. See [`PKDex/ShowdownPort-NOTES.md`](PKDex/ShowdownPort-NOTES.md).
-7. **Build scripts in the app.** PokéFinder's resource scripts
+6. **Build scripts in the app.** PokéFinder's resource scripts
    (`PKDex/Core/Resources/embed.py`, `Resources/Embed/embed_*.py`) and
    `Core/External/CMakeLists.txt` are copied into the app bundle, for the same
    synced-folder reason. They're harmless; excluding them the same way would
    tidy the bundle.
-8. **App Store.** Blocked on the GPL until PokéFinder's authors give
+7. **App Store.** Blocked on the GPL until PokéFinder's authors give
    permission, or the RNG core is rewritten per
    [`RNGRewrite-PLAN.md`](RNGRewrite-PLAN.md) (on hold).
 

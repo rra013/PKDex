@@ -19,6 +19,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.density) private var density: Density
     @AppStorage(AppSettings.typeBackgrounds) private var typeBackgrounds: Bool
     @AppStorage(AppSettings.warnBeforeLeavingTab) private var warnBeforeLeavingTab: Bool
+    @AppStorage(AppSettings.instantSetDelete) private var instantSetDelete: Bool
     @AppStorage(AppSettings.championsRegulation) private var championsRegulationRaw: String
     @Environment(\.modelContext) private var modelContext
 
@@ -160,6 +161,18 @@ struct SettingsView: View {
                     Text("Champions Regulation")
                 } footer: {
                     Text("Switches the roster, learnsets, and validation rules used by the Mon Index, Set Builder, and Battle Simulator. New installs default to the latest regulation (by start date). Reopen any Champions screen after switching to pick up the new format.")
+                }
+
+                // MARK: - Sets
+                Section {
+                    Toggle("Ask Before Deleting a Set", isOn: Binding(
+                        get: { !instantSetDelete },
+                        set: { instantSetDelete = !$0 }
+                    ))
+                } header: {
+                    Text("Sets")
+                } footer: {
+                    Text("Swiping to delete a saved set asks first. Choosing Delete & Don't Ask Again in that prompt turns this off.")
                 }
 
                 // MARK: - Data Management

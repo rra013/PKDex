@@ -18,7 +18,7 @@ struct SetListView: View {
     @State private var showNewSetSheet = false
 
     /// When true, swipe-to-delete acts immediately without the confirmation
-    /// alert. Toggleable from the alert itself ("Always Delete" sets it).
+    /// alert. The alert's "Don't Ask Again" sets it; Settings clears it.
     @AppStorage(AppSettings.instantSetDelete) private var instantSetDelete: Bool
     /// Spread queued for deletion, awaiting alert confirmation.
     @State private var pendingDeletion: SavedSpread?
@@ -115,9 +115,9 @@ struct SetListView: View {
                 modelContext.delete(spread)
                 pendingDeletion = nil
             }
-            Button("Delete & Always Delete") {
-                // One-shot opt-in to instant delete from inside the
-                // confirmation alert. Future swipe-deletes skip the alert.
+            Button("Delete & Don't Ask Again") {
+                // Future swipe-deletes skip the alert until Settings'
+                // "Ask Before Deleting a Set" is turned back on.
                 instantSetDelete = true
                 modelContext.delete(spread)
                 pendingDeletion = nil
@@ -126,7 +126,7 @@ struct SetListView: View {
                 pendingDeletion = nil
             }
         } message: { _ in
-            Text("This can't be undone. Toggle \"Always Delete\" to skip this prompt from now on.")
+            Text("This can't be undone. If you choose Don't Ask Again, you can turn this prompt back on in Settings.")
         }
     }
 

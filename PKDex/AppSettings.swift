@@ -43,6 +43,8 @@ enum AppSettings {
     /// as a battle, asks first. Turned off by "Leave & Don't Ask Again".
     static let warnBeforeLeavingTab = SettingKey(name: "warnBeforeLeavingTab", defaultValue: true)
     /// When true, swiping to delete a set skips the confirmation alert.
+    /// Turned on by "Delete & Don't Ask Again"; Settings shows it inverted,
+    /// as "Ask Before Deleting a Set".
     static let instantSetDelete = SettingKey(name: "instantSetDelete", defaultValue: false)
 }
 
