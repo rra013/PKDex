@@ -654,7 +654,7 @@ private struct PokemonRow: View {
 
     var body: some View {
         HStack {
-            Text("#\(pokemon.nationalPokedexNumber)")
+            Text(pokemon.dexLabel)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .scaledWidth(50, alignment: .leading)

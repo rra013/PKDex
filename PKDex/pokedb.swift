@@ -11,6 +11,9 @@ import SwiftData
 @Model
 final class PKMN {
     @Attribute(.unique) var nationalPokedexNumber: Int // Prevents duplicates in the DB
+
+    /// `nationalPokedexNumber` as shown: "#1000", never "#1,000".
+    var dexLabel: String { PKDex.dexLabel(for: nationalPokedexNumber) }
     var name: String
     var genOneLink: String?
     var genTwoLink: String?

@@ -58,6 +58,18 @@ final class PKMNStats {
     var isForm: Bool {
         formName != nil && !(formName?.isEmpty ?? true)
     }
+
+    /// The National Dex number to show, as "#445". A form's `id` is
+    /// PokeAPI's form ID (Mega Garchomp is 10058), so forms show their
+    /// species' number instead.
+    var dexLabel: String { PKDex.dexLabel(for: speciesID) }
+}
+
+/// A National Dex number as players write it: "#1000", never "#1,000".
+/// A plain String, because `Text("#\(number)")` localizes the number and
+/// adds a thousands separator.
+func dexLabel(for number: Int) -> String {
+    "#\(number)"
 }
 
 // MARK: - Move Data
