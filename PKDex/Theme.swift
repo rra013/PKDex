@@ -4,11 +4,11 @@
 //
 //  Styles shared across screens, so a type, a role, a card or a button
 //  looks the same wherever it appears: the type palette and badge, the
-//  role colors for the two sides of a matchup, abilities and items, the
-//  card styles, the primary action button, and the layout tools that keep
-//  screens working at large Dynamic Type sizes. The badge style, card
-//  density and type-colored backgrounds follow the viewer's choices in
-//  Settings.
+//  role colors for abilities and items, the colors for the two sides of a
+//  matchup, the card styles, the primary action button, and the layout
+//  tools that keep screens working at large Dynamic Type sizes. The badge
+//  style, matchup colors, card density and type-colored backgrounds follow
+//  the viewer's choices in Settings.
 //
 //  The fills are the type colors players know from the games and most
 //  community tools, which keeps all eighteen distinct. The system colors
@@ -102,20 +102,16 @@ enum TypePalette {
 /// (4.5:1) as small text on the page, on grouped rows, and on a 15% tint
 /// of itself (the chip style most screens use), and as a fill under
 /// `textOnFill`. `ColorRoleTests` checks all of it. System colors miss
-/// this in light mode: orange text on white is about 2:1.
+/// this in light mode: orange text on white is about 2:1. The sides of a
+/// matchup meet the same rules but are the viewer's choice; see
+/// `MatchupColors`.
 enum ColorRole: String, CaseIterable {
-    /// The two sides of a matchup: Pokémon 1 and Pokémon 2 in the calc.
-    /// Teal and pink, because the calc already uses red (Champions,
-    /// warnings, KOs) and blue (the default accent) for other things.
-    case side1, side2
     case ability, item
 
     var color: Color { Color(light: light, dark: dark) }
 
     var light: UInt32 {
         switch self {
-        case .side1:   return 0x00687A
-        case .side2:   return 0xAC187C
         case .ability: return 0xA73800
         case .item:    return 0x186D2E
         }
@@ -123,8 +119,6 @@ enum ColorRole: String, CaseIterable {
 
     var dark: UInt32 {
         switch self {
-        case .side1:   return 0x40CBE0
-        case .side2:   return 0xFF7FD0
         case .ability: return 0xFFB340
         case .item:    return 0x30DB5B
         }
@@ -132,6 +126,71 @@ enum ColorRole: String, CaseIterable {
 
     /// Text on a solid fill of any role: white in light mode, black in dark.
     static let textOnFill = Color(light: 0xFFFFFF, dark: 0x000000)
+}
+
+// MARK: - Matchup Colors
+
+/// Pokémon 1 or Pokémon 2: a side of a matchup in the calc.
+nonisolated enum MatchupSide: CaseIterable {
+    case side1, side2
+
+    var number: Int { self == .side1 ? 1 : 2 }
+
+    /// The numbered marker on the side's card and beside its name in
+    /// Results. The number carries the meaning without the color.
+    var symbol: String { "\(number).circle.fill" }
+}
+
+/// The viewer's colors for the two sides of a matchup, from Settings.
+/// Views read the choice from `\.matchupColors` and draw a side with
+/// `color(for:)`.
+///
+/// Every pair meets `ColorRole`'s contrast rules and keeps clear of its
+/// ability and item colors, which `ColorRoleTests` checks.
+/// - Teal & Pink, the default, avoids the calc's other colors: red for
+///   Champions, warnings and KOs, and blue for the default accent.
+/// - Blue & Gold stays apart with red-green color blindness, where teal
+///   and pink look almost the same.
+/// - Blue & Red is the familiar pairing, at the cost of sharing red with
+///   the calc's warnings.
+nonisolated enum MatchupColors: String, CaseIterable, Identifiable {
+    case tealPink, blueGold, blueRed
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .tealPink: return "Teal & Pink"
+        case .blueGold: return "Blue & Gold"
+        case .blueRed:  return "Blue & Red"
+        }
+    }
+
+    func light(for side: MatchupSide) -> UInt32 {
+        switch (self, side) {
+        case (.tealPink, .side1): return 0x00687A
+        case (.tealPink, .side2): return 0xAC187C
+        case (.blueGold, .side1), (.blueRed, .side1): return 0x0050E2
+        case (.blueGold, .side2): return 0x755D0D
+        case (.blueRed, .side2):  return 0xB70A3D
+        }
+    }
+
+    func dark(for side: MatchupSide) -> UInt32 {
+        switch (self, side) {
+        case (.tealPink, .side1): return 0x40CBE0
+        case (.tealPink, .side2): return 0xFF7FD0
+        case (.blueGold, .side1), (.blueRed, .side1): return 0x7EABFE
+        case (.blueGold, .side2): return 0xD0A60A
+        case (.blueRed, .side2):  return 0xFF8793
+        }
+    }
+}
+
+extension MatchupColors {
+    func color(for side: MatchupSide) -> Color {
+        Color(light: light(for: side), dark: dark(for: side))
+    }
 }
 
 // MARK: - Hex Colors
@@ -594,6 +653,7 @@ extension EnvironmentValues {
     /// The viewer's choices from Settings > Appearance, set once at the
     /// app's root so each badge and card doesn't watch UserDefaults.
     @Entry var typeBadgeStyle: TypeBadgeStyle = .filled
+    @Entry var matchupColors: MatchupColors = .tealPink
     @Entry var density: Density = .standard
     @Entry var typeBackgrounds: Bool = false
 }

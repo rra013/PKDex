@@ -31,6 +31,8 @@ enum AppSettings {
     static let accentColor = SettingKey(name: "appAccentColor", defaultValue: AppAccentColor.blue.rawValue)
     static let appearance = SettingKey(name: "appAppearance", defaultValue: AppAppearance.system.rawValue)
     static let typeBadgeStyle = SettingKey(name: "typeBadgeStyle", defaultValue: TypeBadgeStyle.filled)
+    /// The colors marking Pokémon 1 and 2 in the calc.
+    static let matchupColors = SettingKey(name: "matchupColors", defaultValue: MatchupColors.tealPink)
     static let density = SettingKey(name: "density", defaultValue: Density.standard)
     /// Off by default: tints a Pokémon's page and cards with its types.
     static let typeBackgrounds = SettingKey(name: "typeBackgrounds", defaultValue: false)

@@ -711,7 +711,7 @@ private struct ResultCard: View {
 
 /// One side's status, ability and item, after the side's marker and name.
 private struct SideModifiersRow: View {
-    let role: ColorRole
+    let role: MatchupSide
     let name: String
     let side: CalcSide
 
@@ -743,22 +743,20 @@ private struct SideModifiersRow: View {
 }
 
 /// Marks Pokémon 1 or 2 wherever Results names them, matching the marker
-/// on each side's card. The number carries the meaning without the color.
+/// on each side's card.
 private struct SideMarker: View {
-    let role: ColorRole
-    var body: some View {
-        Image(systemName: Self.symbol(for: role))
-            .foregroundStyle(role.color)
-            .accessibilityHidden(true)
-    }
+    let role: MatchupSide
+    @Environment(\.matchupColors) private var matchupColors
 
-    static func symbol(for role: ColorRole) -> String {
-        role == .side2 ? "2.circle.fill" : "1.circle.fill"
+    var body: some View {
+        Image(systemName: role.symbol)
+            .foregroundStyle(matchupColors.color(for: role))
+            .accessibilityHidden(true)
     }
 }
 
 private struct DirectionResultsView: View {
-    let attackerRole: ColorRole
+    let attackerRole: MatchupSide
     let attackerName: String
     let defenderName: String
     let defenderHP: Int
@@ -766,7 +764,7 @@ private struct DirectionResultsView: View {
     /// Opens the EV solver for a move in this direction.
     var onSolve: ((MoveData) -> Void)? = nil
 
-    private var defenderRole: ColorRole { attackerRole == .side1 ? .side2 : .side1 }
+    private var defenderRole: MatchupSide { attackerRole == .side1 ? .side2 : .side1 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -920,7 +918,7 @@ private struct SideCard: View {
     let title: String
     /// `.side1` or `.side2`; the header's numbered marker is the key for
     /// the markers in Results.
-    let role: ColorRole
+    let role: MatchupSide
     @Bindable var side: CalcSide
     let allPokemon: [PKMNStats]
     let allMoves: [MoveData]
@@ -928,6 +926,7 @@ private struct SideCard: View {
 
     @Query(sort: \SavedSpread.createdAt, order: .reverse) private var savedSpreads: [SavedSpread]
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.matchupColors) private var matchupColors
     @State private var showSaveSheet = false
     @State private var showLoadSheet = false
     @State private var showPasteSheet = false
@@ -985,8 +984,8 @@ private struct SideCard: View {
     }
 
     var body: some View {
-        SectionCard(title: title, icon: SideMarker.symbol(for: role), iconColor: role.color,
-                    types: side.effectiveTypes) {
+        SectionCard(title: title, icon: role.symbol,
+                    iconColor: matchupColors.color(for: role), types: side.effectiveTypes) {
             // Pokemon Picker
             VStack(alignment: .leading, spacing: 8) {
                 if let p = side.pokemon {
