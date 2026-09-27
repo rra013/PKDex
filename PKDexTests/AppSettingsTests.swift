@@ -24,7 +24,7 @@ struct AppSettingsTests {
          AppSettings.typeBadgeStyle.name, AppSettings.density.name,
          AppSettings.typeBackgrounds.name,
          AppSettings.championsRegulation.name, AppSettings.instantSetDelete.name,
-         AppSettings.warnBeforeLeavingTab.name]
+         AppSettings.warnBeforeLeavingTab.name, AppSettings.matchupColors.name]
     }
 
     @Test("Key names match what earlier versions stored")
@@ -35,7 +35,7 @@ struct AppSettingsTests {
                           "typeBadgeStyle", "density",
                           "typeBackgrounds",
                           "championsRegulationRaw", "instantSetDelete",
-                          "warnBeforeLeavingTab"])
+                          "warnBeforeLeavingTab", "matchupColors"])
     }
 
     @Test("No two settings share a key")
@@ -50,6 +50,7 @@ struct AppSettingsTests {
         #expect(AppSettings.accentColor.defaultValue == AppAccentColor.blue.rawValue)
         #expect(AppSettings.appearance.defaultValue == AppAppearance.system.rawValue)
         #expect(AppSettings.typeBadgeStyle.defaultValue == .filled)
+        #expect(AppSettings.matchupColors.defaultValue == .tealPink)
         #expect(AppSettings.density.defaultValue == .standard)
         #expect(AppSettings.typeBackgrounds.defaultValue == false)
         #expect(AppSettings.instantSetDelete.defaultValue == false)
@@ -71,8 +72,10 @@ struct AppSettingsTests {
 
             store.set("compact", forKey: AppSettings.density.name)
             store.set("tinted", forKey: AppSettings.typeBadgeStyle.name)
+            store.set("blueGold", forKey: AppSettings.matchupColors.name)
             #expect(AppStorage(AppSettings.density, store: store).wrappedValue == .compact)
             #expect(AppStorage(AppSettings.typeBadgeStyle, store: store).wrappedValue == .tinted)
+            #expect(AppStorage(AppSettings.matchupColors, store: store).wrappedValue == .blueGold)
 
             store.set("bogus", forKey: AppSettings.density.name)
             #expect(AppStorage(AppSettings.density, store: store).wrappedValue == .standard)

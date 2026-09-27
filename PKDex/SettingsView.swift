@@ -16,6 +16,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.accentColor) private var accentColorRaw: String
     @AppStorage(AppSettings.appearance) private var appearanceRaw: String
     @AppStorage(AppSettings.typeBadgeStyle) private var typeBadgeStyle: TypeBadgeStyle
+    @AppStorage(AppSettings.matchupColors) private var matchupColors: MatchupColors
     @AppStorage(AppSettings.density) private var density: Density
     @AppStorage(AppSettings.typeBackgrounds) private var typeBackgrounds: Bool
     @AppStorage(AppSettings.warnBeforeLeavingTab) private var warnBeforeLeavingTab: Bool
@@ -87,6 +88,28 @@ struct SettingsView: View {
                     .listRowSeparator(.hidden, edges: .top)
                     .accessibilityHidden(true)
 
+                    Picker("Matchup Colors", selection: $matchupColors) {
+                        ForEach(MatchupColors.allCases) { colors in
+                            Text(colors.label).tag(colors)
+                        }
+                    }
+
+                    // The calc's markers in the chosen colors, attached to the picker row.
+                    FlowLayout(spacing: 16) {
+                        ForEach(MatchupSide.allCases, id: \.self) { side in
+                            HStack(spacing: 6) {
+                                Image(systemName: side.symbol)
+                                    .foregroundStyle(matchupColors.color(for: side))
+                                Text("Pokémon \(side.number)")
+                            }
+                        }
+                    }
+                    .font(.subheadline)
+                    // Run the separator below full width, as under the badges.
+                    .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+                    .listRowSeparator(.hidden, edges: .top)
+                    .accessibilityHidden(true)
+
                     Picker("Density", selection: $density) {
                         ForEach(Density.allCases) { density in
                             Text(density.label).tag(density)
@@ -97,7 +120,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Appearance")
                 } footer: {
-                    Text("Compact density tightens the spacing in and between cards on the Damage Calc, the builders, Battle Sim, RNG Tools and Pokémon pages. Type-colored backgrounds tint a Pokémon's page and the Set Builder with its types, and faintly tint its card on the calc and in teams.")
+                    Text("Matchup colors mark Pokémon 1 and 2 on the Damage Calc; Blue & Gold stays easy to tell apart with red-green color blindness. Compact density tightens the spacing in and between cards on the Damage Calc, the builders, Battle Sim, RNG Tools and Pokémon pages. Type-colored backgrounds tint a Pokémon's page and the Set Builder with its types, and faintly tint its card on the calc and in teams.")
                 }
 
                 // MARK: - Tabs

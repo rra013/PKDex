@@ -114,6 +114,7 @@ struct ContentView: View {
     @AppStorage(AppSettings.accentColor) private var accentColorRaw: String
     @AppStorage(AppSettings.appearance) private var appearanceRaw: String
     @AppStorage(AppSettings.typeBadgeStyle) private var typeBadgeStyle: TypeBadgeStyle
+    @AppStorage(AppSettings.matchupColors) private var matchupColors: MatchupColors
     @AppStorage(AppSettings.density) private var density: Density
     @AppStorage(AppSettings.typeBackgrounds) private var typeBackgrounds: Bool
 
@@ -181,6 +182,7 @@ struct ContentView: View {
         .tint(accentColor)
         .preferredColorScheme(appearance)
         .environment(\.typeBadgeStyle, typeBadgeStyle)
+        .environment(\.matchupColors, matchupColors)
         .environment(\.density, density)
         .environment(\.typeBackgrounds, typeBackgrounds)
         .environment(\.isArrangingTabs, $isArrangingTabs)
