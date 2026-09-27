@@ -9,16 +9,15 @@ import SwiftUI
 import SwiftData
 
 struct SettingsView: View {
-    @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
-    @AppStorage(TabLayout.orderKey) private var tabOrderRaw = ""
-    @AppStorage(TabLayout.hiddenKey) private var hiddenTabsRaw = ""
-    @AppStorage("defaultTab") private var defaultTabRaw: String = AppTab.monIndex.rawValue
-    @AppStorage("appAccentColor") private var accentColorRaw: String = AppAccentColor.blue.rawValue
-    @AppStorage("appAppearance") private var appearanceRaw: String = AppAppearance.system.rawValue
-    /// Defaults to `latest`, the same fallback `ChampionsRegulation.current`
-    /// uses, so before anything is stored the picker shows the format the
-    /// app is actually using.
-    @AppStorage(ChampionsRegulation.userDefaultsKey) private var championsRegulationRaw: String = ChampionsRegulation.latest.rawValue
+    @AppStorage(AppSettings.defaultGeneration) private var defaultGeneration: String
+    @AppStorage(AppSettings.tabOrder) private var tabOrderRaw: String
+    @AppStorage(AppSettings.hiddenTabs) private var hiddenTabsRaw: String
+    @AppStorage(AppSettings.defaultTab) private var defaultTabRaw: String
+    @AppStorage(AppSettings.accentColor) private var accentColorRaw: String
+    @AppStorage(AppSettings.appearance) private var appearanceRaw: String
+    @AppStorage(AppSettings.typeBadgeStyle) private var typeBadgeStyle: TypeBadgeStyle
+    @AppStorage(AppSettings.density) private var density: Density
+    @AppStorage(AppSettings.championsRegulation) private var championsRegulationRaw: String
     @Environment(\.modelContext) private var modelContext
 
     @State private var showResetConfirmation = false
@@ -31,6 +30,8 @@ struct SettingsView: View {
     private var tabLayout: TabLayout {
         TabLayout(orderRaw: tabOrderRaw, hiddenRaw: hiddenTabsRaw)
     }
+
+    private static let badgePreviewTypes = ["Fire", "Water", "Grass", "Electric", "Psychic", "Dark"]
 
     private var shownTabsSummary: String {
         let shown = tabLayout.visible.count
@@ -69,8 +70,29 @@ struct SettingsView: View {
                         }
                     }
                     .padding(.vertical, 4)
+
+                    Picker("Type Badges", selection: $typeBadgeStyle) {
+                        ForEach(TypeBadgeStyle.allCases) { style in
+                            Text(style.label).tag(style)
+                        }
+                    }
+
+                    // A sample in the chosen style, attached to the picker row.
+                    FlowLayout(spacing: 6) {
+                        ForEach(Self.badgePreviewTypes, id: \.self) { TypeBadge(type: $0) }
+                    }
+                    .listRowSeparator(.hidden, edges: .top)
+                    .accessibilityHidden(true)
+
+                    Picker("Density", selection: $density) {
+                        ForEach(Density.allCases) { density in
+                            Text(density.label).tag(density)
+                        }
+                    }
                 } header: {
                     Text("Appearance")
+                } footer: {
+                    Text("Compact density tightens the spacing in and between cards on the Damage Calc, the builders, Battle Sim, RNG Tools and Pokémon pages.")
                 }
 
                 // MARK: - Tabs
@@ -319,9 +341,9 @@ struct SettingsView: View {
 /// Reorder shows the drag handles. The two can't share a mode: a list in
 /// edit mode ignores taps on its rows' switches.
 private struct TabSettingsView: View {
-    @AppStorage(TabLayout.orderKey) private var tabOrderRaw = ""
-    @AppStorage(TabLayout.hiddenKey) private var hiddenTabsRaw = ""
-    @AppStorage("defaultTab") private var defaultTabRaw: String = AppTab.monIndex.rawValue
+    @AppStorage(AppSettings.tabOrder) private var tabOrderRaw: String
+    @AppStorage(AppSettings.hiddenTabs) private var hiddenTabsRaw: String
+    @AppStorage(AppSettings.defaultTab) private var defaultTabRaw: String
     @Environment(\.horizontalSizeClass) private var hSize
     @State private var editMode: EditMode = .inactive
 

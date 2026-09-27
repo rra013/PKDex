@@ -116,7 +116,7 @@ struct ChampionsPokemonDetailView: View {
 
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                CardStack(alignment: .leading, spacing: 20) {
                     sourceLink
                         .id(SectionID.top)
 
@@ -862,7 +862,7 @@ struct ChampionsComparisonView: View {
         let r = DisplayedForm.resolve(species: right, form: rightForm)
 
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            CardStack(alignment: .leading, spacing: 20) {
                 headerRow(left: left, right: right)
                 statsCard(l: l, r: r)
                 movesCard(l: l, r: r)

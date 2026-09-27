@@ -564,7 +564,7 @@ struct DamageCalculatorView: View {
     @State private var vm = DamageCalcVM()
     @Query(sort: \PKMNStats.name) private var allPokemon: [PKMNStats]
     @Query(sort: \MoveData.name) private var allMoves: [MoveData]
-    @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
+    @AppStorage(AppSettings.defaultGeneration) private var defaultGeneration: String
     @Environment(\.horizontalSizeClass) private var hSize
 
     var body: some View {
@@ -578,12 +578,12 @@ struct DamageCalculatorView: View {
                         // modifiers on the right so the damage output stays
                         // visible while tweaking either mon.
                         HStack(alignment: .top, spacing: 16) {
-                            VStack(spacing: 16) {
+                            CardStack {
                                 SideCard(title: "Pokemon 1", role: .side1, side: vm.side1, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
                                 SideCard(title: "Pokemon 2", role: .side2, side: vm.side2, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
                             }
                             .frame(maxWidth: .infinity, alignment: .top)
-                            VStack(spacing: 16) {
+                            CardStack {
                                 ResultCard(vm: vm)
                                 ModifiersCard(vm: vm)
                             }
@@ -591,7 +591,7 @@ struct DamageCalculatorView: View {
                         }
                     } else {
                         // Compact layout: original single column, unchanged.
-                        VStack(spacing: 16) {
+                        CardStack {
                             ResultCard(vm: vm)
                             SideCard(title: "Pokemon 1", role: .side1, side: vm.side1, allPokemon: allPokemon, allMoves: allMoves, vm: vm)
                             SideCard(title: "Pokemon 2", role: .side2, side: vm.side2, allPokemon: allPokemon, allMoves: allMoves, vm: vm)

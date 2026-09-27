@@ -5101,7 +5101,7 @@ struct BattleSimulatorView: View {
     @Query(sort: \PKMNStats.name) private var allPokemon: [PKMNStats]
     @Query(sort: \MoveData.name) private var allMoves: [MoveData]
 
-    @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
+    @AppStorage(AppSettings.defaultGeneration) private var defaultGeneration: String
 
     @State private var format: BattleFormat = .singles
     @State private var team1ID: PersistentIdentifier?
@@ -5152,14 +5152,14 @@ struct BattleSimulatorView: View {
                 } else if hSize == .regular {
                     // Wide layout: the two sides sit next to each other, with
                     // the format picker on top and the AI / Start controls below.
-                    VStack(spacing: 16) {
+                    CardStack {
                         formatCard
                         HStack(alignment: .top, spacing: 16) {
-                            VStack(spacing: 16) {
+                            CardStack {
                                 sideBlock("Side 1", selectedID: $team1ID, order: $team1Order)
                             }
                             .frame(maxWidth: .infinity, alignment: .top)
-                            VStack(spacing: 16) {
+                            CardStack {
                                 sideBlock("Side 2", selectedID: $team2ID, order: $team2Order)
                             }
                             .frame(maxWidth: .infinity, alignment: .top)
@@ -5169,7 +5169,7 @@ struct BattleSimulatorView: View {
                     }
                 } else {
                     // Compact layout: original single column, unchanged.
-                    VStack(spacing: 16) {
+                    CardStack {
                         formatCard
                         sideBlock("Side 1", selectedID: $team1ID, order: $team1Order)
                         sideBlock("Side 2", selectedID: $team2ID, order: $team2Order)

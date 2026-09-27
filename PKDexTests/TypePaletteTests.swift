@@ -3,8 +3,9 @@
 //  PKDexTests
 //
 //  Covers `TypePalette`: every type has its own color, lookups ignore case,
-//  unknown names get the fallback, and the text on every fill clears WCAG
-//  AA contrast (4.5:1).
+//  unknown names get the fallback, and badge text clears WCAG AA contrast
+//  (4.5:1) in both badge styles: on every fill, and on every tint in light
+//  and dark mode.
 //
 
 import Testing
@@ -56,5 +57,30 @@ struct TypePaletteTests {
         let fill = TypePalette.relativeLuminance(hex)
         let text: Double = TypePalette.usesWhiteText(hex) ? 1 : 0
         #expect(TypePalette.contrastRatio(fill, text) >= 4.5, "\(type) text contrast")
+    }
+
+    /// `color` at `alpha` over `background`, per channel, as the screen draws it.
+    private func blend(_ color: UInt32, over background: UInt32, alpha: Double) -> UInt32 {
+        [16, 8, 0].reduce(UInt32(0)) { result, shift in
+            let top = Double((color >> UInt32(shift)) & 0xFF)
+            let bottom = Double((background >> UInt32(shift)) & 0xFF)
+            return result | UInt32((top * alpha + bottom * (1 - alpha)).rounded()) << UInt32(shift)
+        }
+    }
+
+    @Test("Tinted badges keep 4.5:1 text in light and dark mode",
+          arguments: MoveTypeFilter.allCases.filter { $0 != .all }.map(\.rawValue))
+    func tintedContrast(type: String) {
+        let fill = TypePalette.hex(for: type)
+        // Cards, grouped rows and inset boxes; black text in light mode,
+        // white in dark.
+        for background: UInt32 in [0xFFFFFF, 0xF2F2F7] {
+            let tint = TypePalette.relativeLuminance(blend(fill, over: background, alpha: TypePalette.tintOpacity))
+            #expect(TypePalette.contrastRatio(tint, 0) >= 4.5, "\(type) on light")
+        }
+        for background: UInt32 in [0x000000, 0x1C1C1E, 0x2C2C2E] {
+            let tint = TypePalette.relativeLuminance(blend(fill, over: background, alpha: TypePalette.tintOpacity))
+            #expect(TypePalette.contrastRatio(tint, 1) >= 4.5, "\(type) on dark")
+        }
     }
 }

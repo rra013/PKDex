@@ -67,7 +67,7 @@ struct EggRNGView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            CardStack {
                 Picker("Generation", selection: $generation) {
                     ForEach(FinderGeneration.allCases) { g in Text(g.rawValue).tag(g) }
                 }
@@ -430,7 +430,7 @@ struct IDRNGView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            CardStack {
                 Picker("Generation", selection: $generation) {
                     ForEach(FinderGeneration.allCases) { g in Text(g.rawValue).tag(g) }
                 }

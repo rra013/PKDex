@@ -2649,7 +2649,7 @@ struct RNGTimerView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            CardStack {
                 timerDisplay
 
                 if let reminderText {
@@ -2959,7 +2959,7 @@ struct IVCalculatorView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            CardStack {
                 if allPokemon.isEmpty {
                     ContentUnavailableView("Syncing Data", systemImage: "antenna.radiowaves.left.and.right",
                         description: Text("Waiting for Pokemon data to sync..."))
@@ -3115,7 +3115,7 @@ struct IVToPIDView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            CardStack {
                 SectionCard(title: "IVs", icon: "number.square") {
                     IVSliderRow8(label: "HP", value: $hp)
                     IVSliderRow8(label: "Attack", value: $atk)
@@ -3199,7 +3199,7 @@ struct HiddenPowerCalcView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            CardStack {
                 SectionCard(title: "IVs", icon: "number.square") {
                     IVSliderRow(label: "HP", value: $ivHP)
                     IVSliderRow(label: "Attack", value: $ivAtk)
@@ -3430,7 +3430,7 @@ struct FinderRootView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            CardStack {
                 // Generation picker
                 Picker("Generation", selection: $generation) {
                     ForEach(FinderGeneration.allCases) { g in Text(g.rawValue).tag(g) }
@@ -5036,7 +5036,7 @@ struct SeedToTimeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            CardStack {
                 targetSummary
                 timeResultsSection
                 verifySection

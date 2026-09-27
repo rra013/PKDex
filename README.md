@@ -52,7 +52,7 @@ The Xcode project and target are named `PKDex`, and the app's display name is
 | **RNG Tools** | Timer, seed finder, wild and static encounters, eggs, TID/SID, GameCube (Colosseum/XD), IV calculator, IV→PID and Hidden Power, for Gen 3–5, plus Sword/Shield raid dens. |
 | **Tournaments** | Tournaments, standings and team sheets from Limitless, with one-tap import of any team. |
 | **Team Search** | Describe a team idea in plain words and see the popular tournament teams that match it, grouped into compositions. |
-| **Settings** | Appearance, accent color, tab order and visibility, default tab and generation, active Champions regulation, data management, and acknowledgements and licenses. |
+| **Settings** | Appearance, accent color, type badge style, density, tab order and visibility, default tab and generation, active Champions regulation, data management, and acknowledgements and licenses. |
 
 Every tab except Settings can be reordered, hidden or made the default tab. On iPad and
 wide iPhone layouts, the list-based tabs switch to a split view with the list

@@ -36,7 +36,7 @@ struct EncounterBrowserView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            CardStack {
                 Picker("Generation", selection: $generation) {
                     ForEach(EncBrowserGen.allCases) { g in Text(g.rawValue).tag(g) }
                 }
@@ -222,7 +222,7 @@ struct StaticEncounterBrowserView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            CardStack {
                 Picker("Generation", selection: $generation) {
                     ForEach(StaticBrowserGen.allCases) { g in Text(g.rawValue).tag(g) }
                 }

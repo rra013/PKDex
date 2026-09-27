@@ -19,7 +19,7 @@ struct SetListView: View {
 
     /// When true, swipe-to-delete acts immediately without the confirmation
     /// alert. Toggleable from the alert itself ("Always Delete" sets it).
-    @AppStorage("instantSetDelete") private var instantSetDelete: Bool = false
+    @AppStorage(AppSettings.instantSetDelete) private var instantSetDelete: Bool
     /// Spread queued for deletion, awaiting alert confirmation.
     @State private var pendingDeletion: SavedSpread?
     @Environment(\.horizontalSizeClass) private var hSize
@@ -214,7 +214,7 @@ struct NewSetSheet: View {
     var initialPokemon: PKMNStats? = nil
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
+    @AppStorage(AppSettings.defaultGeneration) private var defaultGeneration: String
 
     @State private var name = ""
     @State private var side = CalcSide()

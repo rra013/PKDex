@@ -113,7 +113,7 @@ struct TeamPasteImportSheet: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("defaultGeneration") private var defaultGeneration: String = PokedexFilter.champions.rawValue
+    @AppStorage(AppSettings.defaultGeneration) private var defaultGeneration: String
 
     @State private var text = ""
     @State private var teamName = ""
