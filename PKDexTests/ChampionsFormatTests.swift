@@ -175,4 +175,21 @@ struct ChampionsFormatValidatorTests {
         let hits = violations.filter { $0.category == .wrongTeamSize }
         #expect(!hits.isEmpty, "Validator must flag teams with size != 6")
     }
+
+    @Test("Legality messages name the regulation being checked",
+          arguments: ChampionsRegulation.allCases)
+    func messagesNameTheRegulation(regulation: ChampionsRegulation) {
+        guard let v = ChampionsValidator(regulation: regulation) else { return }
+        #expect(v.regulationName == regulation.displayName)
+        var slot = legalGarchomp()
+        slot.pokemonName = "Not A Pokémon"
+        slot.itemRawValue = "Not An Item"
+        let messages = ChampionsFormat.validate(slots: [slot], validator: v)
+            .filter { [.illegalSpecies, .illegalItem].contains($0.category) }
+            .map(\.message)
+        #expect(!messages.isEmpty)
+        for message in messages {
+            #expect(message.hasSuffix("is not legal in \(regulation.displayName)"), "\(message)")
+        }
+    }
 }

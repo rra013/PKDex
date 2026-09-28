@@ -4,13 +4,13 @@
 //
 //  Swift port of pokemon-llm-training/scripts/validate_champions.py.
 //
-//  Validates a generated Pokemon set against Pokemon Champions Regulation
-//  M-A rules. Returns a list of Violations categorized by severity:
+//  Validates a generated Pokemon set against a Pokemon Champions
+//  regulation's rules. Returns a list of Violations categorized by severity:
 //  legality violations (mandatory fixes) and coherence violations (the set
 //  is technically legal but is contradictory, e.g. Adamant nature on a set
 //  with only special moves).
 //
-//  Bundled with:
+//  Bundled with, per regulation (M-A shown):
 //    - champions-m-a.json       (legal species, items, abilities)
 //    - champions-m-a-learnsets.json  (per-species legal move pools)
 //
@@ -74,6 +74,9 @@ public final class ChampionsValidator {
     public let setupMoves: Set<String>
     public let choiceItems: Set<String>
     public let scarfItem: String = "Choice Scarf"
+    /// "Regulation M-C", from the legality JSON's `format_name`, for
+    /// messages.
+    public let regulationName: String
 
     public static let statPointTotalCap = 66
     public static let statPointPerStatCap = 32
@@ -92,6 +95,10 @@ public final class ChampionsValidator {
               let legality = try? JSONSerialization.jsonObject(with: legalityData)
                 as? [String: Any]
         else { return nil }
+
+        regulationName = (legality["format_name"] as? String)
+            .map { $0.replacingOccurrences(of: "Pokemon Champions ", with: "") }
+            ?? "this regulation"
 
         guard let species = legality["species_whitelist"] as? [String],
               let items = legality["items_whitelist"] as? [String],
@@ -247,7 +254,7 @@ public final class ChampionsValidator {
         }
         if !speciesWhitelist.contains(s.species) {
             v.append(.init(category: .illegalSpecies,
-                message: "Species '\(s.species)' is not legal in Regulation M-A"))
+                message: "Species '\(s.species)' is not legal in \(regulationName)"))
         }
     }
 
@@ -255,7 +262,7 @@ public final class ChampionsValidator {
         guard let item = s.item, !item.isEmpty else { return }
         if !itemWhitelist.contains(item) {
             v.append(.init(category: .illegalItem,
-                message: "Item '\(item)' is not legal in Regulation M-A"))
+                message: "Item '\(item)' is not legal in \(regulationName)"))
         }
     }
 
