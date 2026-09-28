@@ -95,7 +95,9 @@ struct ChampionsPokemonDetailView: View {
         }
         .navigationTitle(pokemon.name)
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.large)
+        // Inline: the section bar is pinned under the navigation bar, and
+        // a large title between the two was drawn under it (iOS 26.4).
+        .navigationBarTitleDisplayMode(.inline)
         #endif
         .sheet(isPresented: $showSetSheet) {
             NewSetSheet(allPokemon: allPokemonStats,
@@ -140,7 +142,7 @@ struct ChampionsPokemonDetailView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .cardPage(types: displayedTypes)
-            .safeAreaInset(edge: .top, spacing: 0) {
+            .safeAreaBar(edge: .top, spacing: 0) {
                 sectionNav(proxy: proxy)
             }
         }
