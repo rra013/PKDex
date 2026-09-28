@@ -42,6 +42,7 @@ public struct Violation: Equatable {
         case malformedMoves        = "malformed_moves"
         case wrongMoveCount        = "wrong_move_count"
         case speciesClause         = "species_clause"
+        case itemClause            = "item_clause"
         case teraNotAllowed        = "tera_not_allowed"
         case evFormatUsed          = "ev_format_used"
 
@@ -74,14 +75,14 @@ public final class ChampionsValidator {
     public let setupMoves: Set<String>
     public let choiceItems: Set<String>
     public let scarfItem: String = "Choice Scarf"
+    /// The regulation's `rules` block: stat-point caps, team size and
+    /// clauses, read from the same JSON as the whitelists.
+    let rules: ChampionsRules
     /// "Regulation M-C", from the legality JSON's `format_name`, for
     /// messages.
     public let regulationName: String
 
-    public static let statPointTotalCap = 66
-    public static let statPointPerStatCap = 32
     public static let requiredMoveCount = 4
-    public static let requiredTeamSize = 6
 
     // MARK: Loading
 
@@ -99,6 +100,7 @@ public final class ChampionsValidator {
         regulationName = (legality["format_name"] as? String)
             .map { $0.replacingOccurrences(of: "Pokemon Champions ", with: "") }
             ?? "this regulation"
+        rules = (try? ChampionsRules.decode(fromRegulationJSON: legalityData)) ?? .fallback
 
         guard let species = legality["species_whitelist"] as? [String],
               let items = legality["items_whitelist"] as? [String],
@@ -225,19 +227,31 @@ public final class ChampionsValidator {
     /// per-set rules.
     public func validate(team: [PokemonSet]) -> [Violation] {
         var v: [Violation] = []
-        if team.count != Self.requiredTeamSize {
+        if team.count != rules.teamSize {
             v.append(.init(category: .wrongTeamSize,
                 message: "Team has \(team.count) members, expected " +
-                         "\(Self.requiredTeamSize)"))
+                         "\(rules.teamSize)"))
         }
         // Species clause: no duplicate species
-        var seen = Set<String>()
-        for set in team {
-            if seen.contains(set.species) {
-                v.append(.init(category: .speciesClause,
-                    message: "Duplicate species in team: \(set.species)"))
+        if rules.speciesClause {
+            var seen = Set<String>()
+            for set in team {
+                if seen.contains(set.species) {
+                    v.append(.init(category: .speciesClause,
+                        message: "Duplicate species in team: \(set.species)"))
+                }
+                seen.insert(set.species)
             }
-            seen.insert(set.species)
+        }
+        // Item clause: no duplicate held items
+        if rules.itemClause {
+            var seen = Set<String>()
+            for item in team.compactMap(\.item) where !item.isEmpty {
+                if !seen.insert(item).inserted {
+                    v.append(.init(category: .itemClause,
+                        message: "Duplicate item in team: \(item)"))
+                }
+            }
         }
         for set in team {
             v.append(contentsOf: validate(set: set))
@@ -330,10 +344,10 @@ public final class ChampionsValidator {
 
         let sp = s.statPoints
         let total = sp.hp + sp.atk + sp.def + sp.spa + sp.spd + sp.spe
-        if total > Self.statPointTotalCap {
+        if total > rules.statPointsMaxTotal {
             v.append(.init(category: .statPointsOverCap,
                 message: "Stat point total is \(total), cap is " +
-                         "\(Self.statPointTotalCap)"))
+                         "\(rules.statPointsMaxTotal)"))
         }
         let allStats: [(String, Int)] = [
             ("hp", sp.hp), ("atk", sp.atk), ("def", sp.def),
@@ -344,10 +358,10 @@ public final class ChampionsValidator {
                 v.append(.init(category: .statPointsMalformed,
                     message: "\(name) stat points is negative: \(value)"))
             }
-            if value > Self.statPointPerStatCap {
+            if value > rules.statPointsMaxPerStat {
                 v.append(.init(category: .statPointsPerStatOver,
                     message: "\(name)=\(value) exceeds per-stat cap " +
-                             "(\(Self.statPointPerStatCap))"))
+                             "(\(rules.statPointsMaxPerStat))"))
             }
         }
     }
@@ -555,9 +569,10 @@ public struct PokemonSet: Equatable {
         statPoints.spa + statPoints.spd + statPoints.spe
     }
 
-    /// Stat points remaining under the 66-cap. Negative means over-budget.
+    /// Stat points remaining under the current regulation's total cap.
+    /// Negative means over-budget.
     public var unspentStatPoints: Int {
-        ChampionsValidator.statPointTotalCap - statPointTotal
+        championsMaxTotalEVs - statPointTotal
     }
 
     /// Result of an in-place clip operation.
@@ -594,7 +609,7 @@ public struct PokemonSet: Equatable {
     /// the overage exceeds it, leave the set alone and let the validator
     /// surface a real error.
     public mutating func clipStatPointsToCap() -> ClipResult {
-        let cap = ChampionsValidator.statPointTotalCap
+        let cap = championsMaxTotalEVs
         let total = statPointTotal
         guard total > cap else {
             return ClipResult(didClip: false, message: nil)
@@ -638,7 +653,7 @@ public struct PokemonSet: Equatable {
     public var statPointBudgetNote: String? {
         let unspent = unspentStatPoints
         guard unspent > 0 else { return nil }
-        let cap = ChampionsValidator.statPointTotalCap
+        let cap = championsMaxTotalEVs
         return "stat_points total is \(statPointTotal); " +
                "\(unspent) SP unspent (cap is \(cap)). " +
                "You can distribute these freely."

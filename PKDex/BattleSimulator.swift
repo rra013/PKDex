@@ -1304,6 +1304,9 @@ final class BattleEngine {
     let side2: BattleSide
     let allPokemon: [PKMNStats]
     let allMoves: [MoveData]
+    /// The Champions regulation's rules for a Champions battle, which
+    /// decide whether Mega Evolution is allowed; nil for a free battle.
+    let championsRules: ChampionsRules?
 
     var log: [BattleLogEntry] = []
     var turn: Int = 1
@@ -1378,12 +1381,14 @@ final class BattleEngine {
     }
 
     init(format: BattleFormat, side1: BattleSide, side2: BattleSide,
-         allPokemon: [PKMNStats], allMoves: [MoveData]) {
+         allPokemon: [PKMNStats], allMoves: [MoveData],
+         championsRules: ChampionsRules? = nil) {
         self.format = format
         self.side1 = side1
         self.side2 = side2
         self.allPokemon = allPokemon
         self.allMoves = allMoves
+        self.championsRules = championsRules
         let slots = format.activeSlots
         self.pendingActions = [Array(repeating: nil, count: slots),
                                Array(repeating: nil, count: slots)]
@@ -1415,15 +1420,24 @@ final class BattleEngine {
     // MARK: Mega Evolution
 
     /// Returns true if the actor at (side, slot) is eligible to Mega Evolve right now:
-    /// their side hasn't used its mega yet, they aren't already mega'd, and their
-    /// species + held item (or Dragon Ascent, for Rayquaza) maps to a known Mega form.
+    /// their side hasn't used its mega yet, they aren't already mega'd, their
+    /// species + held item (or Dragon Ascent, for Rayquaza) maps to a known Mega form,
+    /// and a Champions battle's regulation allows it.
     func canMegaEvolve(side sIdx: Int, slot: Int) -> Bool {
         if side(at: sIdx).hasUsedMega { return false }
         guard let actor = side(at: sIdx).active(at: slot), !actor.fainted else { return false }
         if actor.megaForm != nil { return false }
-        return MegaForms.form(forSpecies: actor.slot.pokemonName,
-                              heldItem: actor.heldItem,
-                              moveNames: actor.moveNames) != nil
+        return allowedMegaForm(for: actor) != nil
+    }
+
+    /// The Mega form `actor` can use: the one its item (or Dragon Ascent)
+    /// triggers, if the regulation allows it.
+    private func allowedMegaForm(for actor: BattleParticipant) -> MegaForm? {
+        guard let form = MegaForms.form(forSpecies: actor.slot.pokemonName,
+                                        heldItem: actor.heldItem,
+                                        moveNames: actor.moveNames) else { return nil }
+        if let rules = championsRules, !rules.allowsMega(form) { return nil }
+        return form
     }
 
     func megaBinding(side: Int, slot: Int) -> Binding<Bool> {
@@ -1452,9 +1466,7 @@ final class BattleEngine {
             // The first mega on a side disqualifies any second candidate on the same side.
             if side(at: c.side).hasUsedMega { continue }
             guard let actor = side(at: c.side).active(at: c.slot) else { continue }
-            guard let form = MegaForms.form(forSpecies: actor.slot.pokemonName,
-                                            heldItem: actor.heldItem,
-                                            moveNames: actor.moveNames) else { continue }
+            guard let form = allowedMegaForm(for: actor) else { continue }
             actor.megaForm = form
             side(at: c.side).hasUsedMega = true
             log.append(BattleLogEntry(text: "\(actor.slot.pokemonName) Mega Evolved into \(form.displayName)!", emphasis: true))
@@ -5280,7 +5292,8 @@ struct BattleSimulatorView: View {
                 Text("Champions data unavailable — bundle is missing champions-\(ChampionsRegulation.current.rawValue).json.")
                     .font(.caption2).foregroundStyle(.secondary)
             } else if championsFormat {
-                Text("Lv 50, 66 stat-point cap (32 per stat), IVs 31. Illegal teams can't battle.")
+                let rules = ChampionsRegulation.current.rules()
+                Text("Lv 50, \(rules.statPointsMaxTotal) stat-point cap (\(rules.statPointsMaxPerStat) per stat), IVs \(rules.ivLockedAt). Illegal teams can't battle.")
                     .font(.caption2).foregroundStyle(.secondary)
             }
         }
@@ -5352,7 +5365,9 @@ struct BattleSimulatorView: View {
         let s2 = BattleSide(label: "Side 2", slots: s2Slots, format: format,
                             allPokemon: allPokemon, allMoves: allMoves)
         let newEngine = BattleEngine(format: format, side1: s1, side2: s2,
-                                     allPokemon: allPokemon, allMoves: allMoves)
+                                     allPokemon: allPokemon, allMoves: allMoves,
+                                     championsRules: championsFormat
+                                        ? ChampionsRegulation.current.rules() : nil)
         engine = newEngine
         // AI is only available in doubles — singles model lands later.
         if format == .doubles && (side1AI || side2AI) {
@@ -5376,15 +5391,15 @@ enum ChampionsFormat {
         var copy = slot
         copy.level = 50
         if !copy.championsMode {
-            // Main-series cap is 252; Champions cap is 32 per stat. Floor division
-            // (no rounding) so we never push a slot OVER the 32 cap if the source
-            // was at 252 — 252*32/252 == 32 exactly.
-            copy.evHP    = min(championsMaxEVPerStat, copy.evHP    * championsMaxEVPerStat / maxEVPerStat)
-            copy.evAtk   = min(championsMaxEVPerStat, copy.evAtk   * championsMaxEVPerStat / maxEVPerStat)
-            copy.evDef   = min(championsMaxEVPerStat, copy.evDef   * championsMaxEVPerStat / maxEVPerStat)
-            copy.evSpAtk = min(championsMaxEVPerStat, copy.evSpAtk * championsMaxEVPerStat / maxEVPerStat)
-            copy.evSpDef = min(championsMaxEVPerStat, copy.evSpDef * championsMaxEVPerStat / maxEVPerStat)
-            copy.evSpeed = min(championsMaxEVPerStat, copy.evSpeed * championsMaxEVPerStat / maxEVPerStat)
+            // Floor division (no rounding), so 252 EVs become 32 stat points
+            // exactly, then the regulation's per-stat cap.
+            let cap = championsMaxEVPerStat
+            copy.evHP    = min(cap, mainEVToChampions(copy.evHP))
+            copy.evAtk   = min(cap, mainEVToChampions(copy.evAtk))
+            copy.evDef   = min(cap, mainEVToChampions(copy.evDef))
+            copy.evSpAtk = min(cap, mainEVToChampions(copy.evSpAtk))
+            copy.evSpDef = min(cap, mainEVToChampions(copy.evSpDef))
+            copy.evSpeed = min(cap, mainEVToChampions(copy.evSpeed))
             copy.championsMode = true
         }
         return copy
@@ -5421,12 +5436,12 @@ enum ChampionsFormat {
             sp = .init(hp: slot.evHP, atk: slot.evAtk, def: slot.evDef,
                        spa: slot.evSpAtk, spd: slot.evSpDef, spe: slot.evSpeed)
         } else {
-            sp = .init(hp: slot.evHP    * championsMaxEVPerStat / maxEVPerStat,
-                       atk: slot.evAtk  * championsMaxEVPerStat / maxEVPerStat,
-                       def: slot.evDef  * championsMaxEVPerStat / maxEVPerStat,
-                       spa: slot.evSpAtk * championsMaxEVPerStat / maxEVPerStat,
-                       spd: slot.evSpDef * championsMaxEVPerStat / maxEVPerStat,
-                       spe: slot.evSpeed * championsMaxEVPerStat / maxEVPerStat)
+            sp = .init(hp: mainEVToChampions(slot.evHP),
+                       atk: mainEVToChampions(slot.evAtk),
+                       def: mainEVToChampions(slot.evDef),
+                       spa: mainEVToChampions(slot.evSpAtk),
+                       spd: mainEVToChampions(slot.evSpDef),
+                       spe: mainEVToChampions(slot.evSpeed))
         }
         let abilityDisplay = slot.abilityName.map { formatAbilityName($0) } ?? ""
         let natureDisplay = allNatures.first(where: { $0.id == slot.natureID })?.name ?? ""

@@ -129,7 +129,7 @@ struct PasteImportSheet: View {
             Section {
                 Picker("EVs are", selection: scaleBinding) {
                     Text("Mainline (0–252)").tag(StatScale.mainline)
-                    Text("Champions (0–32)").tag(StatScale.champions)
+                    Text("Champions (0–\(championsMaxEVPerStat))").tag(StatScale.champions)
                 }
                 .pickerStyle(.segmented)
             } footer: {

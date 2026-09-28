@@ -4,8 +4,9 @@ Goal: when regulations change or new Pokemon / mega forms / battle gimmicks
 ship, the app should be updateable by editing a small number of bundled JSON
 files. No hunting through Swift, no parallel lists that can drift apart.
 
-This document is an audit + a prioritized migration plan. Nothing here is
-implemented yet — pick items off as they become relevant.
+This document is an audit + a prioritized migration plan. Priority 1 is
+done (2026-09-28); the rest aren't started — pick items off as they become
+relevant. Line numbers in the audit date from June.
 
 ---
 
@@ -27,8 +28,8 @@ implemented yet — pick items off as they become relevant.
 
 | System | Where it lives | Problem |
 |---|---|---|
-| **Gimmick legality flags** (`tera_allowed`, `dynamax_allowed`, `z_moves_allowed`, `mega_evolutions_allowed`, `mega_rayquaza_allowed`) | `champions-m-a.json:14-18` | **Schema exists in JSON but no Swift code reads any of these flags.** Confirmed by grep — only matches are in the JSON itself. A new regulation that flips `tera_allowed: true` would have no effect today. |
-| **Numeric regulation rules** (`stat_points_max_total: 66`, `stat_points_max_per_stat: 32`, `iv_locked_at: 31`, `max_restricted_per_team: 0`, `team_size: 6`) | `champions-m-a.json:7-13` AND `03_ChampionsValidator.swift:78-79` | Validator hardcodes `statPointTotalCap = 66` and `statPointPerStatCap = 32` instead of reading the JSON. Two sources of truth, will drift. |
+| ~~Gimmick legality flags~~ | `rules` block of each regulation JSON | **Done (P1).** `ChampionsRules` reads them. Mega flags gate the calc and battles; Tera, Z-Move and Dynamax flags are read but have nothing to gate yet (see P7). |
+| ~~Numeric regulation rules~~ | `rules` block of each regulation JSON | **Done (P1).** Caps, IV lock, team size and clauses come from the JSON. `max_restricted_per_team` waits for a restricted-species list. |
 | **Mega forms** (63 entries) | `MegaForms.swift:52-342` (hardcoded `static let all`) | Adding a new mega = Swift edit + rebuild. Tolerable today (rare event) but blocks fast iteration. |
 | **Held items** (~72 entries including all mega stones) | `HeldItem` enum in `PokemonStatsModels.swift:352-531` | Enum is type-safe, but new items (new generation, new event items) require Swift edits. `isMegaStone` already does the right thing dynamically against `MegaForms.all`. |
 | **Battle move effect tables** | `BattleSimulator.swift:60-200`: `spreadMoves`, `firstTurnOnlyMoves`, `statChanges` (~50 entries), `statusInflicts`, `weatherSetters`, `terrainSetters`, `hazardSetters`, `protectFamily`, `pivotMoves` | All hardcoded. New move in a future gen = code edit. Hard to keep in sync with `move_categories.json`. |
@@ -50,7 +51,28 @@ The previously-feared duplication of "Mega Stone" between `HeldItem` and
 Each item is independent. Ship in any order. Each has: why, what to create,
 what to change, callsites to update.
 
-### Priority 1 — Wire the regulation JSON rules block end-to-end
+### Priority 1 — Wire the regulation JSON rules block end-to-end ✅ Done
+
+**Done 2026-09-28.** What shipped, against the plan below:
+
+- **1a:** `ChampionsRules` in `ChampionsRegulation.swift`, decoded with
+  `convertFromSnakeCase` and cached per regulation beside the whitelist.
+- **1b:** the validator reads its own regulation's rules (caps, team size,
+  species clause, and a new item-clause check). App-wide,
+  `championsMaxEVPerStat`, `championsMaxTotalEVs` and `championsLockedIV`
+  are computed from the current regulation, so the calc, Speed Tiers, paste
+  import, battle sim and their captions follow it. The 252 EVs = 32 points
+  exchange rate is a mechanic, not a rule: `championsStatPointsPer252EVs`.
+- **1c:** Mega Evolution and Mega Rayquaza follow their flags in the calc's
+  Champions mode and in Champions battles (`BattleEngine.championsRules`).
+- **Not wired:** Tera, Z-Move and Dynamax flags (no UI or battle support to
+  gate; P7), `max_restricted_per_team` (no restricted list), the set
+  predictors' post-processing (fitted to the 66/32 the models were trained
+  on), and the Showdown port's Champions IVs (part of the ported mechanics).
+- `RegulationRulesTests` pins every regulation's rules and checks the
+  validator follows an edited copy of a regulation file.
+
+The original plan:
 
 **Why:** This is the highest-leverage fix. The JSON already has the schema;
 the Swift just isn't reading it. Today, flipping `tera_allowed: true` in
@@ -318,9 +340,7 @@ before activating.
 
 ## 3. Suggested Order
 
-1. **P1 — wire rules JSON end-to-end.** Smallest change, biggest payoff.
-   Catches the existing drift bug (66/32 in two places) and unblocks every
-   future regulation.
+1. ~~**P1 — wire rules JSON end-to-end.**~~ Done.
 2. **P4 — Mega forms JSON.** User's explicit ask. Mechanical.
 3. **P7 — `SavedSpread` gimmick fields.** Prereq for Tera/Dynamax UI.
 4. **P2 — battle move tables.** Biggest file, but high value before adding

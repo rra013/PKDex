@@ -129,6 +129,14 @@ style. Three things learned applying it:
   implementation, not the conforming type.
 - Expect cascades: annotate, check diagnostics, repeat.
 
+**Champions rules come from the regulation JSON.** Stat-point caps, the IV
+lock, team size, clauses and which gimmicks are allowed live in each
+`champions-<id>.json`'s `rules` block. Read them with
+`ChampionsRegulation.current.rules()`, or `championsMaxEVPerStat`,
+`championsMaxTotalEVs` and `championsLockedIV`; don't type 66, 32 or 31.
+The one fixed number is `championsStatPointsPer252EVs`, the exchange rate
+between EVs and stat points, which is a game mechanic.
+
 **Calc snapshots.** `CalcSnapshot` holds raw inputs (base stats, EVs, IVs,
 nature, stages), not finished stats, because the solvers vary an EV and
 recompute. `CalcOutcome.rolls` is optional (only the Showdown port has real
@@ -214,9 +222,10 @@ From the recent PRs, each also noted in its description:
 Roughly in order of value for effort.
 
 1. **Data compartmentalization.** [`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md)
-   lists seven migrations of game data into JSON. None is started; the first,
-   reading the regulation JSON's `rules` block (Tera, Mega and so on), has
-   the most leverage. Its line numbers date from June.
+   lists seven migrations of game data into JSON. The first, reading each
+   regulation's `rules` block, is done (see the plan for what it covers and
+   what it leaves). Next in its suggested order is P4, Mega forms into JSON.
+   Its line numbers date from June.
 2. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last
