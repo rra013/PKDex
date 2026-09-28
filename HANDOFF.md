@@ -95,6 +95,15 @@ first if tab switching ever misbehaves.
 3. If it changes how many views draw, read it once in `ContentView` and pass
    it through `EnvironmentValues`, as `density` does.
 
+**Adding a Battle Sim move effect**: add the move to the right table in
+`PKDex/battle_moves.json` (its `notes` say what each holds), keyed by its
+normalized name (`BattleSimSeed.normalize`: "Swords Dance" is
+`swordsdance`). That's all when the effect is one the engine already has.
+A move that needs new behavior needs code; the dispatch lists for those
+(tier 3 and 5 status moves, fixed damage, damage modifiers) are in
+`BattleMoveEffects`. `BattleMovesDataTests` fails on a misspelled kind,
+stat or key.
+
 **Adding a Mega Evolution**: add a line to `PKDex/mega_forms.json` (its
 `about` field explains each key). If its stone is new, also add a
 `HeldItem` case whose raw value is the stone's name; `MegaFormsTests`
@@ -229,10 +238,10 @@ Roughly in order of value for effort.
 
 1. **Data compartmentalization.** [`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md)
    lists seven migrations of game data into JSON. Reading each regulation's
-   `rules` block (P1), the Mega forms (P4) and storing a set's Tera type
-   (P7) are done; see the plan for what each covers and leaves. Next in its
-   suggested order is P2, the battle sim's move effect tables. Its line
-   numbers date from June.
+   `rules` block (P1), the Battle Sim's move tables (P2), the Mega forms
+   (P4) and storing a set's Tera type (P7) are done; see the plan for what
+   each covers and leaves. Next in its suggested order is P3, the type
+   chart. Its line numbers date from June.
 2. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last

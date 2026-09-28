@@ -53,7 +53,7 @@ enum BattleStatChange {
     case opponentMod([(Nature.StatKey, Int)])
 }
 
-enum BattleHazard {
+enum BattleHazard: CaseIterable {
     case stealthRock, spikes, stickyWeb, toxicSpikes
 }
 
@@ -70,152 +70,45 @@ enum BattleMoveEffects {
         SpreadMoves.isSpread(moveName)
     }
 
+    // MARK: Data tables
+    //
+    // Read from `battle_moves.json`, whose notes describe each table. The
+    // kinds they name (PivotKind, ScreenKind…) stay declared here.
+
+    private static let data = BattleMovesData.loadBundled()
+
     /// Moves that only succeed on the user's first action since switching in.
-    /// Mirrors Showdown's `onTry { if (source.activeMoveActions > 1) return false }`
-    /// — Fake Out and First Impression both fail outright on every attempt after
-    /// the first move the holder dispatches per switch-in cycle.
-    static let firstTurnOnlyMoves: Set<String> = [
-        "fakeout", "firstimpression",
-    ]
-
-    static let statChanges: [String: BattleStatChange] = [
-        // Self boosts
-        "swordsdance":   .selfMod([(.atk, 2)]),
-        "dragondance":   .selfMod([(.atk, 1), (.speed, 1)]),
-        "calmmind":      .selfMod([(.spAtk, 1), (.spDef, 1)]),
-        "nastyplot":     .selfMod([(.spAtk, 2)]),
-        "irondefense":   .selfMod([(.def, 2)]),
-        "bulkup":        .selfMod([(.atk, 1), (.def, 1)]),
-        "quiverdance":   .selfMod([(.spAtk, 1), (.spDef, 1), (.speed, 1)]),
-        "shellsmash":    .selfMod([(.atk, 2), (.spAtk, 2), (.speed, 2), (.def, -1), (.spDef, -1)]),
-        "agility":       .selfMod([(.speed, 2)]),
-        "rockpolish":    .selfMod([(.speed, 2)]),
-        "amnesia":       .selfMod([(.spDef, 2)]),
-        "coil":          .selfMod([(.atk, 1), (.def, 1), (.spDef, 1)]),
-        "cosmicpower":   .selfMod([(.def, 1), (.spDef, 1)]),
-        "howl":          .selfMod([(.atk, 1)]),
-        "tailglow":      .selfMod([(.spAtk, 3)]),
-        // Tier 2 self buffs
-        "acidarmor":     .selfMod([(.def, 2)]),
-        "barrier":       .selfMod([(.def, 2)]),
-        "defensecurl":   .selfMod([(.def, 1)]),
-        "growth":        .selfMod([(.atk, 1), (.spAtk, 1)]),
-        "meditate":      .selfMod([(.atk, 1)]),
-        "sharpen":       .selfMod([(.atk, 1)]),
-        "victorydance":  .selfMod([(.atk, 1), (.def, 1), (.speed, 1)]),
-        "workup":        .selfMod([(.atk, 1), (.spAtk, 1)]),
-        "honeclaws":     .selfMod([(.atk, 1)]),
-        "stockpile":     .selfMod([(.def, 1), (.spDef, 1)]),
-        "noretreat":     .selfMod([(.atk, 1), (.def, 1), (.spAtk, 1), (.spDef, 1), (.speed, 1)]),
-        // Opponent debuffs
-        "growl":         .opponentMod([(.atk, -1)]),
-        "leer":          .opponentMod([(.def, -1)]),
-        "tailwhip":      .opponentMod([(.def, -1)]),
-        "charm":         .opponentMod([(.atk, -2)]),
-        "screech":       .opponentMod([(.def, -2)]),
-        "metalsound":    .opponentMod([(.spDef, -2)]),
-        "stringshot":    .opponentMod([(.speed, -1)]),
-        // Tier 2 opponent debuffs
-        "babydolleyes":  .opponentMod([(.atk, -1)]),
-        "playnice":      .opponentMod([(.atk, -1)]),
-        "confide":       .opponentMod([(.spAtk, -1)]),
-        "featherdance":  .opponentMod([(.atk, -2)]),
-        "eerieimpulse":  .opponentMod([(.spAtk, -2)]),
-        "faketears":     .opponentMod([(.spDef, -2)]),
-        "tearfullook":   .opponentMod([(.atk, -1), (.spAtk, -1)]),
-        "tickle":        .opponentMod([(.atk, -1), (.def, -1)]),
-        "nobleroar":     .opponentMod([(.atk, -1), (.spAtk, -1)]),
-        "cottonspore":   .opponentMod([(.speed, -2)]),
-        "scaryface":     .opponentMod([(.speed, -2)]),
-    ]
-
-    static let statusInflicts: [String: BattleStatus] = [
-        "willowisp":     .burn,
-        "thunderwave":   .paralysis,
-        "stunspore":     .paralysis,
-        "glare":         .paralysis,
-        "toxic":         .toxic,
-        "poisonpowder":  .poison,
-        "poisongas":     .poison,
-        "sleeppowder":   .sleep,
-        "spore":         .sleep,
-        "hypnosis":      .sleep,
-        "sing":          .sleep,
-        "lovelykiss":    .sleep,
-    ]
-
+    /// Mirrors Showdown's `onTry { if (source.activeMoveActions > 1) return false }`.
+    static let firstTurnOnlyMoves: Set<String> = data.firstTurnOnly
+    static let statChanges: [String: BattleStatChange] = data.statChanges
+    static let statusInflicts: [String: BattleStatus] = data.statusInflicts
     /// Status moves that confuse the target. Some (Swagger, Flatter) also apply a
     /// stat boost on the target before confusing — handled in `applyStatusMoveEffect`.
-    static let confusionInflicts: Set<String> = [
-        "confuseray", "supersonic", "swagger", "flatter", "teeterdance",
-    ]
-
-    static let weatherSetters: [String: WeatherCondition] = [
-        "sunnyday":         .sun,
-        "raindance":        .rain,
-        "sandstorm":        .sand,
-        "snowscape":        .snow,
-        "hail":             .snow,
-        "chillyreception":  .snow,
-    ]
-
-    static let terrainSetters: [String: TerrainCondition] = [
-        "electricterrain": .electric,
-        "grassyterrain":   .grassy,
-        "mistyterrain":    .misty,
-        "psychicterrain":  .psychic,
-    ]
-
-    static let hazardSetters: [String: BattleHazard] = [
-        "stealthrock":  .stealthRock,
-        "spikes":       .spikes,
-        "stickyweb":    .stickyWeb,
-        "toxicspikes":  .toxicSpikes,
-    ]
-
+    static let confusionInflicts: Set<String> = data.confusionInflicts
+    static let weatherSetters: [String: WeatherCondition] = data.weatherSetters
+    static let terrainSetters: [String: TerrainCondition] = data.terrainSetters
+    static let hazardSetters: [String: BattleHazard] = data.hazardSetters
     /// Protect-family moves. The shared logic (turn-skip, diminishing chance,
     /// consecutive counter) lives in `applyProtectFamily`. Each variant layers a
     /// secondary effect on the attacker via `protectContactEffect`.
-    static let protectFamily: Set<String> = [
-        "protect", "detect", "spikyshield", "banefulbunker",
-        "burningbulwark", "silktrap", "kingsshield",
-    ]
+    static let protectFamily: Set<String> = data.protectFamily
 
     /// Moves that pivot the user out after dealing damage (or always, for the
     /// status pivots). `force` = always switch even if the move dealt no damage
     /// (Teleport, Parting Shot, Baton Pass, Shed Tail). Damage-pivots only swap
     /// out when the move connected.
-    enum PivotKind { case damage, force }
-    static let pivotMoves: [String: PivotKind] = [
-        "uturn":       .damage,
-        "voltswitch":  .damage,
-        "flipturn":    .damage,
-        "chillyreception": .force,
-        "partingshot": .force,
-        "teleport":    .force,
-        "batonpass":   .force,
-        "shedtail":    .force,
-    ]
+    enum PivotKind: CaseIterable { case damage, force }
+    static let pivotMoves: [String: PivotKind] = data.pivotMoves
 
     /// Screen-setting status moves. Each lasts 5 turns (8 with Light Clay).
     /// Aurora Veil only succeeds in hail/snow weather.
-    enum ScreenKind { case light, reflect, aurora, safeguard }
-    static let screenSetters: [String: ScreenKind] = [
-        "lightscreen": .light,
-        "reflect":     .reflect,
-        "auroraveil":  .aurora,
-        "safeguard":   .safeguard,
-    ]
+    enum ScreenKind: CaseIterable { case light, reflect, aurora, safeguard }
+    static let screenSetters: [String: ScreenKind] = data.screenSetters
 
     /// Global room/field-effect status moves. Each toggles its respective
     /// engine-level counter (5 turns).
-    enum RoomKind { case trickRoom, wonderRoom, magicRoom, gravity }
-    static let roomSetters: [String: RoomKind] = [
-        "trickroom":  .trickRoom,
-        "wonderroom": .wonderRoom,
-        "magicroom":  .magicRoom,
-        "gravity":    .gravity,
-    ]
+    enum RoomKind: CaseIterable { case trickRoom, wonderRoom, magicRoom, gravity }
+    static let roomSetters: [String: RoomKind] = data.roomSetters
 
     /// Side-tailwind setter. 4 turns of doubled Speed for the user's side.
     static let tailwindKey = "tailwind"
@@ -274,13 +167,8 @@ enum BattleMoveEffects {
     /// Hazard-removal moves. `removeFromOwn` = user-side hazards (Rapid Spin,
     /// Tidy Up, Mortal Spin); Defog removes from BOTH sides; Tidy Up additionally
     /// removes all screens. Mortal Spin also poisons every opposing active mon.
-    enum HazardRemoval { case ownSide, bothSides, tidyUp, mortalSpin }
-    static let hazardRemovers: [String: HazardRemoval] = [
-        "rapidspin":  .ownSide,
-        "defog":      .bothSides,
-        "tidyup":     .tidyUp,
-        "mortalspin": .mortalSpin,
-    ]
+    enum HazardRemoval: CaseIterable { case ownSide, bothSides, tidyUp, mortalSpin }
+    static let hazardRemovers: [String: HazardRemoval] = data.hazardRemovers
 
     /// Tier 3 status-move keys that need bespoke logic (Pain Split, Wish,
     /// Heal Bell, Substitute, etc.). Routed through `applyTier3StatusMove`.
@@ -306,19 +194,11 @@ enum BattleMoveEffects {
         "superfang", "finalgambit", "counter", "mirrorcoat",
     ]
 
-    /// OHKO moves — Guillotine, Horn Drill, Fissure, Sheer Cold. Routed
-    /// through `applyOHKO`. Accuracy uses the canon level-diff formula.
-    static let ohkoMoves: Set<String> = [
-        "guillotine", "horndrill", "fissure", "sheercold",
-    ]
-
-    /// Trap moves — Bind/Wrap/Fire Spin/Sand Tomb/Whirlpool/Infestation/Snap
-    /// Trap. Deal damage normally and apply the trap volatile on hit.
-    static let trapMoves: Set<String> = [
-        "bind", "wrap", "firespin", "sandtomb",
-        "whirlpool", "infestation", "snaptrap", "thundercage",
-        "magmastorm", "clamp",
-    ]
+    /// OHKO moves, routed through `applyOHKO`. Accuracy uses the canon
+    /// level-diff formula.
+    static let ohkoMoves: Set<String> = data.ohkoMoves
+    /// Trap moves: deal damage normally and apply the trap volatile on hit.
+    static let trapMoves: Set<String> = data.trapMoves
 
     /// Power/stat modifier keys for damage-class moves. Tier 5 additions:
     /// Body Press / Foul Play swap the attacking stat; Acrobatics, Hex,
@@ -333,13 +213,7 @@ enum BattleMoveEffects {
     ]
 
     /// Ballistic-class moves — blocked by Bulletproof.
-    static let ballisticMoves: Set<String> = [
-        "acidspray", "aurasphere", "bulletseed", "energyball", "electroball",
-        "focusblast", "gyroball", "iceball", "magnetbomb", "mistball",
-        "mudbomb", "octazooka", "pollenpuff", "pyroball", "rockblast",
-        "rockwrecker", "searingshot", "seedbomb", "shadowball", "sludgebomb",
-        "weatherball", "zapcannon",
-    ]
+    static let ballisticMoves: Set<String> = data.ballisticMoves
 
     /// Two-turn charge moves. Turn 1 the user charges (no damage); turn 2
     /// the move releases at full power. Some skip the charge turn under the
@@ -351,7 +225,7 @@ enum BattleMoveEffects {
     /// Tier 8 extension: `invulnerabilityKind` makes the user untargetable
     /// during the charge turn except by listed exceptions. `bypassesProtect`
     /// lets Phantom Force / Shadow Force ignore the defender's Protect.
-    enum InvulnerabilityKind {
+    enum InvulnerabilityKind: CaseIterable {
         case underground   // Dig
         case airborne      // Fly / Bounce
         case underwater    // Dive
@@ -365,41 +239,7 @@ enum BattleMoveEffects {
         var invulnerabilityKind: InvulnerabilityKind? = nil
         var bypassesProtect: Bool = false
     }
-    static let chargeMoves: [String: ChargeBehavior] = [
-        "solarbeam":   .init(chargeLog: "{user} absorbed light!", skipInWeather: .sun),
-        "solarblade":  .init(chargeLog: "{user} absorbed light!", skipInWeather: .sun),
-        "skyattack":   .init(chargeLog: "{user} became cloaked in a harsh light!"),
-        "meteorbeam":  .init(chargeLog: "{user} is overflowing with space power!",
-                              selfBoostsOnCharge: [(.spAtk, 1)]),
-        "electroshot": .init(chargeLog: "{user} absorbed electricity!",
-                              skipInWeather: .rain,
-                              selfBoostsOnCharge: [(.spAtk, 1)]),
-        "skullbash":   .init(chargeLog: "{user} tucked in its head!",
-                              selfBoostsOnCharge: [(.def, 1)]),
-        "geomancy":    .init(chargeLog: "{user} is absorbing power!",
-                              statusOnRelease: [(.spAtk, 2), (.spDef, 2), (.speed, 2)]),
-        // Tier 8 — semi-invulnerable two-turn moves.
-        "dig":          .init(chargeLog: "{user} burrowed underground!",
-                               invulnerabilityKind: .underground),
-        "fly":          .init(chargeLog: "{user} flew up high!",
-                               invulnerabilityKind: .airborne),
-        "dive":         .init(chargeLog: "{user} hid underwater!",
-                               invulnerabilityKind: .underwater),
-        "bounce":       .init(chargeLog: "{user} sprang up!",
-                               invulnerabilityKind: .airborne),
-        "phantomforce": .init(chargeLog: "{user} vanished from sight!",
-                               invulnerabilityKind: .vanished,
-                               bypassesProtect: true),
-        "shadowforce":  .init(chargeLog: "{user} vanished from sight!",
-                               invulnerabilityKind: .vanished,
-                               bypassesProtect: true),
-        // Sky Drop — Tier 9 simplification: airborne charge then Flying-type
-        // strike. Canon also lifts the TARGET into the air (they skip their
-        // turn) but that requires action-queue surgery; we ship the
-        // user-side mechanic only.
-        "skydrop":      .init(chargeLog: "{user} took its target into the sky!",
-                               invulnerabilityKind: .airborne),
-    ]
+    static let chargeMoves: [String: ChargeBehavior] = data.chargeMoves
 
     /// Approximate species weight (kg) for weight-based moves. Hardcoded for
     /// common Champions species; falls back to 50 kg for unlisted entries via
@@ -477,32 +317,12 @@ enum BattleMoveEffects {
 
     /// Moves that can hit a semi-invulnerable defender. Each invulnerability
     /// kind has its own list; anything else misses entirely.
-    static let invulnerabilityExceptions: [InvulnerabilityKind: Set<String>] = [
-        .underground: ["earthquake", "magnitude", "fissure"],
-        .airborne:    ["gust", "twister", "hurricane", "thunder",
-                       "skyuppercut", "smackdown", "thousandarrows"],
-        .underwater:  ["surf", "whirlpool"],
-        .vanished:    [],
-    ]
-
+    static let invulnerabilityExceptions: [InvulnerabilityKind: Set<String>] = data.invulnerabilityExceptions
     /// Of the exception moves above, these deal DOUBLE damage to the
     /// invulnerable defender (canon: Earthquake on Dig, Surf on Dive, …).
-    static let invulnerabilityDoubleDamage: [InvulnerabilityKind: Set<String>] = [
-        .underground: ["earthquake", "magnitude"],
-        .airborne:    ["gust", "twister"],
-        .underwater:  ["surf", "whirlpool"],
-        .vanished:    [],
-    ]
-
+    static let invulnerabilityDoubleDamage: [InvulnerabilityKind: Set<String>] = data.invulnerabilityDoubleDamage
     /// Sound-class moves — blocked by Soundproof.
-    static let soundMoves: Set<String> = [
-        "boomburst", "bugbuzz", "chatter", "clangingscales", "clangoroussoul",
-        "clangoroussoulblaze", "confide", "disarmingvoice", "echoedvoice",
-        "growl", "healbell", "hypervoice", "metalsound", "nobleroar",
-        "overdrive", "perishsong", "psychic noise", "psychicnoise", "relicsong",
-        "round", "screech", "sing", "snarl", "snore", "sparklingaria",
-        "supersonic", "torchsong", "uproar",
-    ]
+    static let soundMoves: Set<String> = data.soundMoves
 
     /// Abilities that automatically set weather when the Pokemon enters the field
     /// (initial send-out, regular switch, forced switch after a KO, or Mega Evolution).
@@ -528,185 +348,14 @@ enum BattleMoveEffects {
 
     /// Fallback for moves whose GraphQL sync didn't populate `minHits`/`maxHits`.
     /// `(min, max)` — fixed-count moves use the same value for both.
-    static let multiHitFallback: [String: (Int, Int)] = [
-        "bulletseed":     (2, 5),
-        "rockblast":      (2, 5),
-        "iciclespear":    (2, 5),
-        "pinmissile":     (2, 5),
-        "tailslap":       (2, 5),
-        "armthrust":      (2, 5),
-        "barrage":        (2, 5),
-        "cometpunch":     (2, 5),
-        "furyattack":     (2, 5),
-        "furyswipes":     (2, 5),
-        "scaleshot":      (2, 5),
-        "spikecannon":    (2, 5),
-        "watershuriken":  (2, 5),
-        "bonemerang":     (2, 2),
-        "doublehit":      (2, 2),
-        "doublekick":     (2, 2),
-        "dualchop":       (2, 2),
-        "dualwingbeat":   (2, 2),
-        "gearGrind":      (2, 2),
-        "geargrind":      (2, 2),
-        "twineedle":      (2, 2),
-        "doubleironbash": (2, 2),
-        "tripledive":     (3, 3),
-        "triplekick":     (3, 3),
-        "tripleaxel":     (3, 3),
-        "surgingstrikes": (3, 3),
-        "watersport":     (3, 3),
-    ]
-
-    /// Fallback contact-move table. Used by Phase-5 contact recoil (Rocky Helmet,
-    /// Rough Skin, Iron Barbs) when the synced `MoveData.makesContact` is unreliable.
-    /// Keys are normalized via `BattleSimSeed.normalize`. Final contact check is
-    /// `move.makesContact || contactMoves.contains(key)`. Common physical contact
-    /// moves only — non-contact physicals (Earthquake, Bonemerang, rocks) are
-    /// intentionally absent.
-    static let contactMoves: Set<String> = [
-        "tackle", "scratch", "pound", "bite", "doubleedge", "bodyslam",
-        "headbutt", "quickattack", "extremespeed", "machpunch", "bulletpunch",
-        "shadowsneak", "suckerpunch", "watershuriken", "fakeout", "feint",
-        "uturn", "flipturn", "firstimpression",
-        "facade", "return", "frustration", "playrough", "wildcharge",
-        "closecombat", "drainpunch", "superpower", "highjumpkick", "jumpkick",
-        "doublekick", "triplekick", "tripleaxel", "lowsweep", "lowkick",
-        "knockoff", "crunch", "psychicfangs", "icefang", "firefang", "thunderfang",
-        "poisonfang", "leechlife", "xscissor", "bugbite",
-        "ironhead", "irontail", "meteormash", "metalclaw",
-        "outrage", "dragonclaw", "dragonrush",
-        "megakick", "megapunch", "dynamicpunch", "skyuppercut", "rocksmash",
-        "brickbreak", "stomp", "stompingtantrum",
-        "aquajet", "waterfall", "liquidation", "crabhammer", "wavecrash",
-        "flamewheel", "firepunch", "blazekick", "flareblitz",
-        "thunderpunch", "volttackle",
-        "iciclecrash", "icepunch", "iciclespear",
-        "leafblade", "powerwhip", "vinewhip", "hornleech", "petaldance",
-        "razorshell", "shadowclaw", "shadowforce", "shadowpunch",
-        "skyattack", "bravebird", "drillpeck",
-        "boltbeak", "fishiousrend", "lashout",
-        "behemothbash", "behemothblade",
-        "headlongrush", "scaleshot",
-        "ragefist", "doubleironbash",
-    ]
-
+    static let multiHitFallback: [String: (Int, Int)] = data.multiHitFallback
+    /// Fallback contact-move table for when the synced `MoveData.makesContact`
+    /// is unreliable. Final contact check is `move.makesContact || contactMoves.contains(key)`.
+    static let contactMoves: Set<String> = data.contactMoves
     /// Probabilistic on-hit effects (target must survive).
-    static let secondaryEffects: [String: SecondaryEffect] = [
-        // Burn chances
-        "flamethrower": .init(chance: 10, status: .burn),
-        "fireblast":    .init(chance: 10, status: .burn),
-        "scald":        .init(chance: 30, status: .burn),
-        "lavaplume":    .init(chance: 30, status: .burn),
-        "flamewheel":   .init(chance: 10, status: .burn),
-        "firepunch":    .init(chance: 10, status: .burn),
-        "blazekick":    .init(chance: 10, status: .burn),
-        "firefang":     .init(chance: 10, status: .burn),
-        "heatwave":     .init(chance: 10, status: .burn),
-        "inferno":      .init(chance: 100, status: .burn),
-        "torchsong":    .init(chance: 100, selfBoosts: [(.spAtk, 1)]),
-        // Paralysis chances
-        "thunderbolt":  .init(chance: 10, status: .paralysis),
-        "thunder":      .init(chance: 30, status: .paralysis),
-        "discharge":    .init(chance: 30, status: .paralysis),
-        "bodyslam":     .init(chance: 30, status: .paralysis),
-        "thunderpunch": .init(chance: 10, status: .paralysis),
-        "thunderfang":  .init(chance: 10, status: .paralysis),
-        "nuzzle":       .init(chance: 100, status: .paralysis),
-        "zapcannon":    .init(chance: 100, status: .paralysis),
-        // Poison chances
-        "sludgebomb":   .init(chance: 30, status: .poison),
-        "poisonjab":    .init(chance: 30, status: .poison),
-        "smogbomb":     .init(chance: 30, status: .poison),
-        "sludgewave":   .init(chance: 10, status: .poison),
-        "smog":         .init(chance: 40, status: .poison),
-        "crosspoison":  .init(chance: 10, status: .poison),
-        // Freeze chances
-        "icebeam":      .init(chance: 10, status: .freeze),
-        "blizzard":     .init(chance: 10, status: .freeze),
-        "icepunch":     .init(chance: 10, status: .freeze),
-        // Flinch chances
-        "ironhead":     .init(chance: 30, flinch: true),
-        "airslash":     .init(chance: 30, flinch: true),
-        "rockslide":    .init(chance: 30, flinch: true),
-        "zenheadbutt":  .init(chance: 20, flinch: true),
-        "headbutt":     .init(chance: 30, flinch: true),
-        "darkpulse":    .init(chance: 20, flinch: true),
-        "extrasensory": .init(chance: 10, flinch: true),
-        "icefang":      .init(chance: 10, status: .freeze, flinch: true),
-        "fakeout":      .init(chance: 100, flinch: true),
-        "needlearm":    .init(chance: 30, flinch: true),
-        "stomp":        .init(chance: 30, flinch: true),
-        "rollingkick":  .init(chance: 30, flinch: true),
-        "twister":      .init(chance: 20, flinch: true),
-        "snore":        .init(chance: 30, flinch: true),
-        "iciclecrash":  .init(chance: 30, flinch: true),
-        "skyattack":    .init(chance: 30, flinch: true),
-        // Target stat drops
-        "crunch":       .init(chance: 20, targetDrops: [(.def, -1)]),
-        "shadowball":   .init(chance: 20, targetDrops: [(.spDef, -1)]),
-        "psychic":      .init(chance: 10, targetDrops: [(.spDef, -1)]),
-        "energyball":   .init(chance: 10, targetDrops: [(.spDef, -1)]),
-        "flashcannon":  .init(chance: 10, targetDrops: [(.spDef, -1)]),
-        "earthpower":   .init(chance: 10, targetDrops: [(.spDef, -1)]),
-        "focusblast":   .init(chance: 10, targetDrops: [(.spDef, -1)]),
-        "moonblast":    .init(chance: 30, targetDrops: [(.spAtk, -1)]),
-        "mysticalfire": .init(chance: 100, targetDrops: [(.spAtk, -1)]),
-        "bugbuzz":      .init(chance: 10, targetDrops: [(.spDef, -1)]),
-        "luminacrash":  .init(chance: 100, targetDrops: [(.spDef, -2)]),
-        "acidspray":    .init(chance: 100, targetDrops: [(.spDef, -2)]),
-        "appleacid":    .init(chance: 100, targetDrops: [(.spDef, -1)]),
-        "mudshot":      .init(chance: 100, targetDrops: [(.speed, -1)]),
-        "electroweb":   .init(chance: 100, targetDrops: [(.speed, -1)]),
-        "icywind":      .init(chance: 100, targetDrops: [(.speed, -1)]),
-        "bulldoze":     .init(chance: 100, targetDrops: [(.speed, -1)]),
-        "glaciate":     .init(chance: 100, targetDrops: [(.speed, -1)]),
-        "snarl":        .init(chance: 100, targetDrops: [(.spAtk, -1)]),
-        "chillingwater":.init(chance: 100, targetDrops: [(.atk, -1)]),
-        "skittersmack": .init(chance: 100, targetDrops: [(.spAtk, -1)]),
-        "tropkick":     .init(chance: 100, targetDrops: [(.atk, -1)]),
-        "lunge":        .init(chance: 100, targetDrops: [(.atk, -1)]),
-        "playrough":    .init(chance: 10,  targetDrops: [(.atk, -1)]),
-        "lowsweep":     .init(chance: 100, targetDrops: [(.speed, -1)]),
-        "drumbeating":  .init(chance: 100, targetDrops: [(.speed, -1)]),
-        "muddywater":   .init(chance: 30,  targetDrops: [(.atk, -1)]),
-        "burningjealousy": .init(chance: 100, status: .burn, requiresTargetBoost: true),
-        // Self boosts on hit (probabilistic)
-        "poweruppunch": .init(chance: 100, selfBoosts: [(.atk, 1)]),
-        "meteormash":   .init(chance: 20,  selfBoosts: [(.atk, 1)]),
-        "metalclaw":    .init(chance: 10,  selfBoosts: [(.atk, 1)]),
-        "chargebeam":   .init(chance: 70,  selfBoosts: [(.spAtk, 1)]),
-        "fierydance":   .init(chance: 50,  selfBoosts: [(.spAtk, 1)]),
-        "flamecharge":  .init(chance: 100, selfBoosts: [(.speed, 1)]),
-        "trailblaze":   .init(chance: 100, selfBoosts: [(.speed, 1)]),
-        "aquastep":     .init(chance: 100, selfBoosts: [(.speed, 1)]),
-        // Hazard on hit (Stone Axe / Ceaseless Edge — set Spikes on foe side)
-        "stoneaxe":      .init(chance: 100, setsHazardOnFoe: .spikes),
-        "ceaselessedge": .init(chance: 100, setsHazardOnFoe: .spikes),
-        // Ground target (Smack Down, Thousand Arrows)
-        "smackdown":      .init(chance: 100, groundsTarget: true),
-        "thousandarrows": .init(chance: 100, groundsTarget: true),
-        // Cure burn on target (Sparkling Aria)
-        "sparklingaria": .init(chance: 100, curesTargetBurn: true),
-        // Salt Cure volatile (every-turn HP chip, 2x vs Water/Steel)
-        "saltcure": .init(chance: 100, saltCureVolatile: true),
-        // Throat Chop — also disables sound moves; Tier 2 just chips & flags
-        // (the disable mechanic itself comes with Tier 3's Disable/Encore work).
-        "throatchop": .init(chance: 100),
-        // Multi-effect: Triple Arrows — high crit, 50% flinch, 50% -1 Def
-        "triplearrows": .init(chance: 50, flinch: true, targetDrops: [(.def, -1)]),
-    ]
-
+    static let secondaryEffects: [String: SecondaryEffect] = data.secondaryEffects
     /// ALWAYS-on self stat changes after a damaging hit (not probabilistic).
-    static let selfStatChangesOnHit: [String: [(Nature.StatKey, Int)]] = [
-        "closecombat": [(.def, -1), (.spDef, -1)],
-        "superpower":  [(.atk, -1), (.def, -1)],
-        "dracometeor": [(.spAtk, -2)],
-        "overheat":    [(.spAtk, -2)],
-        "leafstorm":   [(.spAtk, -2)],
-        "fleurcannon": [(.spAtk, -2)],
-        "makeitrain":  [(.spAtk, -1)],
-    ]
+    static let selfStatChangesOnHit: [String: [(Nature.StatKey, Int)]] = data.selfStatChangesOnHit
 }
 
 /// Encoded secondary effect for a damaging move. `chance` is the printed percent;
