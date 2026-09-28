@@ -141,6 +141,8 @@ struct SetListView: View {
         } label: {
             Label("Delete", systemImage: "trash")
         }
+        // The app's accent tint would otherwise override the destructive red.
+        .tint(.red)
     }
 }
 
