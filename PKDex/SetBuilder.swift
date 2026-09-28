@@ -189,8 +189,8 @@ private struct SetRowView: View {
                         Text(nature.name)
                             .font(.caption2)
                             .padding(.horizontal, 4).padding(.vertical, 1)
-                            .foregroundStyle(.purple)
-                            .background(Color.purple.opacity(0.12), in: Capsule())
+                            .foregroundStyle(ColorRole.nature.color)
+                            .background(ColorRole.nature.color.opacity(0.12), in: Capsule())
                     }
                 }
             }

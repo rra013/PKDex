@@ -5,9 +5,9 @@
 //  Covers `ColorRole` and every `MatchupColors` pair: each color's light-
 //  and dark-mode values clear WCAG AA (4.5:1) as text on the backgrounds
 //  the app draws them on, including a 15% tint of the color itself (the
-//  chip style), and as a fill under `textOnFill`. Also checks that each
-//  pair's sides are easy to tell apart from each other and from the
-//  ability and item colors, and that Blue & Gold's sides stay apart with
+//  chip style), and as a fill under `textOnFill`. Also checks that the
+//  roles are easy to tell apart, that each pair's sides are too, from each
+//  other and from every role, and that Blue & Gold's sides stay apart with
 //  red-green color blindness, which is what it's offered for.
 //
 
@@ -120,7 +120,7 @@ struct ColorRoleTests {
                                                  [0.114503, 0.786281, 0.099216],
                                                  [-0.003882, -0.048116, 1.051998]]
 
-    @Test("Every pair's sides are far apart, and clear of the ability and item colors",
+    @Test("Every pair's sides are far apart, and clear of every role's color",
           arguments: MatchupColors.allCases)
     func distinctSides(colors: MatchupColors) {
         let sides = Self.sideSwatches(colors)
@@ -145,9 +145,16 @@ struct ColorRoleTests {
         }
     }
 
-    @Test("Ability and item have their own colors in each mode")
+    @Test("Every role has its own color in each mode, well apart from the others")
     func distinctRoles() {
         #expect(Set(ColorRole.allCases.map(\.light)).count == ColorRole.allCases.count)
         #expect(Set(ColorRole.allCases.map(\.dark)).count == ColorRole.allCases.count)
+        // A chip's color says what it is, so no two roles may look alike.
+        for (index, role) in ColorRole.allCases.enumerated() {
+            for other in ColorRole.allCases.dropFirst(index + 1) {
+                #expect(Self.distance(role.light, other.light) >= 12, "\(role) against \(other), light")
+                #expect(Self.distance(role.dark, other.dark) >= 12, "\(role) against \(other), dark")
+            }
+        }
     }
 }

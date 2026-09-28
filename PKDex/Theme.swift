@@ -106,7 +106,11 @@ enum TypePalette {
 /// matchup meet the same rules but are the viewer's choice; see
 /// `MatchupColors`.
 enum ColorRole: String, CaseIterable {
-    case ability, item
+    case ability, item, nature
+    /// Conditions on the whole field in the calc's Results (weather,
+    /// terrain, Crit, the Rooms...). Neutral, so none of them reads as an
+    /// ability, an item or one side's.
+    case field
 
     var color: Color { Color(light: light, dark: dark) }
 
@@ -114,6 +118,8 @@ enum ColorRole: String, CaseIterable {
         switch self {
         case .ability: return 0xA73800
         case .item:    return 0x186D2E
+        case .nature:  return 0x8A1BD5
+        case .field:   return 0x5F5F5F
         }
     }
 
@@ -121,6 +127,8 @@ enum ColorRole: String, CaseIterable {
         switch self {
         case .ability: return 0xFFB340
         case .item:    return 0x30DB5B
+        case .nature:  return 0xC795FF
+        case .field:   return 0xACACAC
         }
     }
 
