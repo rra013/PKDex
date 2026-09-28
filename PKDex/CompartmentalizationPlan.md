@@ -4,9 +4,9 @@ Goal: when regulations change or new Pokemon / mega forms / battle gimmicks
 ship, the app should be updateable by editing a small number of bundled JSON
 files. No hunting through Swift, no parallel lists that can drift apart.
 
-This document is an audit + a prioritized migration plan. Priority 1 is
-done (2026-09-28); the rest aren't started — pick items off as they become
-relevant. Line numbers in the audit date from June.
+This document is an audit + a prioritized migration plan. Priorities 1
+and 4 are done (2026-09-28); the rest aren't started — pick items off as
+they become relevant. Line numbers in the audit date from June.
 
 ---
 
@@ -30,7 +30,7 @@ relevant. Line numbers in the audit date from June.
 |---|---|---|
 | ~~Gimmick legality flags~~ | `rules` block of each regulation JSON | **Done (P1).** `ChampionsRules` reads them. Mega flags gate the calc and battles; Tera, Z-Move and Dynamax flags are read but have nothing to gate yet (see P7). |
 | ~~Numeric regulation rules~~ | `rules` block of each regulation JSON | **Done (P1).** Caps, IV lock, team size and clauses come from the JSON. `max_restricted_per_team` waits for a restricted-species list. |
-| **Mega forms** (63 entries) | `MegaForms.swift:52-342` (hardcoded `static let all`) | Adding a new mega = Swift edit + rebuild. Tolerable today (rare event) but blocks fast iteration. |
+| ~~Mega forms~~ | `PKDex/mega_forms.json` | **Done (P4).** 87 forms (86 by stone, plus Mega Rayquaza). A new stone still needs a `HeldItem` case (P5). |
 | **Held items** (~72 entries including all mega stones) | `HeldItem` enum in `PokemonStatsModels.swift:352-531` | Enum is type-safe, but new items (new generation, new event items) require Swift edits. `isMegaStone` already does the right thing dynamically against `MegaForms.all`. |
 | **Battle move effect tables** | `BattleSimulator.swift:60-200`: `spreadMoves`, `firstTurnOnlyMoves`, `statChanges` (~50 entries), `statusInflicts`, `weatherSetters`, `terrainSetters`, `hazardSetters`, `protectFamily`, `pivotMoves` | All hardcoded. New move in a future gen = code edit. Hard to keep in sync with `move_categories.json`. |
 | **Type chart** | `damageCalculator.swift:13-35` (`allTypes`, `typeEffectivenessChart`) | Hardcoded. Stable in practice, but balance changes (or fan-game support) require code edit. |
@@ -228,7 +228,22 @@ dictionary lookups in `damageCalculator.swift`.
 
 ---
 
-### Priority 4 — Externalize Mega Forms
+### Priority 4 — Externalize Mega Forms ✅ Done
+
+**Done 2026-09-28.** `PKDex/mega_forms.json` holds all 87 forms, one per
+line, each with an informational `origin` (mainline, legends-za,
+champions-m-b, champions-m-c) and the sources the Swift comments cited.
+It lives in the synced `PKDex/` folder, so it's bundled without project
+edits. `MegaForms.all` (stone-triggered) and `MegaForms.moveTriggered`
+(Mega Rayquaza) load it once; the Rayquaza special case became the general
+rule that a form with `requires_move` needs that move instead of a stone.
+Loading is strict: a stone with no `HeldItem` case, or a form with no
+trigger, fails the file, and `MegaFormsTests` checks the bundled one loads.
+When it moved, the loaded forms and every species × item × move lookup
+were checked identical to the Swift table. `MegaForm` and every caller are
+unchanged.
+
+The original plan:
 
 **Why:** Today's hardcoded list in `MegaForms.swift:52-342` is fine for
 "Mega is stable", but the user's stated goal is *adding new megas should be
@@ -341,7 +356,7 @@ before activating.
 ## 3. Suggested Order
 
 1. ~~**P1 — wire rules JSON end-to-end.**~~ Done.
-2. **P4 — Mega forms JSON.** User's explicit ask. Mechanical.
+2. ~~**P4 — Mega forms JSON.**~~ Done.
 3. **P7 — `SavedSpread` gimmick fields.** Prereq for Tera/Dynamax UI.
 4. **P2 — battle move tables.** Biggest file, but high value before adding
    Gen 10 moves or Tera Blast.

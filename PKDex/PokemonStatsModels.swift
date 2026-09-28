@@ -453,7 +453,7 @@ nonisolated enum HeldItem: String, CaseIterable, Identifiable, Sendable {
 
     // Additional Mega Stones (canon Gallade/Aggron + Z-A roster). Stones in this
     // group exist as held-item data so users can save them on team spreads. Forms
-    // without entries in `MegaForms.all` won't trigger a Mega Evolution yet — they're
+    // without entries in `mega_forms.json` won't trigger a Mega Evolution yet — they're
     // present here so the team builder doesn't reject the item.
     case aggronite       = "Aggronite"
     case galladite       = "Galladite"
@@ -485,7 +485,7 @@ nonisolated enum HeldItem: String, CaseIterable, Identifiable, Sendable {
     // M-B's Champions-original Mega forms (Raichu X/Y, Staraptor, Scolipede,
     // Scrafty, Eelektross, Pyroar, Malamar, Barbaracle, Dragalge, Falinks).
     // Names sourced from game8.co's M-B item list. The corresponding
-    // `MegaForm` entries live in `MegaForms.all`.
+    // Mega forms live in `mega_forms.json`.
     case raichuniteX     = "Raichunite X"
     case raichuniteY     = "Raichunite Y"
     case staraptite      = "Staraptite"
@@ -501,8 +501,8 @@ nonisolated enum HeldItem: String, CaseIterable, Identifiable, Sendable {
     // Pokemon Champions Regulation M-C Mega Stones. Adds the M-C-original
     // Megas (Golisopod, Baxcalibur) plus the three second "Z" Megas layered
     // onto species that already had a Mega in M-B (Garchomp, Lucario, Absol).
-    // Salamencite already exists above. The corresponding `MegaForm` entries
-    // live in `MegaForms.all`.
+    // Salamencite already exists above. The corresponding Mega forms live in
+    // `mega_forms.json`.
     case golisopodite    = "Golisopodite"
     case baxcaliburite   = "Baxcaliburite"
     case garchompiteZ    = "Garchompite Z"
