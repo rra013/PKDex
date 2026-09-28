@@ -5450,7 +5450,7 @@ enum ChampionsFormat {
             ability: abilityDisplay,
             item: slot.itemRawValue,
             nature: natureDisplay,
-            teraType: nil,
+            teraType: slot.teraType,
             moves: slot.moveSlots.map { $0.moveName },
             statPoints: sp,
             role: nil

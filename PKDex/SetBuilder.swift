@@ -430,6 +430,7 @@ struct SetEditorView: View {
         spread.pokemonName = updated.pokemonName
         spread.abilityName = updated.abilityName
         spread.itemRawValue = updated.itemRawValue
+        spread.teraType = updated.teraType
         spread.championsMode = updated.championsMode
         spread.natureID = updated.natureID
         spread.level = updated.level
@@ -448,6 +449,25 @@ private struct SetFormContent: View {
     @Binding var name: String
     @Bindable var side: CalcSide
     let allPokemon: [PKMNStats]
+
+    /// Every type, plus Stellar, which only exists as a Tera type.
+    private let teraTypes = allTypes + ["Stellar"]
+
+    private var regulationAllowsTera: Bool { ChampionsRegulation.current.rules().teraAllowed }
+
+    /// Mainline sets always, Champions sets when the regulation has Tera,
+    /// and any set that already has one (from a paste) so it can be seen
+    /// and removed.
+    private var showsTeraType: Bool {
+        !side.championsMode || regulationAllowsTera || side.teraType != nil
+    }
+
+    private var teraFooter: String {
+        if side.championsMode && !regulationAllowsTera {
+            return "\(ChampionsRegulation.current.displayName) doesn't have Tera. The type stays with the set and in its paste."
+        }
+        return "Saved with the set and in its paste. The calc and Battle Sim don't Terastallize yet."
+    }
     let allMoves: [MoveData]
 
     private var filteredPokemon: [PKMNStats] {
@@ -477,7 +497,10 @@ private struct SetFormContent: View {
                         Spacer()
                         TypeBadge(type: p.type1)
                         if let t2 = p.type2 { TypeBadge(type: t2) }
-                        Button { side.pokemon = nil; side.searchText = ""; side.selectedAbility = nil } label: {
+                        Button {
+                            side.pokemon = nil; side.searchText = ""
+                            side.selectedAbility = nil; side.teraType = nil
+                        } label: {
                             Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                         }
                     }
@@ -498,6 +521,7 @@ private struct SetFormContent: View {
                             side.pokemon = p
                             side.searchText = ""
                             side.selectedAbility = p.ability1
+                            side.teraType = nil
                             side.moves = [nil, nil, nil, nil]
                             side.moveSearchTexts = ["", "", "", ""]
                         } label: {
@@ -536,6 +560,20 @@ private struct SetFormContent: View {
                         ForEach(HeldItem.pickerOptions(forSpeciesNamed: pkmn.name)) { item in
                             Text(item.rawValue).tag(item)
                         }
+                    }
+                }
+
+                // Tera Type
+                if showsTeraType {
+                    Section {
+                        Picker("Tera Type", selection: $side.teraType) {
+                            Text("None").tag(String?.none)
+                            ForEach(teraTypes, id: \.self) { type in
+                                Text(type).tag(Optional(type))
+                            }
+                        }
+                    } footer: {
+                        Text(teraFooter)
                     }
                 }
 
