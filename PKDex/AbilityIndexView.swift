@@ -13,6 +13,8 @@ struct AbilityIndexTab: View {
     @Query(sort: \PKMNStats.name) private var allPokemon: [PKMNStats]
     @State private var searchText = ""
 
+    /// Every ability's official name ("Air Lock", not the stored
+    /// "air-lock"), once each, in alphabetical order.
     private var allAbilities: [String] {
         var seen: Set<String> = []
         var result: [String] = []
@@ -20,8 +22,9 @@ struct AbilityIndexTab: View {
             for ability in pkmn.allAbilities {
                 let trimmed = ability.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else { continue }
-                if seen.insert(trimmed).inserted {
-                    result.append(trimmed)
+                let name = formatAbilityName(trimmed)
+                if seen.insert(name).inserted {
+                    result.append(name)
                 }
             }
         }
@@ -75,22 +78,12 @@ struct AbilityIndexTab: View {
 // MARK: - Ability Detail View
 
 struct AbilityDetailView: View {
+    /// The ability's official name, from `formatAbilityName`.
     let ability: String
-
-    private var serebiiURL: URL? {
-        // Serebii abilitydex slug: lowercase, strip spaces / hyphens / apostrophes
-        // e.g. "Mold Breaker" -> "moldbreaker", "As One" -> "asone".
-        let slug = ability.lowercased()
-            .replacingOccurrences(of: " ", with: "")
-            .replacingOccurrences(of: "-", with: "")
-            .replacingOccurrences(of: "'", with: "")
-            .replacingOccurrences(of: ".", with: "")
-        return URL(string: "https://www.serebii.net/abilitydex/\(slug).shtml")
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let url = serebiiURL {
+            if let url = Self.serebiiURL(for: ability) {
                 Link(url.absoluteString, destination: url)
                     .font(.footnote)
                 AbilityWebView(url: url)
@@ -101,6 +94,22 @@ struct AbilityDetailView: View {
         .navigationTitle(ability)
         .padding()
     }
+
+    /// Serebii's page for an ability. Its slug is the official name in
+    /// lowercase without spaces, keeping hyphens and apostrophes:
+    /// "Mold Breaker" is "moldbreaker", "Soul-Heart" "soul-heart", and
+    /// "Mind's Eye" "mind'seye".
+    nonisolated static func serebiiURL(for ability: String) -> URL? {
+        let slug = serebiiSlugExceptions[ability]
+            ?? ability.lowercased().filter { $0 != " " && $0 != "." }
+        return URL(string: "https://www.serebii.net/abilitydex/\(slug).shtml")
+    }
+
+    /// Serebii names As One's two forms after the abilities they combine.
+    nonisolated private static let serebiiSlugExceptions = [
+        "As One (Glastrier)": "asone-unnervechillingneigh",
+        "As One (Spectrier)": "asone-unnervegrimneigh",
+    ]
 }
 
 // MARK: - Web View
