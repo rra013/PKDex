@@ -22,8 +22,9 @@ struct TabLayout: Equatable {
     /// launch, by `migrateLegacyStorage(in:)`.
     static let legacyEnabledKey = "enabledTabs"
 
-    /// A compact-width (iPhone) tab bar holds this many items. With more,
-    /// it shows one fewer and puts the rest under a More tab.
+    /// A compact-width tab bar (iPhone, or a narrow iPad window) holds this
+    /// many items. With more, it shows one fewer and puts the rest under a
+    /// More tab.
     static let compactBarCapacity = 5
 
     /// Every user tab, in display order. Settings isn't included: it always
@@ -100,15 +101,24 @@ struct TabLayout: Equatable {
         return .hidden
     }
 
-    /// Whether the tab bar overflows into the app's own More list: iPhone
-    /// only. On iPad the system tab bar has room for every tab.
-    static var usesMoreList: Bool {
+    /// Whether the tab bar overflows into the app's own More list: always
+    /// on iPhone, and on iPad in a compact-width window, where the system
+    /// tab bar is the iPhone one and would otherwise put the rest under its
+    /// own More tab, with a second navigation bar. A wide iPad tab bar has
+    /// room for every tab.
+    static func usesMoreList(in sizeClass: UserInterfaceSizeClass?) -> Bool {
         #if os(iOS)
-        UIDevice.current.userInterfaceIdiom == .phone
+        usesMoreList(idiom: UIDevice.current.userInterfaceIdiom, sizeClass: sizeClass)
         #else
         false
         #endif
     }
+
+    #if os(iOS)
+    static func usesMoreList(idiom: UIUserInterfaceIdiom, sizeClass: UserInterfaceSizeClass?) -> Bool {
+        idiom == .phone || sizeClass == .compact
+    }
+    #endif
 
     /// Converts the retired `enabledTabs` list, keeping its order and
     /// treating tabs it didn't list as hidden. Runs before any view reads

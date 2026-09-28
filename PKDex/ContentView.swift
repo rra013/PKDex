@@ -117,10 +117,14 @@ struct ContentView: View {
     @AppStorage(AppSettings.matchupColors) private var matchupColors: MatchupColors
     @AppStorage(AppSettings.density) private var density: Density
     @AppStorage(AppSettings.typeBackgrounds) private var typeBackgrounds: Bool
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     /// The arrangement the tab bar shows. It follows the stored one, except
     /// while the Arrange Tabs page is open.
     @State private var shownLayout: TabLayout
+    /// Whether the tab bar shows the More list. It follows the window's
+    /// width on iPad, with the same exception.
+    @State private var showsMoreList: Bool
     @State private var selectedTab: RootTab
     /// The More tab's navigation, and the tab open in it (nil while the
     /// list shows).
@@ -143,8 +147,12 @@ struct ContentView: View {
             hiddenRaw: defaults.string(forKey: AppSettings.hiddenTabs.name) ?? AppSettings.hiddenTabs.defaultValue)
         let launch = layout.launchTab(
             for: defaults.string(forKey: AppSettings.defaultTab.name) ?? AppSettings.defaultTab.defaultValue)
+        // The size class isn't known yet either. A narrow iPad window
+        // moves tabs under More when it arrives, in `applyStoredLayout`.
+        let moreList = TabLayout.usesMoreList(in: nil)
         _shownLayout = State(initialValue: layout)
-        if Self.split(of: layout).more.contains(launch) {
+        _showsMoreList = State(initialValue: moreList)
+        if Self.split(of: layout, moreList: moreList).more.contains(launch) {
             _selectedTab = State(initialValue: .more)
             _launchTabInMore = State(initialValue: launch)
         } else {
@@ -152,9 +160,9 @@ struct ContentView: View {
         }
     }
 
-    /// The tabs in the bar and in the More list. Only iPhone has a More list.
-    private static func split(of layout: TabLayout) -> (bar: [AppTab], more: [AppTab]) {
-        TabLayout.usesMoreList ? layout.compactSplit : (layout.visible + [.settings], [])
+    /// The tabs in the bar and in the More list, if there is one.
+    private static func split(of layout: TabLayout, moreList: Bool) -> (bar: [AppTab], more: [AppTab]) {
+        moreList ? layout.compactSplit : (layout.visible + [.settings], [])
     }
 
     private var accentColor: Color {
@@ -166,7 +174,7 @@ struct ContentView: View {
     }
 
     var body: some View {
-        let split = Self.split(of: shownLayout)
+        let split = Self.split(of: shownLayout, moreList: showsMoreList)
         TabView(selection: $selectedTab) {
             ForEach(split.bar) { tab in
                 tabContent(for: tab)
@@ -189,6 +197,7 @@ struct ContentView: View {
         .onChange(of: tabOrderRaw) { applyStoredLayout() }
         .onChange(of: hiddenTabsRaw) { applyStoredLayout() }
         .onChange(of: isArrangingTabs) { applyStoredLayout() }
+        .onChange(of: horizontalSizeClass, initial: true) { applyStoredLayout() }
         .task {
             guard let tab = launchTabInMore else { return }
             launchTabInMore = nil
@@ -202,23 +211,28 @@ struct ContentView: View {
         }
     }
 
-    /// Brings the tab bar up to date with the stored arrangement, keeping
-    /// the open tab in view if it moved between the bar and the More list.
+    /// Brings the tab bar up to date with the stored arrangement and the
+    /// window's width, keeping the open tab in view if it moved between the
+    /// bar and the More list. A tab that moves is opened afresh in its new
+    /// place, so resizing an iPad window across the compact width closes
+    /// the tabs after the fourth.
     private func applyStoredLayout() {
         guard !isArrangingTabs else { return }
         let layout = TabLayout(orderRaw: tabOrderRaw, hiddenRaw: hiddenTabsRaw)
-        guard layout != shownLayout else { return }
+        let moreList = TabLayout.usesMoreList(in: horizontalSizeClass)
+        guard layout != shownLayout || moreList != showsMoreList else { return }
 
         let wasInMore = selectedTab == .more
         let open: AppTab? = switch selectedTab {
         case .tab(let tab): tab
         case .more: moreOpenTab
         }
-        let split = Self.split(of: layout)
+        let split = Self.split(of: layout, moreList: moreList)
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
             shownLayout = layout
+            showsMoreList = moreList
             if let open {
                 let nowInBar = split.bar.contains(open)
                 let nowInMore = split.more.contains(open)

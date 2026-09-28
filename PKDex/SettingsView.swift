@@ -23,6 +23,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.instantSetDelete) private var instantSetDelete: Bool
     @AppStorage(AppSettings.championsRegulation) private var championsRegulationRaw: String
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var showResetConfirmation = false
     @State private var showRedownloadConfirmation = false
@@ -34,6 +35,9 @@ struct SettingsView: View {
     private var tabLayout: TabLayout {
         TabLayout(orderRaw: tabOrderRaw, hiddenRaw: hiddenTabsRaw)
     }
+
+    /// iPhone, or a narrow iPad window: the tab bar has a More list.
+    private var usesMoreList: Bool { TabLayout.usesMoreList(in: horizontalSizeClass) }
 
     private static let badgePreviewTypes = ["Fire", "Water", "Grass", "Electric", "Psychic", "Dark"]
 
@@ -137,14 +141,14 @@ struct SettingsView: View {
                         }
                     }
 
-                    // Only iPhone has the More list this applies to.
-                    if TabLayout.usesMoreList {
+                    // Only a tab bar with a More list closes tabs on leaving.
+                    if usesMoreList {
                         Toggle("Warn Before Leaving a Tab", isOn: $warnBeforeLeavingTab)
                     }
                 } header: {
                     Text("Tabs")
                 } footer: {
-                    if TabLayout.usesMoreList {
+                    if usesMoreList {
                         Text("Choose which tabs appear and in what order, and which one the app opens to. Leaving a tab under More closes it, so with a battle, a running timer or search, or Pokémon entered, going back asks first.")
                     } else {
                         Text("Choose which tabs appear and in what order, and which one the app opens to.")
@@ -396,6 +400,7 @@ private struct TabSettingsView: View {
     @AppStorage(AppSettings.hiddenTabs) private var hiddenTabsRaw: String
     @AppStorage(AppSettings.defaultTab) private var defaultTabRaw: String
     @Environment(\.isArrangingTabs) private var isArrangingTabs
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var editMode: EditMode = .inactive
 
     private var layout: TabLayout {
@@ -421,7 +426,7 @@ private struct TabSettingsView: View {
                 }
                 .onMove { layout.move(fromOffsets: $0, toOffset: $1) }
             } footer: {
-                Text("Tap Reorder, then drag tabs to change the order. With more than five tabs, iPhone shows the first four in the tab bar and the rest under More. Settings always comes last, and at least one other tab stays shown. The tab bar updates when you leave this page.")
+                Text("Tap Reorder, then drag tabs to change the order. With more than five tabs, iPhone and narrow iPad windows show the first four in the tab bar and the rest under More. Settings always comes last, and at least one other tab stays shown. The tab bar updates when you leave this page.")
             }
         }
         .environment(\.editMode, $editMode)
@@ -441,8 +446,8 @@ private struct TabSettingsView: View {
         Label {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tab.label)
-                // Only iPhone's tab bar splits into bar and More.
-                if TabLayout.usesMoreList, let note = placementNote(for: tab) {
+                // Only a compact tab bar splits into bar and More.
+                if TabLayout.usesMoreList(in: horizontalSizeClass), let note = placementNote(for: tab) {
                     Text(note)
                         .font(.caption)
                         .foregroundStyle(.secondary)
