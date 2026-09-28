@@ -5,11 +5,13 @@
 //  Covers `TabLayout`: hidden tabs staying hidden across a reload (the old
 //  format re-added them on every launch), new tabs appearing, reordering,
 //  the last-visible-tab guard, the launch tab fallback, where tabs land in
-//  a compact tab bar, and converting the retired `enabledTabs` list.
+//  a compact tab bar, when there's a More list, and converting the retired
+//  `enabledTabs` list.
 //
 
 import Testing
 import Foundation
+import SwiftUI
 @testable import PKDex
 
 @Suite("Tab Layout")
@@ -160,6 +162,16 @@ struct TabLayoutTests {
         #expect(split.bar.first == .teams)
         #expect(!split.bar.contains(.moveIndex) && !split.more.contains(.moveIndex))
         #expect(split.bar.count + split.more.count == AppTab.allUserTabs.count)  // 10 shown + Settings
+    }
+
+    @Test("iPhone always has a More list; iPad only in a compact-width window")
+    func moreListByDevice() {
+        #expect(TabLayout.usesMoreList(idiom: .phone, sizeClass: .regular))
+        #expect(TabLayout.usesMoreList(idiom: .phone, sizeClass: .compact))
+        #expect(TabLayout.usesMoreList(idiom: .pad, sizeClass: .compact))
+        #expect(!TabLayout.usesMoreList(idiom: .pad, sizeClass: .regular))
+        // Before the size class is known, an iPad starts without one.
+        #expect(!TabLayout.usesMoreList(idiom: .pad, sizeClass: nil))
     }
 
     // MARK: Converting the retired format

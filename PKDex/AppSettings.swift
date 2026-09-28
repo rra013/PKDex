@@ -41,8 +41,8 @@ enum AppSettings {
     /// app is actually using.
     static let championsRegulation = SettingKey(name: ChampionsRegulation.userDefaultsKey,
                                                 defaultValue: ChampionsRegulation.latest.rawValue)
-    /// iPhone: going back from a tab under More with work in progress, such
-    /// as a battle, asks first. Turned off by "Leave & Don't Ask Again".
+    /// iPhone and narrow iPad windows: going back from a tab under More with
+    /// work in progress, such as a battle, asks first. Turned off by "Leave & Don't Ask Again".
     static let warnBeforeLeavingTab = SettingKey(name: "warnBeforeLeavingTab", defaultValue: true)
     /// When true, swiping to delete a set skips the confirmation alert.
     /// Turned on by "Delete & Don't Ask Again"; Settings shows it inverted,

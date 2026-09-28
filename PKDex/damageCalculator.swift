@@ -1808,9 +1808,30 @@ private struct ToggleBadge: View {
 
 // MARK: - Helpers
 
+/// An ability's official name from its PokeAPI slug: "beads-of-ruin" is
+/// "Beads of Ruin". A name that's already formatted comes back unchanged.
 nonisolated func formatAbilityName(_ raw: String) -> String {
-    raw.split(separator: "-").map { $0.capitalized }.joined(separator: " ")
+    // Keyed by the slug, so an already-formatted name finds its entry too.
+    let key = raw.lowercased()
+        .replacingOccurrences(of: " ", with: "-")
+        .filter { !"'()".contains($0) }
+    if let name = abilityNameExceptions[key] { return name }
+    let words = raw.lowercased().split { $0 == "-" || $0 == " " }
+    return words.enumerated().map { index, word in
+        index > 0 && ["of", "to"].contains(word) ? String(word) : word.capitalized
+    }.joined(separator: " ")
 }
+
+/// Official names that splitting a slug at its hyphens gets wrong.
+nonisolated private let abilityNameExceptions: [String: String] = [
+    "minds-eye": "Mind's Eye",
+    "soul-heart": "Soul-Heart",
+    "well-baked-body": "Well-Baked Body",
+    "rks-system": "RKS System",
+    // PokeAPI splits As One by Calyrex's steed; the games call both "As One".
+    "as-one-glastrier": "As One (Glastrier)",
+    "as-one-spectrier": "As One (Spectrier)",
+]
 
 /// Ordered (value, label) pairs for the per-Pokemon Status picker.
 let statusPickerOptions: [(ShowdownStatus, String)] = [

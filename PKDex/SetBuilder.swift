@@ -141,6 +141,8 @@ struct SetListView: View {
         } label: {
             Label("Delete", systemImage: "trash")
         }
+        // The app's accent tint would otherwise override the destructive red.
+        .tint(.red)
     }
 }
 
@@ -165,7 +167,9 @@ private struct SetRowView: View {
             }
 
             if let pkmn = spread.pokemonName {
-                HStack(spacing: 8) {
+                // Chips move to a new line rather than breaking mid-word,
+                // as they did in the narrow iPad list.
+                FlowLayout(spacing: 8, lineSpacing: 4) {
                     Text(pkmn).font(.subheadline).foregroundStyle(.secondary)
                     if let ability = spread.abilityName {
                         Text(formatAbilityName(ability))

@@ -187,9 +187,18 @@ From the recent PRs, each also noted in its description:
 - **Mon Index haptic under More.** The selection tick when opening a Pokémon
   is skipped while Mon Index is under More, because More's stack has no path
   of Mon Index's to watch. (#32)
+- **The iPad tab bar pages.** A wide iPad window's tab bar can't show all
+  twelve tabs, so it scrolls, and the open tab can scroll out of view. The
+  sidebar-adaptable tab style fixes that, but on iPadOS 26.4 a split-view tab
+  (Sets, Teams, Team Search) first opened from its sidebar lays out under the
+  floating tab bar, which covers the tab's own buttons, so it was reverted.
+  (#37)
+- **Resizing an iPad window across the compact width** reopens the tabs
+  after the fourth in their new place (the tab bar or the app's More list),
+  so work in them is lost. (#37)
 - **Not checked on screen:**
-  - iPad and iPhone landscape with the new More tab (#32)
-  - the leave prompt for the RNG timer and searches (#32)
+  - iPad in landscape: the simulator panel can't rotate a device
+  - the leave prompt for the RNG searches (the timer's was checked in #37)
   - type-colored backgrounds on the compare page, and with large text or
     Compact density (#31)
 - **Battle log at accessibility sizes.** It stays at a fixed 220pt, which is

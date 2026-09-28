@@ -2,8 +2,8 @@
 //  MoreTab.swift
 //  PKDex
 //
-//  The app's own More tab, used on iPhone when there are more tabs than fit
-//  in the tab bar.
+//  The app's own More tab, used on iPhone, and in a narrow iPad window, when
+//  there are more tabs than fit in the tab bar.
 //
 //  The system's More list wraps each overflow tab in a navigation bar of
 //  its own. Every tab here brings its own NavigationStack as well, so tabs
