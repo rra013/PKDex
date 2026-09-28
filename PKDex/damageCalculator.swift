@@ -650,17 +650,18 @@ private struct ResultCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 if hasFieldConditions {
                     FlowLayout(spacing: 6) {
+                        let field = ColorRole.field.color
                         if vm.weather != .none {
-                            InfoBadge(text: vm.weather.rawValue, color: .cyan)
+                            InfoBadge(text: vm.weather.rawValue, color: field)
                         }
                         if vm.terrain != .none {
-                            InfoBadge(text: "\(vm.terrain.rawValue) Terrain", color: .green)
+                            InfoBadge(text: "\(vm.terrain.rawValue) Terrain", color: field)
                         }
-                        if vm.crit { InfoBadge(text: "Crit", color: .orange) }
-                        if vm.burn { InfoBadge(text: "Burn", color: .red) }
-                        if vm.gravity { InfoBadge(text: "Gravity", color: .indigo) }
-                        if vm.wonderRoom { InfoBadge(text: "Wonder Room", color: .indigo) }
-                        if vm.magicRoom { InfoBadge(text: "Magic Room", color: .indigo) }
+                        if vm.crit { InfoBadge(text: "Crit", color: field) }
+                        if vm.burn { InfoBadge(text: "Burn", color: field) }
+                        if vm.gravity { InfoBadge(text: "Gravity", color: field) }
+                        if vm.wonderRoom { InfoBadge(text: "Wonder Room", color: field) }
+                        if vm.magicRoom { InfoBadge(text: "Magic Room", color: field) }
                     }
                 }
                 if SideModifiersRow.hasModifiers(vm.side1) {
@@ -1629,8 +1630,6 @@ private struct LoadSpreadSheet: View {
                                 if let pkmn = spread.pokemonName {
                                     Text(pkmn).font(.caption).foregroundStyle(.secondary)
                                 }
-                                Text(allNatures.first(where: { $0.id == spread.natureID })?.name ?? "")
-                                    .font(.caption).foregroundStyle(.secondary)
                                 if let ability = spread.abilityName {
                                     Text(formatAbilityName(ability))
                                         .font(.caption2)
@@ -1638,12 +1637,20 @@ private struct LoadSpreadSheet: View {
                                         .foregroundStyle(ColorRole.ability.color)
                                         .background(ColorRole.ability.color.opacity(0.12), in: Capsule())
                                 }
-                                if let item = spread.itemRawValue {
+                                if let item = spread.itemRawValue, item != HeldItem.none.rawValue {
                                     Text(item)
                                         .font(.caption2)
                                         .padding(.horizontal, 4).padding(.vertical, 1)
                                         .foregroundStyle(ColorRole.item.color)
                                         .background(ColorRole.item.color.opacity(0.12), in: Capsule())
+                                }
+                                // The same chips, in the same order, as the set list.
+                                if let nature = allNatures.first(where: { $0.id == spread.natureID }) {
+                                    Text(nature.name)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 4).padding(.vertical, 1)
+                                        .foregroundStyle(ColorRole.nature.color)
+                                        .background(ColorRole.nature.color.opacity(0.12), in: Capsule())
                                 }
                             }
                             Text("EVs: \(spread.evHP)/\(spread.evAtk)/\(spread.evDef)/\(spread.evSpAtk)/\(spread.evSpDef)/\(spread.evSpeed)")
