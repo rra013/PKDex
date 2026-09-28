@@ -198,6 +198,11 @@ final class SavedSpread {
     var moveID3: Int?
     var moveID4: Int?
     var createdAt: Date
+    /// The set's Tera type, as a type name ("Fairy"), or nil. Kept with the
+    /// set and in its paste; nothing Terastallizes yet, since no Champions
+    /// regulation allows it. Optional, so stores from before it existed
+    /// migrate automatically.
+    var teraType: String?
 
     init(name: String, pokemonID: Int? = nil, pokemonName: String? = nil,
          abilityName: String? = nil, itemRawValue: String? = nil,
@@ -207,7 +212,8 @@ final class SavedSpread {
          ivHP: Int = 31, ivAtk: Int = 31, ivDef: Int = 31,
          ivSpAtk: Int = 31, ivSpDef: Int = 31, ivSpeed: Int = 31,
          moveID1: Int? = nil, moveID2: Int? = nil,
-         moveID3: Int? = nil, moveID4: Int? = nil) {
+         moveID3: Int? = nil, moveID4: Int? = nil,
+         teraType: String? = nil) {
         self.name = name
         self.pokemonID = pokemonID
         self.pokemonName = pokemonName
@@ -223,6 +229,7 @@ final class SavedSpread {
         self.moveID1 = moveID1; self.moveID2 = moveID2
         self.moveID3 = moveID3; self.moveID4 = moveID4
         self.createdAt = Date()
+        self.teraType = teraType
     }
 }
 
@@ -281,6 +288,9 @@ struct TeamSlotInfo: Codable, Identifiable, Equatable {
     var evHP: Int = 0; var evAtk: Int = 0; var evDef: Int = 0
     var evSpAtk: Int = 0; var evSpDef: Int = 0; var evSpeed: Int = 0
     var moveSlots: [TeamMoveInfo]
+    /// The set's Tera type; see `SavedSpread.teraType`. Teams saved before
+    /// it existed decode it as nil.
+    var teraType: String? = nil
 
     static func from(spread: SavedSpread, pokemon: PKMNStats?, moves: [MoveData]) -> TeamSlotInfo? {
         guard let pokemon else { return nil }
@@ -305,7 +315,8 @@ struct TeamSlotInfo: Codable, Identifiable, Equatable {
             level: spread.level,
             evHP: spread.evHP, evAtk: spread.evAtk, evDef: spread.evDef,
             evSpAtk: spread.evSpAtk, evSpDef: spread.evSpDef, evSpeed: spread.evSpeed,
-            moveSlots: resolvedMoves
+            moveSlots: resolvedMoves,
+            teraType: spread.teraType
         )
     }
 }

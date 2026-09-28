@@ -4,9 +4,10 @@ Goal: when regulations change or new Pokemon / mega forms / battle gimmicks
 ship, the app should be updateable by editing a small number of bundled JSON
 files. No hunting through Swift, no parallel lists that can drift apart.
 
-This document is an audit + a prioritized migration plan. Priorities 1
-and 4 are done (2026-09-28); the rest aren't started — pick items off as
-they become relevant. Line numbers in the audit date from June.
+This document is an audit + a prioritized migration plan. Priorities 1,
+4 and 7 (Tera only) are done (2026-09-28); the rest aren't started — pick
+items off as they become relevant. Line numbers in the audit date from
+June.
 
 ---
 
@@ -35,7 +36,7 @@ they become relevant. Line numbers in the audit date from June.
 | **Battle move effect tables** | `BattleSimulator.swift:60-200`: `spreadMoves`, `firstTurnOnlyMoves`, `statChanges` (~50 entries), `statusInflicts`, `weatherSetters`, `terrainSetters`, `hazardSetters`, `protectFamily`, `pivotMoves` | All hardcoded. New move in a future gen = code edit. Hard to keep in sync with `move_categories.json`. |
 | **Type chart** | `damageCalculator.swift:13-35` (`allTypes`, `typeEffectivenessChart`) | Hardcoded. Stable in practice, but balance changes (or fan-game support) require code edit. |
 | **Setup moves + choice items list** | `03_ChampionsValidator.swift:169-179` | Hardcoded with a comment defending it ("setup moves are stable"). Fair, but inconsistent with the rest of the regulation-driven design. |
-| **Gimmick-aware battle state** | Not implemented | `SavedSpread` has no `teraType`, no dynamax state, no Z-move slot. So even if flags were wired up, there's nothing to wire. |
+| Gimmick-aware battle state | `SavedSpread.teraType` | **Tera type stored (P7).** Nothing Terastallizes yet, and there's no Dynamax or Z-Move state; see P7. |
 
 ### No duplications found
 
@@ -333,7 +334,30 @@ Read in the validator's init instead of hardcoding.
 
 ---
 
-### Priority 7 — Gimmick state on `SavedSpread`
+### Priority 7 — Gimmick state on `SavedSpread` ✅ Done for Tera
+
+**Done 2026-09-28, for Tera only.** `SavedSpread.teraType` and
+`TeamSlotInfo.teraType` (optional type names, "Stellar" included) hold it.
+It survives paste import into sets and teams (Limitless teams too), the
+calc and Set Builder's load and save, and the paste export. The Set
+Builder has a Tera Type picker for mainline sets, for Champions sets when
+`rules.teraAllowed`, and for any set that already has one. The optional
+attribute migrated automatically; that was checked against an existing
+store on the simulator, because `PKDexApp` deletes the store when a
+migration fails.
+
+Not done:
+- **Terastallizing.** Neither the calc nor the Battle Sim uses the type.
+  The Showdown port supports `teraType`, so the calc's Champions path
+  could pass it (with a "Terastallized" toggle) once a regulation allows
+  Tera; the legacy engine and Battle Sim have no Tera at all.
+- **The validator's `teraNotAllowed`.** Still unused: flagging it now would
+  warn on every Gen 9 paste imported into Champions and block those teams
+  in the Battle Sim, for a type nothing uses.
+- **Dynamax level and Z-Move slot.** No regulation, data or engine
+  support; add them with the feature that uses them.
+
+The original plan:
 
 **Why:** Even with flags wired up, there's nowhere to store a Tera type or
 Dynamax level. The model has to grow before Tera UI can be added.
@@ -357,7 +381,7 @@ before activating.
 
 1. ~~**P1 — wire rules JSON end-to-end.**~~ Done.
 2. ~~**P4 — Mega forms JSON.**~~ Done.
-3. **P7 — `SavedSpread` gimmick fields.** Prereq for Tera/Dynamax UI.
+3. ~~**P7 — `SavedSpread` gimmick fields.**~~ Done for Tera.
 4. **P2 — battle move tables.** Biggest file, but high value before adding
    Gen 10 moves or Tera Blast.
 5. **P3 — type chart.** Easy, low risk.

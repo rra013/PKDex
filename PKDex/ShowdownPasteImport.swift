@@ -494,7 +494,8 @@ struct PasteImporter {
             ivHP: slot.ivs.hp, ivAtk: slot.ivs.atk, ivDef: slot.ivs.def,
             ivSpAtk: slot.ivs.spa, ivSpDef: slot.ivs.spd, ivSpeed: slot.ivs.spe,
             moveID1: moveIDs[0], moveID2: moveIDs[1],
-            moveID3: moveIDs[2], moveID4: moveIDs[3]
+            moveID3: moveIDs[2], moveID4: moveIDs[3],
+            teraType: slot.source.teraType
         )
     }
 
@@ -523,7 +524,8 @@ struct PasteImporter {
             level: slot.level,
             evHP: slot.evs.hp, evAtk: slot.evs.atk, evDef: slot.evs.def,
             evSpAtk: slot.evs.spa, evSpDef: slot.evs.spd, evSpeed: slot.evs.spe,
-            moveSlots: moveSlots
+            moveSlots: moveSlots,
+            teraType: slot.source.teraType
         )
     }
 }

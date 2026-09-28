@@ -285,6 +285,7 @@ extension CalcSide {
             : ShowdownStats(hp: ivHP, atk: ivAtk, def: ivDef,
                             spa: ivSpAtk, spd: ivSpDef, spe: ivSpeed)
         set.moves = moves.compactMap { $0?.name }
+        set.teraType = teraType
         return set
     }
 }

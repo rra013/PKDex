@@ -100,6 +100,9 @@ class CalcSide {
     var level: Int = 50
     var selectedAbility: String?
     var heldItem: HeldItem = .none
+    /// The set's Tera type, kept for saving and export; see
+    /// `SavedSpread.teraType`.
+    var teraType: String?
     var atFullHP: Bool = true
     var loadedSpreadName: String?
 
@@ -202,7 +205,8 @@ class CalcSide {
             ivHP: ivHP, ivAtk: ivAtk, ivDef: ivDef,
             ivSpAtk: ivSpAtk, ivSpDef: ivSpDef, ivSpeed: ivSpeed,
             moveID1: moves[0]?.id, moveID2: moves[1]?.id,
-            moveID3: moves[2]?.id, moveID4: moves[3]?.id
+            moveID3: moves[2]?.id, moveID4: moves[3]?.id,
+            teraType: teraType
         )
     }
 
@@ -214,6 +218,7 @@ class CalcSide {
         }
         selectedAbility = spread.abilityName
         heldItem = spread.itemRawValue.flatMap { HeldItem(rawValue: $0) } ?? .none
+        teraType = spread.teraType
         championsMode = spread.championsMode
         nature = allNatures.first(where: { $0.id == spread.natureID }) ?? allNatures[0]
         level = spread.level
@@ -1023,6 +1028,7 @@ private struct SideCard: View {
                             side.pokemon = nil
                             side.searchText = ""
                             side.selectedAbility = nil
+                            side.teraType = nil
                             // Clear Mega state too — the toggle isn't meaningful
                             // without a species, and we don't want it to silently
                             // re-arm when the next Pokemon is picked.
@@ -1087,6 +1093,7 @@ private struct SideCard: View {
                                         side.pokemon = p
                                         side.searchText = ""
                                         side.selectedAbility = p.ability1
+                                        side.teraType = nil
                                         side.moves = [nil, nil, nil, nil]
                                         side.moveSearchTexts = ["", "", "", ""]
                                         side.loadedSpreadName = nil

@@ -229,10 +229,10 @@ Roughly in order of value for effort.
 
 1. **Data compartmentalization.** [`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md)
    lists seven migrations of game data into JSON. Reading each regulation's
-   `rules` block (P1) and the Mega forms (P4) are done; see the plan for
-   what each covers and leaves. Next in its suggested order is P7, Tera and
-   other gimmick fields on saved sets, which Tera support would need. Its
-   line numbers date from June.
+   `rules` block (P1), the Mega forms (P4) and storing a set's Tera type
+   (P7) are done; see the plan for what each covers and leaves. Next in its
+   suggested order is P2, the battle sim's move effect tables. Its line
+   numbers date from June.
 2. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last
