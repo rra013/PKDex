@@ -79,13 +79,17 @@ struct RegulationRulesTests {
         MegaForms.all.first { $0.stone == .charizarditeY }!
     }
 
+    private var megaRayquaza: MegaForm {
+        MegaForms.moveTriggered.first { $0.speciesKey == "rayquaza" }!
+    }
+
     @Test("Mega Evolution follows its switch, and Mega Rayquaza its own")
     func megaSwitches() {
         #expect(rules(mega: true, rayquaza: false).allowsMega(megaCharizardY))
         #expect(!rules(mega: false, rayquaza: false).allowsMega(megaCharizardY))
-        #expect(!rules(mega: true, rayquaza: false).allowsMega(MegaForms.rayquazaMega))
-        #expect(rules(mega: true, rayquaza: true).allowsMega(MegaForms.rayquazaMega))
-        #expect(!rules(mega: false, rayquaza: true).allowsMega(MegaForms.rayquazaMega))
+        #expect(!rules(mega: true, rayquaza: false).allowsMega(megaRayquaza))
+        #expect(rules(mega: true, rayquaza: true).allowsMega(megaRayquaza))
+        #expect(!rules(mega: false, rayquaza: true).allowsMega(megaRayquaza))
     }
 
     private func charizard() -> PKMNStats {

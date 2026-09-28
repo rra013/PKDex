@@ -95,6 +95,12 @@ first if tab switching ever misbehaves.
 3. If it changes how many views draw, read it once in `ContentView` and pass
    it through `EnvironmentValues`, as `density` does.
 
+**Adding a Mega Evolution**: add a line to `PKDex/mega_forms.json` (its
+`about` field explains each key). If its stone is new, also add a
+`HeldItem` case whose raw value is the stone's name; `MegaFormsTests`
+fails until every stone matches one. For a Champions regulation, the
+stone also needs to be in that regulation's `mega_stones` and item list.
+
 **Adding a color with meaning**: add a case to `ColorRole` with light and
 dark values. `ColorRoleTests` fails until both clear 4.5:1 contrast, and
 until the new role is at least 12 apart from every other role and 8 from
@@ -222,10 +228,11 @@ From the recent PRs, each also noted in its description:
 Roughly in order of value for effort.
 
 1. **Data compartmentalization.** [`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md)
-   lists seven migrations of game data into JSON. The first, reading each
-   regulation's `rules` block, is done (see the plan for what it covers and
-   what it leaves). Next in its suggested order is P4, Mega forms into JSON.
-   Its line numbers date from June.
+   lists seven migrations of game data into JSON. Reading each regulation's
+   `rules` block (P1) and the Mega forms (P4) are done; see the plan for
+   what each covers and leaves. Next in its suggested order is P7, Tera and
+   other gimmick fields on saved sets, which Tera support would need. Its
+   line numbers date from June.
 2. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last
