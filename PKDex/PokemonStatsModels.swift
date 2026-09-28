@@ -326,14 +326,35 @@ struct TeamMoveInfo: Codable, Identifiable, Equatable {
 nonisolated let maxEVPerStat = 252
 nonisolated let maxTotalEVs = 510
 
-// Champions scale: 0-32 per stat, where 32 == 252 in the main formula.
-// Total cap scales proportionally: floor(510 * 32 / 252) = 64
-nonisolated let championsMaxEVPerStat = 32
-nonisolated let championsMaxTotalEVs = 66
+// Champions scale: stat points, where 32 buy what 252 EVs do in the main
+// formula. That exchange rate is a game mechanic; the caps are regulation
+// rules, read from the current regulation's JSON.
+nonisolated let championsStatPointsPer252EVs = 32
 
-/// Convert a Champions-scale EV (0-32) to the main-series value used in stat formulas.
+/// The current regulation's per-stat stat-point cap (32 so far).
+nonisolated var championsMaxEVPerStat: Int {
+    ChampionsRegulation.current.rules().statPointsMaxPerStat
+}
+
+/// The current regulation's total stat-point cap (66 so far).
+nonisolated var championsMaxTotalEVs: Int {
+    ChampionsRegulation.current.rules().statPointsMaxTotal
+}
+
+/// The IV every stat is locked at in the current regulation (31 so far).
+nonisolated var championsLockedIV: Int {
+    ChampionsRegulation.current.rules().ivLockedAt
+}
+
+/// Convert a Champions-scale EV (stat points) to the main-series value used in stat formulas.
 nonisolated func championsEVToMain(_ cev: Int) -> Int {
-    return cev * 252 / 32
+    return cev * maxEVPerStat / championsStatPointsPer252EVs
+}
+
+/// Convert main-series EVs to Champions stat points, rounding down, so 252
+/// is 32. Callers cap the result themselves.
+nonisolated func mainEVToChampions(_ ev: Int) -> Int {
+    ev * championsStatPointsPer252EVs / maxEVPerStat
 }
 
 // MARK: - Stat Calculation (Gen III+ formula)

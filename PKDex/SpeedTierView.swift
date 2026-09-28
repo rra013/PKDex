@@ -108,8 +108,8 @@ func computeBenchmarkSpeed(
     abilityMod: SpeedAbilityModifier
 ) -> Int {
     let ev = championsMode ? championsEVToMain(benchmark.championsEV) : benchmark.ev
-    // Champions fixes IVs at 31, so "Min" there is 0 points and -Spe only.
-    let iv = championsMode ? 31 : benchmark.iv
+    // Champions fixes IVs (at 31 so far), so "Min" there is 0 points and -Spe only.
+    let iv = championsMode ? championsLockedIV : benchmark.iv
     let rawStat = calcStat(base: baseSpeed, iv: iv, ev: ev, level: level, natureMod: benchmark.natureMod)
     return applySpeedModifiers(rawStat, item: itemMod, ability: abilityMod)
 }

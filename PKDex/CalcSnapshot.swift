@@ -149,7 +149,7 @@ nonisolated struct CalcSnapshot: Equatable, Sendable {
     }
 
     private func formulaIV(_ stored: Int) -> Int {
-        championsMode ? 31 : stored
+        championsMode ? championsLockedIV : stored
     }
 
     var hp: Int {

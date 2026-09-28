@@ -240,20 +240,21 @@ class CalcSide {
     }
 
     private func formulaIV(_ stored: Int) -> Int {
-        championsMode ? 31 : stored
+        championsMode ? championsLockedIV : stored
     }
 
     func setChampionsMode(_ on: Bool) {
         guard on != championsMode else { return }
         if on {
-            evHP    = evHP * 32 / 252
-            evAtk   = evAtk * 32 / 252
-            evDef   = evDef * 32 / 252
-            evSpAtk = evSpAtk * 32 / 252
-            evSpDef = evSpDef * 32 / 252
-            evSpeed = evSpeed * 32 / 252
-            ivHP = 31; ivAtk = 31; ivDef = 31
-            ivSpAtk = 31; ivSpDef = 31; ivSpeed = 31
+            evHP    = mainEVToChampions(evHP)
+            evAtk   = mainEVToChampions(evAtk)
+            evDef   = mainEVToChampions(evDef)
+            evSpAtk = mainEVToChampions(evSpAtk)
+            evSpDef = mainEVToChampions(evSpDef)
+            evSpeed = mainEVToChampions(evSpeed)
+            let iv = championsLockedIV
+            ivHP = iv; ivAtk = iv; ivDef = iv
+            ivSpAtk = iv; ivSpDef = iv; ivSpeed = iv
             championsMode = true
         } else {
             evHP    = championsEVToMain(evHP)
@@ -276,10 +277,19 @@ class CalcSide {
     }
 
     /// The Mega form the currently-selected Pokemon *could* transform into,
-    /// given its held item (or, for Rayquaza, the move slots). Returns nil
-    /// when there's no eligible form — that's the source of truth for the
-    /// UI toggle's enabled state.
+    /// given its held item (or, for Rayquaza, the move slots) and, in
+    /// Champions mode, the regulation's rules. Returns nil when there's no
+    /// eligible form — that's the source of truth for the UI toggle's
+    /// enabled state.
     var availableMegaForm: MegaForm? {
+        guard let form = triggeredMegaForm else { return nil }
+        if championsMode && !ChampionsRegulation.current.rules().allowsMega(form) { return nil }
+        return form
+    }
+
+    /// The Mega form the held item (or Rayquaza's moves) triggers, whether
+    /// or not the regulation allows it.
+    private var triggeredMegaForm: MegaForm? {
         guard let p = pokemon else { return nil }
         return MegaForms.form(forSpecies: p.name,
                               heldItem: heldItem,
@@ -311,6 +321,9 @@ class CalcSide {
     /// player knows what to change.
     var megaDisabledReason: String? {
         guard hasAnyMegaForm, availableMegaForm == nil, let p = pokemon else { return nil }
+        if triggeredMegaForm != nil {
+            return "Not allowed in \(ChampionsRegulation.current.displayName)"
+        }
         let s = BattleSimSeed.normalize(p.name)
         if s == "rayquaza" {
             return "Must know Dragon Ascent"
@@ -1246,7 +1259,7 @@ private struct SideCard: View {
                     .tint(.red)
 
                     if side.championsMode {
-                        Text("EVs: 0-32 scale (32 = max). IVs fixed at 31.")
+                        Text("EVs: 0-\(championsMaxEVPerStat) scale (\(championsMaxEVPerStat) = max). IVs fixed at \(championsLockedIV).")
                             .font(.caption).foregroundStyle(.secondary)
                     }
 

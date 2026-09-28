@@ -69,7 +69,8 @@ nonisolated enum StatScale: Equatable, Sendable {
         case .champions:
             // Inverse of `championsEVToMain`, rounded to nearest rather than
             // truncated so 252 -> 32 (not 31) and 4 -> 1 (not 0).
-            return Int((Double(value) * 32.0 / 252.0).rounded())
+            return Int((Double(value) * Double(championsStatPointsPer252EVs)
+                        / Double(maxEVPerStat)).rounded())
         }
     }
 }

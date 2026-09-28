@@ -323,7 +323,7 @@ struct PasteImporter {
             // Per-set violations are already attached to their slot; keep only
             // the team-scoped categories here so the UI doesn't double-report.
             out.teamViolations = all.filter {
-                $0.category == .wrongTeamSize || $0.category == .speciesClause
+                [.wrongTeamSize, .speciesClause, .itemClause].contains($0.category)
             }
         }
         return out

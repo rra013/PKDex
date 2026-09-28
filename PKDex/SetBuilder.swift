@@ -568,7 +568,7 @@ private struct SetFormContent: View {
                     .tint(.red)
 
                     if side.championsMode {
-                        Text("EVs: 0-32 scale. IVs fixed at 31.")
+                        Text("EVs: 0-\(championsMaxEVPerStat) scale. IVs fixed at \(championsLockedIV).")
                             .font(.caption).foregroundStyle(.secondary)
                     }
 
