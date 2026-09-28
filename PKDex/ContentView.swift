@@ -177,19 +177,16 @@ struct ContentView: View {
         let split = Self.split(of: shownLayout, moreList: showsMoreList)
         TabView(selection: $selectedTab) {
             ForEach(split.bar) { tab in
-                Tab(tab.label, systemImage: tab.icon, value: RootTab.tab(tab)) {
-                    tabContent(for: tab)
-                }
+                tabContent(for: tab)
+                    .tabItem { Label(tab.label, systemImage: tab.icon) }
+                    .tag(RootTab.tab(tab))
             }
             if !split.more.isEmpty {
-                Tab("More", systemImage: "ellipsis", value: RootTab.more) {
-                    MoreList(tabs: split.more, path: $morePath, openTab: $moreOpenTab) { tabContent(for: $0) }
-                }
+                MoreList(tabs: split.more, path: $morePath, openTab: $moreOpenTab) { tabContent(for: $0) }
+                    .tabItem { Label("More", systemImage: "ellipsis") }
+                    .tag(RootTab.more)
             }
         }
-        // A wide iPad tab bar can't show all twelve tabs at once; the
-        // sidebar lists every one. Compact widths keep the plain tab bar.
-        .tabViewStyle(.sidebarAdaptable)
         .tint(accentColor)
         .preferredColorScheme(appearance)
         .environment(\.typeBadgeStyle, typeBadgeStyle)
