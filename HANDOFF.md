@@ -73,6 +73,20 @@ It works by sitting in front of the UITabBarController's delegate, the only
 code that changes how the tab bar behaves underneath SwiftUI, so check it
 first if tab switching ever misbehaves.
 
+**Game data in `PKDex/`**: facts that change with games and regulations
+are JSON, each loaded strictly (a misspelled name fails the file) and
+checked by a test that it loads:
+
+| File | Holds | Loaded by |
+|---|---|---|
+| `champions-<id>.json` | a regulation's species, items, Mega stones and `rules` | `ChampionsRegulation`, `ChampionsValidator` |
+| `mega_forms.json` | every Mega form; its stone becomes a held item | `MegaForms` |
+| `battle_moves.json` | the Battle Sim's move effects, and setup moves | `BattleMoveEffects` |
+| `type_chart.json` | the 18 types and their matchups | `TypeChart` |
+
+The Showdown damage port has its own data (`showdown-champions-data.json`);
+`TypeChartTests` checks the two type charts agree.
+
 ---
 
 ## Recipes
@@ -243,12 +257,12 @@ From the recent PRs, each also noted in its description:
 Roughly in order of value for effort.
 
 1. **Data compartmentalization.** [`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md)
-   lists seven migrations of game data into JSON. All but P3, the type
-   chart, are done: each regulation's `rules` block (P1), the Battle Sim's
-   move tables (P2), the Mega forms (P4), Mega stones as held items (P5),
-   the validator's setup moves and Choice items (P6) and a set's Tera type
-   (P7). See the plan for what each covers and leaves. The type chart
-   rarely changes, so P3 is low value. Its line numbers date from June.
+   lists seven migrations of game data into JSON, all done: each
+   regulation's `rules` block (P1), the Battle Sim's move tables (P2), the
+   type chart (P3), the Mega forms (P4), Mega stones as held items (P5), the
+   validator's setup moves and Choice items (P6) and a set's Tera type (P7).
+   See the plan for what each covers and leaves; what's left are the parts
+   of P5 and P7 that need features first (items, Tera, Dynamax).
 2. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last

@@ -4,9 +4,9 @@ Goal: when regulations change or new Pokemon / mega forms / battle gimmicks
 ship, the app should be updateable by editing a small number of bundled JSON
 files. No hunting through Swift, no parallel lists that can drift apart.
 
-This document is an audit + a prioritized migration plan. Priorities 1,
-2, 4, 5, 6 and 7 (Tera only) are done (2026-09-28); only 3, the type
-chart, isn't started. Line numbers in the audit date from June.
+This document is an audit + a prioritized migration plan. Every priority
+is done (2026-09-28), 5 for Mega stones and 7 for Tera only; each section
+says what it covers and leaves. Line numbers in the audit date from June.
 
 ---
 
@@ -33,7 +33,7 @@ chart, isn't started. Line numbers in the audit date from June.
 | ~~Mega forms~~ | `PKDex/mega_forms.json` | **Done (P4).** 87 forms (86 by stone, plus Mega Rayquaza). A form's stone is an item from its line (P5). |
 | ~~Held items~~ | `HeldItem` struct; stones from `mega_forms.json` | **Done (P5).** Mega stones are data. Items with effects stay in Swift, since their effects are code. |
 | ~~Battle move effect tables~~ | `PKDex/battle_moves.json` | **Done (P2).** 22 tables. Tables that route moves to hand-written code stay in Swift. |
-| **Type chart** | `damageCalculator.swift:13-35` (`allTypes`, `typeEffectivenessChart`) | Hardcoded. Stable in practice, but balance changes (or fan-game support) require code edit. |
+| ~~Type chart~~ | `PKDex/type_chart.json` | **Done (P3).** Moving it found Bug vs Poison missing (fixed). |
 | ~~Setup moves + choice items list~~ | `battle_moves.json` `setup_moves`; each regulation's `items_whitelist` | **Done (P6).** |
 | Gimmick-aware battle state | `SavedSpread.teraType` | **Tera type stored (P7).** Nothing Terastallizes yet, and there's no Dynamax or Z-Move state; see P7. |
 
@@ -227,7 +227,25 @@ multi-turn move tracking. Make sure call sites grep cleanly before deleting.
 
 ---
 
-### Priority 3 — Externalize the type chart
+### Priority 3 — Externalize the type chart ✅ Done
+
+**Done 2026-09-28.** `PKDex/type_chart.json` holds the 18 types, in menu
+order, and every non-neutral multiplier. `TypeChart` loads it strictly (an
+effectiveness row or column naming an unlisted type fails the file), and
+`allTypes` and `typeEffectivenessChart` read from it, so no call site
+changed; the plan's `multiplier(attacker:defender:)` accessor wasn't
+needed.
+
+The JSON was written by the running code and checked identical, types,
+chart and all 324 computed matchups, before the Swift was replaced. Then
+comparing it with the Showdown port's separate chart
+(`showdown-champions-data.json`) found one gap: Bug vs Poison was neutral,
+where Poison has resisted Bug since Gen 2. It's fixed, and `TypeChartTests`
+now checks every matchup against Showdown's, so the two can't drift again.
+That changes the legacy damage engine, the Battle Sim, team coverage and
+Poison types' defensive charts; no parity test depended on it.
+
+The original plan:
 
 **Why:** `damageCalculator.swift:13-35` hardcodes the 18 types and the
 effectiveness matrix. Stable in practice but inconsistent with the rest
@@ -454,7 +472,7 @@ before activating.
 2. ~~**P4 — Mega forms JSON.**~~ Done.
 3. ~~**P7 — `SavedSpread` gimmick fields.**~~ Done for Tera.
 4. ~~**P2 — battle move tables.**~~ Done.
-5. **P3 — type chart.** Easy, low risk.
+5. ~~**P3 — type chart.**~~ Done (and fixed Bug vs Poison).
 6. ~~**P6 — setup moves into regulation JSON.**~~ Done (setup moves in
    `battle_moves.json`, Choice items from each regulation's item list).
 7. ~~**P5 — held items.**~~ Done, for Mega stones.
