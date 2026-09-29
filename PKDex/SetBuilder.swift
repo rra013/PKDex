@@ -44,7 +44,11 @@ struct SetListView: View {
         } detail: {
             NavigationStack {
                 if let selectedSpread {
+                    // A new editor for each set: the editor loads its fields
+                    // once, so a reused one kept showing the first set, and
+                    // Save wrote those fields into the newly selected one.
                     SetEditorView(spread: selectedSpread, allPokemon: allPokemon, allMoves: allMoves)
+                        .id(selectedSpread.persistentModelID)
                 } else {
                     ContentUnavailableView {
                         Label("Select a Set", systemImage: "sidebar.left")

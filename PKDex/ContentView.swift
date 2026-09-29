@@ -386,7 +386,10 @@ private struct PokedexTab: View {
         } detail: {
             NavigationStack {
                 if let selectedMon {
+                    // A new page for each Pokémon, so a form or move search
+                    // chosen on one doesn't carry over to the next.
                     monIndexDestination(for: selectedMon, filter: activeFilter)
+                        .id(selectedMon.persistentModelID)
                 } else {
                     ContentUnavailableView {
                         Label("Select a Pokémon", systemImage: "sidebar.left")
