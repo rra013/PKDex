@@ -84,4 +84,24 @@ struct TypeChartTests {
             #expect(eff == 2.0, "\(moveType) → Fire should be 2x, got \(eff)")
         }
     }
+
+    // MARK: - The data file
+
+    @Test("type_chart.json loads all 18 types")
+    func fileLoads() throws {
+        let url = try #require(Bundle.main.url(forResource: "type_chart", withExtension: "json"))
+        let chart = try TypeChart.decode(Data(contentsOf: url))
+        #expect(chart.types.count == 18)
+        #expect(chart.types == allTypes)
+        #expect(chart.effectiveness == typeEffectivenessChart)
+        #expect(Set(chart.effectiveness.keys) == Set(chart.types))
+    }
+
+    @Test("A type missing from the type list fails the file")
+    func unknownType() {
+        let data = Data(#"{"types": ["Fire", "Water"], "effectiveness": {"Fire": {"Grass": 2}}}"#.utf8)
+        #expect(throws: TypeChart.LoadError.unknownType("Grass")) {
+            try TypeChart.decode(data)
+        }
+    }
 }
