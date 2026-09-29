@@ -263,8 +263,16 @@ xcodebuild build -project PKDex.xcodeproj -scheme PKDex -destination 'platform=m
 
   The picture lands in
   `~/Library/Containers/yukisoft.PKReference/Data/Library/Caches/Snapshots/`.
+  `-debugOpenFirst YES` opens the first set in Sets, for the Set Editor.
+  `-debugOpenSettings YES` opens Settings too, saved as `<name>-Settings.png`.
   For a screen reached by hand, Debug › Save Window Snapshot (⇧⌘S) saves
-  one there too. Glass comes out blank: the app's sidebar, and search
+  one there too, and plays a sound.
+- **If every Mac window opens blank**, a layout blew up once and the window
+  saved it as its sidebar's divider position (widths in the billions under
+  `NSSplitView Subview Frames` in the app's preferences). Delete those
+  entries with `defaults delete` on the container's preferences file.
+  Opening an already-running app doesn't reload it: quit it first to try a
+  new build. Glass comes out blank: the app's sidebar, and search
   fields. So do web views, and sidebar-style lists draw their text dimmer
   than on screen. For those, ask the owner for a screenshot.
 
@@ -325,8 +333,10 @@ Roughly in order of value for effort.
       can't be swiped away), toolbars, and edit-mode stand-ins. The calc's
       Load Spread sheet has no way to delete on the Mac yet, and segmented
       pickers repeat their label beside the caption above them (the calc's
-      Weather and Terrain). Menu commands and shortcuts: switching tabs,
-      paste import, Find.
+      Weather and Terrain). In the Set Editor, text fields show their
+      placeholder as a label (the set name, the moves, "Lv"), and there's an
+      empty band between the list and the form. Menu commands and
+      shortcuts: switching tabs, paste import, Find.
    4. Developer ID signing, the hardened runtime, notarization, and releases
       on GitHub, with the tagged source for the GPL. Optionally Sparkle for
       updates.

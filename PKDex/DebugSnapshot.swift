@@ -14,7 +14,10 @@
 //
 //        open -g -n -W PKDex.app --args -debugSnapshot calc \
 //            [-debugSnapshotDelay 4] [-debugWindowSize 1280x800] \
-//            [-debugOpenSettings YES] [-debugSnapshotQuit YES]
+//            [-debugOpenSettings YES] [-debugOpenFirst YES] [-debugSnapshotQuit YES]
+//
+//  `-debugOpenFirst YES` opens the first item of a list/detail tab (Sets),
+//  so its detail screen can be checked.
 //
 //  Pictures go to Library/Caches/Snapshots in the app's container
 //  (~/Library/Containers/yukisoft.PKReference/Data/), named for the
@@ -33,20 +36,32 @@ enum DebugSnapshot {
         URL.cachesDirectory.appending(path: "Snapshots", directoryHint: .isDirectory)
     }
 
+    /// Set by `-debugOpenFirst YES`: list/detail tabs open their first item.
+    static var opensFirstItem: Bool { UserDefaults.standard.bool(forKey: "debugOpenFirst") }
+
     private static var mainWindow: NSWindow? {
         NSApp.mainWindow ?? NSApp.windows.first { $0.isVisible && $0.canBecomeMain }
     }
 
-    /// Saves the key window, or the main one, as a timestamped picture.
+    /// Saves the key window, or the main one, as a picture named for the
+    /// local time, and plays a sound once it's saved.
     @discardableResult
     static func save() -> URL? {
         guard let window = NSApp.keyWindow ?? mainWindow else {
             print("[DebugSnapshot] no window to save")
+            NSSound.beep()
             return nil
         }
-        let name = "snapshot-" + Date.now.formatted(.iso8601.time(includingFractionalSeconds: false))
-            .replacingOccurrences(of: ":", with: "")
-        return save(window, named: name)
+        let name = "snapshot-" + Date.now.formatted(.verbatim(
+            "\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased)).\(minute: .twoDigits).\(second: .twoDigits)",
+            timeZone: .current, calendar: .current))
+        let url = save(window, named: name)
+        if url != nil {
+            NSSound(named: "Pop")?.play()
+        } else {
+            NSSound.beep()
+        }
+        return url
     }
 
     /// Saves every open window: the main one as `name`, others with their

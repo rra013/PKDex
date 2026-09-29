@@ -54,6 +54,16 @@ struct SetListView: View {
                 }
             }
         }
+        #if DEBUG && os(macOS)
+        .task {
+            // Selecting before the split view has appeared lays it out
+            // billions of points wide, and the window saves that as its
+            // divider position, so wait as a click would.
+            guard DebugSnapshot.opensFirstItem else { return }
+            try? await Task.sleep(for: .seconds(1))
+            selectedSpread = savedSpreads.first
+        }
+        #endif
     }
 
     @ViewBuilder

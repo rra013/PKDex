@@ -231,6 +231,10 @@ struct ContentView: View {
         #if os(macOS)
         .tabViewStyle(.sidebarAdaptable)
         .frame(minWidth: 900, minHeight: 600)
+        // Forms were laid out for iOS's grouped sections. The Mac's default
+        // puts labels and controls in two columns, which pushed the Set
+        // Editor's rows off the side of the window.
+        .formStyle(.grouped)
         #endif
         .modifier(AppearanceSettings())
         .environment(\.isArrangingTabs, $isArrangingTabs)
