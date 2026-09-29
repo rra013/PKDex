@@ -72,9 +72,9 @@ public final class ChampionsValidator {
     public let speciesToMegaStone: [String: String]  // reverse map
     public let learnsets: [String: Set<String>]      // species → legal moves
     public let speciesAbilities: [String: Set<String>] // species → legal abilities
-    public let setupMoves: Set<String>
+    /// The Choice items this regulation allows: every whitelisted item
+    /// named "Choice …" (so far only Choice Scarf).
     public let choiceItems: Set<String>
-    public let scarfItem: String = "Choice Scarf"
     /// The regulation's `rules` block: stat-point caps, team size and
     /// clauses, read from the same JSON as the whitelists.
     let rules: ChampionsRules
@@ -170,22 +170,10 @@ public final class ChampionsValidator {
         // derive the whitelist from the union of every species's legal pool.
         self.abilityWhitelist = abilityUnion
 
-        // The scraped legality file doesn't enumerate setup moves or choice
-        // items. Champions M-A only legalizes Choice Scarf among choice
-        // items (Band/Specs banned), so that list is one-element. Setup
-        // moves are a stable competitive list — hardcoding is fine, they
-        // change only when new generations ship.
-        self.choiceItems = ["Choice Scarf"]
-        self.setupMoves = [
-            "Swords Dance", "Dragon Dance", "Nasty Plot", "Calm Mind",
-            "Bulk Up", "Quiver Dance", "Shell Smash", "Geomancy",
-            "Tail Glow", "Coil", "Curse", "Belly Drum", "Iron Defense",
-            "Cosmic Power", "Agility", "Rock Polish", "Autotomize",
-            "Growth", "Work Up", "Howl", "Hone Claws", "Charge",
-            "Stockpile", "Sharpen", "Acid Armor", "Barrier", "Meditate",
-            "Amnesia", "Cotton Guard", "No Retreat", "Clangorous Soul",
-            "Victory Dance", "Shift Gear", "Magnet Rise", "Power-Up Punch",
-        ]
+        // Choice items come from the regulation's own item list, so one
+        // that legalizes Choice Band gets the same check. Setup moves are
+        // facts about moves, in `battle_moves.json` (`BattleMoveEffects`).
+        self.choiceItems = Set(items.filter { $0.hasPrefix("Choice ") })
     }
 
     /// Convenience initializer that loads from the app bundle for the
@@ -420,7 +408,9 @@ public final class ChampionsValidator {
 
         // 2. Choice item + setup move conflict
         if let item = s.item, choiceItems.contains(item) {
-            let setupInSet = s.moves.filter { setupMoves.contains($0) }
+            let setupInSet = s.moves.filter {
+                BattleMoveEffects.setupMoves.contains(BattleSimSeed.normalize($0))
+            }
             if !setupInSet.isEmpty {
                 v.append(.init(category: .choiceSetupConflict,
                     message: "Choice item \(item) locks moves; can't use setup " +

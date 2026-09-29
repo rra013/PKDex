@@ -5,9 +5,8 @@ ship, the app should be updateable by editing a small number of bundled JSON
 files. No hunting through Swift, no parallel lists that can drift apart.
 
 This document is an audit + a prioritized migration plan. Priorities 1,
-2, 4, 5 and 7 (Tera only) are done (2026-09-28); 3 and 6 aren't started —
-pick items off as they become relevant. Line numbers in the audit date
-from June.
+2, 4, 5, 6 and 7 (Tera only) are done (2026-09-28); only 3, the type
+chart, isn't started. Line numbers in the audit date from June.
 
 ---
 
@@ -35,7 +34,7 @@ from June.
 | ~~Held items~~ | `HeldItem` struct; stones from `mega_forms.json` | **Done (P5).** Mega stones are data. Items with effects stay in Swift, since their effects are code. |
 | ~~Battle move effect tables~~ | `PKDex/battle_moves.json` | **Done (P2).** 22 tables. Tables that route moves to hand-written code stay in Swift. |
 | **Type chart** | `damageCalculator.swift:13-35` (`allTypes`, `typeEffectivenessChart`) | Hardcoded. Stable in practice, but balance changes (or fan-game support) require code edit. |
-| **Setup moves + choice items list** | `03_ChampionsValidator.swift:169-179` | Hardcoded with a comment defending it ("setup moves are stable"). Fair, but inconsistent with the rest of the regulation-driven design. |
+| ~~Setup moves + choice items list~~ | `battle_moves.json` `setup_moves`; each regulation's `items_whitelist` | **Done (P6).** |
 | Gimmick-aware battle state | `SavedSpread.teraType` | **Tera type stored (P7).** Nothing Terastallizes yet, and there's no Dynamax or Z-Move state; see P7. |
 
 ### No duplications found
@@ -369,7 +368,24 @@ defer indefinitely — the current enum works.
 
 ---
 
-### Priority 6 — Externalize Champions-specific move lists
+### Priority 6 — Externalize Champions-specific move lists ✅ Done
+
+**Done 2026-09-28**, a little differently from the plan below:
+- **Choice items** come from each regulation's existing `items_whitelist`:
+  every whitelisted item named "Choice …". Every regulation so far lists
+  only Choice Scarf, the value the validator hard-coded, and one that
+  legalizes Choice Band gets the check with no other edit. No new field.
+- **Setup moves** are facts about moves, not regulation rules, so they're
+  one `setup_moves` table in `battle_moves.json` (normalized names)
+  rather than a copy in every regulation file. The validator compares set
+  moves by normalized name, so "swords-dance" also matches now.
+- The validator's unused `scarfItem` constant is gone.
+
+Both lists were checked identical to the hard-coded ones.
+`ChoiceSetupConflictTests` covers the check and a regulation edited to
+allow Choice Band.
+
+The original plan:
 
 **Why:** Consistency. `03_ChampionsValidator.swift:169-179` hardcodes setup
 moves and choice items with a comment defending it. That defense is weaker
@@ -439,7 +455,8 @@ before activating.
 3. ~~**P7 — `SavedSpread` gimmick fields.**~~ Done for Tera.
 4. ~~**P2 — battle move tables.**~~ Done.
 5. **P3 — type chart.** Easy, low risk.
-6. **P6 — setup moves into regulation JSON.** Consistency win.
+6. ~~**P6 — setup moves into regulation JSON.**~~ Done (setup moves in
+   `battle_moves.json`, Choice items from each regulation's item list).
 7. ~~**P5 — held items.**~~ Done, for Mega stones.
 
 ---

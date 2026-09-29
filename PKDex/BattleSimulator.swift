@@ -356,6 +356,9 @@ enum BattleMoveEffects {
     static let secondaryEffects: [String: SecondaryEffect] = data.secondaryEffects
     /// ALWAYS-on self stat changes after a damaging hit (not probabilistic).
     static let selfStatChangesOnHit: [String: [(Nature.StatKey, Int)]] = data.selfStatChangesOnHit
+    /// Setup moves (stat boosts and the like). The Champions validator flags
+    /// one on a set holding a Choice item.
+    static let setupMoves: Set<String> = data.setupMoves
 }
 
 /// Encoded secondary effect for a damaging move. `chance` is the printed percent;

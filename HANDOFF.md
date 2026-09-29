@@ -243,12 +243,12 @@ From the recent PRs, each also noted in its description:
 Roughly in order of value for effort.
 
 1. **Data compartmentalization.** [`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md)
-   lists seven migrations of game data into JSON. Reading each regulation's
-   `rules` block (P1), the Battle Sim's move tables (P2), the Mega forms
-   (P4), Mega stones as held items (P5) and storing a set's Tera type (P7)
-   are done; see the plan for what each covers and leaves. Left: P3, the
-   type chart, and P6, the validator's setup-move list. Its line numbers
-   date from June.
+   lists seven migrations of game data into JSON. All but P3, the type
+   chart, are done: each regulation's `rules` block (P1), the Battle Sim's
+   move tables (P2), the Mega forms (P4), Mega stones as held items (P5),
+   the validator's setup moves and Choice items (P6) and a set's Tera type
+   (P7). See the plan for what each covers and leaves. The type chart
+   rarely changes, so P3 is low value. Its line numbers date from June.
 2. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last

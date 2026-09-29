@@ -38,6 +38,7 @@ struct BattleMovesData {
     var multiHitFallback: [String: (Int, Int)] = [:]
     var secondaryEffects: [String: SecondaryEffect] = [:]
     var selfStatChangesOnHit: [String: [(Nature.StatKey, Int)]] = [:]
+    var setupMoves: Set<String> = []
 
     enum LoadError: Error, Equatable {
         /// A value in `table` (at `key`) isn't one of the engine's names.
@@ -127,6 +128,7 @@ struct BattleMovesData {
         out.selfStatChangesOnHit = try file.selfStatChangesOnHit.mapKeyed { key, stages in
             try Self.stages(stages, table: "self_stat_changes_on_hit", key: key)
         }
+        out.setupMoves = Set(file.setupMoves)
         return out
     }
 
@@ -206,6 +208,7 @@ nonisolated private struct BattleMovesFile: Decodable, Sendable {
     let multiHitFallback: [String: [Int]]
     let secondaryEffects: [String: Secondary]
     let selfStatChangesOnHit: [String: [[StatOrStages]]]
+    let setupMoves: [String]
 
     struct StatChange: Decodable, Sendable {
         let target: String
