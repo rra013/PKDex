@@ -549,42 +549,48 @@ nonisolated struct HeldItem: RawRepresentable, Hashable, CaseIterable, Identifia
         rawValue.hasSuffix("Berry")
     }
 
-    /// The held-item list to show in an item picker for a given species.
-    ///
-    /// Behavior:
-    /// - With a `speciesName`, the species' own Mega Stone(s) are surfaced at
-    ///   the top of the list and *every other* Mega Stone is hidden, so the
-    ///   picker doesn't drown the user in 70+ irrelevant stones.
-    /// - With `nil` (no species selected), returns the full `allCases` —
-    ///   matches the pre-filter behavior so item-browsing screens still work.
-    /// - Rayquaza (and any other Mega trigger that's not stone-gated) shows
-    ///   zero Mega Stones, which is correct: it Mega-evolves via Dragon
-    ///   Ascent, not a held item.
-    /// Items that don't exist in the Champions format and aren't modeled by the
-    /// vendored `champions.ts` damage pipeline — hidden from the calc's picker so
-    /// the selection stays true to the format. (The enum cases remain for the
-    /// Battle Simulator and saved-team data.)
+    /// Items that don't exist in the Champions format and that the vendored
+    /// `champions.ts` damage pipeline doesn't model. Champions-mode pickers
+    /// leave them out; the mainline engine does model them.
     static let nonChampionsItems: Set<HeldItem> = [
         .choiceBand, .choiceSpecs, .assaultVest, .eviolite, .thickClub,
     ]
 
-    static func pickerOptions(forSpeciesNamed speciesName: String?) -> [HeldItem] {
+    /// The items to offer in a set's item picker.
+    ///
+    /// - With a species, its own Mega stones come first and every other
+    ///   stone is left out, so the list isn't 86 irrelevant stones. Rayquaza,
+    ///   which Mega Evolves by Dragon Ascent, gets none. With no species,
+    ///   every stone is listed.
+    /// - In Champions mode, `nonChampionsItems` are left out.
+    /// - `current`, the item the set holds, is always listed, even if the
+    ///   rules above would leave it out (a set pasted or saved in another
+    ///   mode), so a picker never shows a blank selection.
+    static func pickerOptions(forSpeciesNamed speciesName: String?, championsMode: Bool,
+                              keeping current: HeldItem = .none) -> [HeldItem] {
+        func offered(_ item: HeldItem) -> Bool {
+            !(championsMode && nonChampionsItems.contains(item))
+        }
         guard let name = speciesName else {
-            return HeldItem.allCases.filter { !nonChampionsItems.contains($0) }
+            return allCases.filter { offered($0) || $0 == current }
         }
         let key = BattleSimSeed.normalize(name)
-        let relevantStones: [HeldItem] = MegaForms.all
+        let ownStones = MegaForms.all
             .filter { $0.speciesKey == key }
             .compactMap { $0.stone }
-        let relevantSet = Set(relevantStones)
-        var result: [HeldItem] = relevantStones
-        for item in HeldItem.allCases {
-            if relevantSet.contains(item) { continue }
-            if item.isMegaStone { continue }
-            if nonChampionsItems.contains(item) { continue }
-            result.append(item)
+        var result = ownStones
+        for item in allCases where !ownStones.contains(item) {
+            if item == current || (!item.isMegaStone && offered(item)) {
+                result.append(item)
+            }
         }
         return result
+    }
+
+    /// The item's name in a picker. In Champions mode, an item the calc
+    /// ignores says so, since a set can still hold one.
+    func pickerLabel(championsMode: Bool) -> String {
+        championsMode && Self.nonChampionsItems.contains(self) ? "\(rawValue) (not in Champions)" : rawValue
     }
 }
 

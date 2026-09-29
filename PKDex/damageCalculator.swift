@@ -1171,8 +1171,10 @@ private struct SideCard: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Item").font(.caption).foregroundStyle(.secondary)
                         Picker("Item", selection: $side.heldItem) {
-                            ForEach(HeldItem.pickerOptions(forSpeciesNamed: pkmn.name)) { item in
-                                Text(item.rawValue).tag(item)
+                            ForEach(HeldItem.pickerOptions(forSpeciesNamed: pkmn.name,
+                                                           championsMode: side.championsMode,
+                                                           keeping: side.heldItem)) { item in
+                                Text(item.pickerLabel(championsMode: side.championsMode)).tag(item)
                             }
                         }
                         .labelsHidden()
