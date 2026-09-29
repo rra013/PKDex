@@ -433,7 +433,11 @@ private struct TabSettingsView: View {
                 }
                 .onMove { layout.move(fromOffsets: $0, toOffset: $1) }
             } footer: {
+                #if os(iOS)
                 Text("Tap Reorder, then drag tabs to change the order. With more than five tabs, iPhone and narrow iPad windows show the first four in the tab bar and the rest under More. Settings always comes last, and at least one other tab stays shown. The tab bar updates when you leave this page.")
+                #else
+                Text("Drag tabs to change their order in the sidebar. At least one tab stays shown.")
+                #endif
             }
         }
         #if os(iOS)

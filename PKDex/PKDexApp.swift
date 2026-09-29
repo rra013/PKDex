@@ -53,11 +53,27 @@ struct PokedexApp: App {
                     await performStartupSync()
                 }
                 #if DEBUG && os(macOS)
-                .task { await DebugSnapshot.runFromLaunchArguments() }
+                .modifier(DebugSnapshot.LaunchArguments())
                 #endif
         }
+        #if os(macOS)
+        .defaultSize(width: 1280, height: 820)
+        #endif
         #if DEBUG && os(macOS)
         .commands { DebugSnapshot.Commands() }
+        #endif
+
+        #if os(macOS)
+        // The standard Settings window (⌘,), in place of iOS's Settings tab.
+        Settings {
+            SettingsView()
+                .formStyle(.grouped)
+                .frame(minWidth: 520, minHeight: 480)
+                .modifier(AppearanceSettings())
+                .modelContainer(container)
+        }
+        .defaultSize(width: 580, height: 700)
+        .windowResizability(.contentMinSize)
         #endif
     }
     

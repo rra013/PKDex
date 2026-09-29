@@ -36,6 +36,7 @@ struct TeamListView: View {
     private var wideBody: some View {
         NavigationSplitView {
             listColumn(selection: $selectedTeam)
+                .listColumnWidth()
         } detail: {
             NavigationStack {
                 if let selectedTeam {

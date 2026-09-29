@@ -40,6 +40,7 @@ struct SetListView: View {
     private var wideBody: some View {
         NavigationSplitView {
             listColumn(selection: $selectedSpread)
+                .listColumnWidth()
         } detail: {
             NavigationStack {
                 if let selectedSpread {

@@ -101,13 +101,17 @@ The Showdown damage port has its own data (`showdown-champions-data.json`);
    `.leaveWarning(condition ? "What would be lost." : nil)` to its `body`.
 4. Lay it out with `cardPage()`, `CardStack` and `SectionCard`, and use
    `.primaryAction` for its main button.
+5. If it has a list/detail `NavigationSplitView`, add `.listColumnWidth()` to
+   the list column, so the Mac, where it sits beside the app's sidebar,
+   gives it room.
 
 **Adding a setting**
 1. Add a `SettingKey` to `AppSettings`.
 2. Add its name and default to `AppSettingsTests` (the names are pinned:
    renaming one resets that setting for everyone).
-3. If it changes how many views draw, read it once in `ContentView` and pass
-   it through `EnvironmentValues`, as `density` does.
+3. If it changes how many views draw, read it in `AppearanceSettings`
+   (`ContentView.swift`) and pass it through `EnvironmentValues`, as
+   `density` does. That modifier also dresses the Mac's Settings window.
 
 **Adding a Battle Sim move effect**: add the move to the right table in
 `PKDex/battle_moves.json` (its `notes` say what each holds), keyed by its
@@ -260,8 +264,9 @@ xcodebuild build -project PKDex.xcodeproj -scheme PKDex -destination 'platform=m
   The picture lands in
   `~/Library/Containers/yukisoft.PKReference/Data/Library/Caches/Snapshots/`.
   For a screen reached by hand, Debug › Save Window Snapshot (⇧⌘S) saves
-  one there too. Glass controls such as search fields come out as blank
-  white shapes, and web views as blank areas.
+  one there too. Glass comes out blank: the app's sidebar, and search
+  fields. So do web views, and sidebar-style lists draw their text dimmer
+  than on screen. For those, ask the owner for a screenshot.
 
 ---
 
@@ -312,14 +317,16 @@ Roughly in order of value for effort.
    `mac-main`, with a PR into it per step; merge `main` into it as `main`
    moves, and `mac-main` into `main` once the Mac app is ready.
    1. Builds and runs. Done: iOS-only APIs guarded, Mac entitlements.
-   2. App shell: a sidebar instead of the tab bar and More; Settings as the
-      ⌘, window; a default and minimum window size (it opens at 900×450 and
-      can't be zoomed, so the tabs overflow into `»`); menu commands.
+   2. App shell. Done: the tabs in a sidebar (`.sidebarAdaptable`), with no
+      More list; Settings as the ⌘, window; a 1280×820 default window, at
+      least 900×600; wider list columns in split-view tabs. The sidebar
+      itself hasn't been seen, since snapshots can't draw glass.
    3. Screen pass: every sheet needs a visible Done or Cancel (Mac sheets
       can't be swiped away), toolbars, and edit-mode stand-ins. The calc's
-      Load Spread sheet has no way to delete on the Mac yet, Arrange Tabs'
-      footer still says "Tap Reorder", and segmented pickers repeat their
-      label beside the caption above them (the calc's Weather and Terrain).
+      Load Spread sheet has no way to delete on the Mac yet, and segmented
+      pickers repeat their label beside the caption above them (the calc's
+      Weather and Terrain). Menu commands and shortcuts: switching tabs,
+      paste import, Find.
    4. Developer ID signing, the hardened runtime, notarization, and releases
       on GitHub, with the tagged source for the GPL. Optionally Sparkle for
       updates.
