@@ -105,10 +105,16 @@ A move that needs new behavior needs code; the dispatch lists for those
 stat or key.
 
 **Adding a Mega Evolution**: add a line to `PKDex/mega_forms.json` (its
-`about` field explains each key). If its stone is new, also add a
-`HeldItem` case whose raw value is the stone's name; `MegaFormsTests`
-fails until every stone matches one. For a Champions regulation, the
+`about` field explains each key). Its stone becomes a held item from that
+line; there's nothing to add in Swift. For a Champions regulation, the
 stone also needs to be in that regulation's `mega_stones` and item list.
+
+**Adding a held item** (not a Mega stone): items have effects, so this is
+code. In `PokemonStatsModels.swift`, add a `static let` to `HeldItem` and
+put it in `HeldItem.builtIns`, in picker order; then implement its effect
+where the others are (`computeItemModifiers`, the Battle Sim). A 1.2×
+type item or a resist berry only needs an entry in `typeBoostingItemMap`
+or `typeResistBerryMap`.
 
 **Adding a color with meaning**: add a case to `ColorRole` with light and
 dark values. `ColorRoleTests` fails until both clear 4.5:1 contrast, and
@@ -239,9 +245,10 @@ Roughly in order of value for effort.
 1. **Data compartmentalization.** [`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md)
    lists seven migrations of game data into JSON. Reading each regulation's
    `rules` block (P1), the Battle Sim's move tables (P2), the Mega forms
-   (P4) and storing a set's Tera type (P7) are done; see the plan for what
-   each covers and leaves. Next in its suggested order is P3, the type
-   chart. Its line numbers date from June.
+   (P4), Mega stones as held items (P5) and storing a set's Tera type (P7)
+   are done; see the plan for what each covers and leaves. Left: P3, the
+   type chart, and P6, the validator's setup-move list. Its line numbers
+   date from June.
 2. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last
