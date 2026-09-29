@@ -5211,7 +5211,7 @@ private struct TeamPickerCard: View {
     }
 
     private var selectedTitle: String {
-        teams.first { $0.persistentModelID == selectedID }.map(Self.title) ?? "Select a team…"
+        teams.first { $0.persistentModelID == selectedID }.map { Self.title(for: $0) } ?? "Select a team…"
     }
 
     var body: some View {
