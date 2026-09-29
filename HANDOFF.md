@@ -140,12 +140,18 @@ both sides' light and dark values. `ColorRoleTests` holds each pair to the
 same contrast rules, and checks its sides stay apart from each other and
 from the ability and item colors.
 
-**Adding a note inside `PKDex/`**: the folder is synced, so Xcode copies
-every file in it into the app. Add a developer note to the "Exceptions for
-PKDex folder" list in the target's file membership (Xcode's File inspector,
-or `membershipExceptions` in `project.pbxproj`), as `AbilityReference.md`,
-`CompartmentalizationPlan.md` and `ShowdownPort-NOTES.md` are. Or keep notes
-at the repository root.
+**Adding a note or build input inside `PKDex/`**: the folder is synced, so
+Xcode copies every file in it into the app. Add a file the app doesn't
+read to the "Exceptions for PKDex folder" list in the target's file
+membership (Xcode's File inspector, or `membershipExceptions` in
+`project.pbxproj`), as the developer notes and PokéFinder's generator
+inputs are. The list takes files, not folders: a folder path is ignored.
+Or keep notes at the repository root.
+
+PokéFinder's `Core/Resources/embed.py` compiles its `i18n/*.txt` and
+`Personal/*.bin` into `i18n.hpp` and `Personal.hpp`, which the app builds
+from. Those inputs, the scripts and `Core/External/CMakeLists.txt` are
+excluded; a new file in those folders needs adding to the list too.
 
 ---
 
@@ -273,12 +279,7 @@ Roughly in order of value for effort.
 3. **Gen 9 in the Showdown port.** Only Champions is ported; other
    generations use the legacy engine, and `calculateShowdown` stops with a
    clear error for them. See [`PKDex/ShowdownPort-NOTES.md`](PKDex/ShowdownPort-NOTES.md).
-4. **Build scripts in the app.** PokéFinder's resource scripts
-   (`PKDex/Core/Resources/embed.py`, `Resources/Embed/embed_*.py`) and
-   `Core/External/CMakeLists.txt` are copied into the app bundle, for the same
-   synced-folder reason. They're harmless; excluding them the same way would
-   tidy the bundle.
-5. **App Store.** Blocked on the GPL until PokéFinder's authors give
+4. **App Store.** Blocked on the GPL until PokéFinder's authors give
    permission, or the RNG core is rewritten per
    [`RNGRewrite-PLAN.md`](RNGRewrite-PLAN.md) (on hold).
 
