@@ -3830,7 +3830,9 @@ struct FinderRootView: View {
             .padding()
         }
         .scrollDismissesKeyboard(.interactively)
+        #if os(iOS)
         .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+        #endif
         .navigationDestination(item: $selectedResult) { result in
             SeedToTimeView(result: result, generation: generation,
                            tid: tid, sid: sid, method: method) { seed in
@@ -4398,7 +4400,9 @@ struct FinderRootView: View {
                     Text("Range: \u{00B1}")
                         .font(.caption)
                     TextField("200", value: $flipSearchRange, format: .number)
+                        #if os(iOS)
                         .keyboardType(.numberPad)
+                        #endif
                         .textFieldStyle(.roundedBorder)
                         .scaledWidth(80)
                         .font(.caption)
@@ -4523,7 +4527,9 @@ struct FinderRootView: View {
                     Text("Range: \u{00B1}")
                         .font(.caption)
                     TextField("200", value: $callSearchRange, format: .number)
+                        #if os(iOS)
                         .keyboardType(.numberPad)
+                        #endif
                         .textFieldStyle(.roundedBorder)
                         .scaledWidth(80)
                         .font(.caption)

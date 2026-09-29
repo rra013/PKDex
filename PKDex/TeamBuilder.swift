@@ -166,7 +166,9 @@ private struct NewTeamSheet: View {
         NavigationStack {
             TeamEditorContent(name: $name, slots: $slots, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
                 .navigationTitle("New Team")
+                #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
+                #endif
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
@@ -269,7 +271,9 @@ struct TeamDetailView: View {
     var body: some View {
         TeamEditorContent(name: $name, slots: $slots, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
             .navigationTitle(team.name)
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .navigationBarBackButtonHidden(hasChanges)
             .toolbar {
                 if hasChanges {
@@ -383,7 +387,9 @@ private struct TeamEditorContent: View {
             .padding()
         }
         .scrollDismissesKeyboard(.interactively)
+        #if os(iOS)
         .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+        #endif
         .cardPage()
         .sheet(isPresented: $showAddSlot) {
             AddSlotSheet(slots: $slots, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
@@ -513,7 +519,9 @@ private struct AddSlotSheet: View {
                 }
             }
             .navigationTitle("Add Set to Team")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }

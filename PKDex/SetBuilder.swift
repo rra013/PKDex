@@ -232,7 +232,9 @@ struct NewSetSheet: View {
         NavigationStack {
             SetFormContent(name: $name, side: side, allPokemon: allPokemon, allMoves: allMoves)
                 .navigationTitle("New Set")
+                #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
+                #endif
                 .toolbar {
                     ToolbarItem(placement: .principal) {
                         SetPredictorButton(initialSpecies: side.pokemon?.name) { generated in
@@ -368,7 +370,9 @@ struct SetEditorView: View {
     var body: some View {
         SetFormContent(name: $name, side: side, allPokemon: allPokemon, allMoves: allMoves)
             .navigationTitle(spread.name)
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .navigationBarBackButtonHidden(hasChanges)
             .toolbar {
                 if hasChanges {

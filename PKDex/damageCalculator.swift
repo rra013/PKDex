@@ -603,7 +603,9 @@ struct DamageCalculatorView: View {
                 .padding()
             }
             .scrollDismissesKeyboard(.interactively)
+            #if os(iOS)
             .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+            #endif
             .navigationTitle("Damage Calc")
             .cardPage()
             .onAppear {
@@ -964,7 +966,12 @@ private struct SideCard: View {
             let text = set.showdownText()
             Menu {
                 Button {
+                    #if os(iOS)
                     UIPasteboard.general.string = text
+                    #else
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(text, forType: .string)
+                    #endif
                 } label: {
                     Label("Copy Paste", systemImage: "doc.on.doc")
                 }
@@ -1583,7 +1590,9 @@ private struct SaveSpreadSheet: View {
                 }
             }
             .navigationTitle("Save Spread")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { isPresented = false }
@@ -1672,11 +1681,15 @@ private struct LoadSpreadSheet: View {
                 }
             }
             .navigationTitle("Load Spread")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .primaryAction) {
                     EditButton()
                 }
+                #endif
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { isPresented = false }
                 }
