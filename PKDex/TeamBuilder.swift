@@ -39,7 +39,10 @@ struct TeamListView: View {
         } detail: {
             NavigationStack {
                 if let selectedTeam {
+                    // A new page for each team: it loads the team once, so a
+                    // reused one kept showing the first team.
                     TeamDetailView(team: selectedTeam, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+                        .id(selectedTeam.persistentModelID)
                 } else {
                     ContentUnavailableView {
                         Label("Select a Team", systemImage: "sidebar.left")
