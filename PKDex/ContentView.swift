@@ -20,6 +20,19 @@ extension EnvironmentValues {
     var isWideLayout: Bool { horizontalSizeClass == .regular }
 }
 
+extension View {
+    /// The list column of a tab's split view. On the Mac it sits beside the
+    /// app's sidebar, whose default column width truncates names and wraps
+    /// badges; iOS keeps its own width.
+    func listColumnWidth() -> some View {
+        #if os(macOS)
+        navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 440)
+        #else
+        self
+        #endif
+    }
+}
+
 // MARK: - App Tab Definition
 
 enum AppTab: String, CaseIterable, Identifiable {
@@ -107,16 +120,39 @@ enum AppAppearance: String, CaseIterable, Identifiable {
     }
 }
 
-struct ContentView: View {
-    @AppStorage(AppSettings.tabOrder) private var tabOrderRaw: String
-    @AppStorage(AppSettings.hiddenTabs) private var hiddenTabsRaw: String
-    @AppStorage(AppSettings.defaultTab) private var defaultTabRaw: String
+/// The viewer's appearance settings, applied to a window's content: the
+/// main window, and on the Mac the Settings window too.
+struct AppearanceSettings: ViewModifier {
     @AppStorage(AppSettings.accentColor) private var accentColorRaw: String
     @AppStorage(AppSettings.appearance) private var appearanceRaw: String
     @AppStorage(AppSettings.typeBadgeStyle) private var typeBadgeStyle: TypeBadgeStyle
     @AppStorage(AppSettings.matchupColors) private var matchupColors: MatchupColors
     @AppStorage(AppSettings.density) private var density: Density
     @AppStorage(AppSettings.typeBackgrounds) private var typeBackgrounds: Bool
+
+    private var accentColor: Color {
+        (AppAccentColor(rawValue: accentColorRaw) ?? .blue).color
+    }
+
+    private var appearance: ColorScheme? {
+        (AppAppearance(rawValue: appearanceRaw) ?? .system).colorScheme
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .tint(accentColor)
+            .preferredColorScheme(appearance)
+            .environment(\.typeBadgeStyle, typeBadgeStyle)
+            .environment(\.matchupColors, matchupColors)
+            .environment(\.density, density)
+            .environment(\.typeBackgrounds, typeBackgrounds)
+    }
+}
+
+struct ContentView: View {
+    @AppStorage(AppSettings.tabOrder) private var tabOrderRaw: String
+    @AppStorage(AppSettings.hiddenTabs) private var hiddenTabsRaw: String
+    @AppStorage(AppSettings.defaultTab) private var defaultTabRaw: String
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     /// The arrangement the tab bar shows. It follows the stored one, except
@@ -160,22 +196,26 @@ struct ContentView: View {
         }
     }
 
-    /// The tabs in the bar and in the More list, if there is one.
+    /// The tabs in the bar and in the More list, if there is one. On the
+    /// Mac, the tabs are in a sidebar and Settings is its own window.
     private static func split(of layout: TabLayout, moreList: Bool) -> (bar: [AppTab], more: [AppTab]) {
+        #if os(macOS)
+        (layout.visible, [])
+        #else
         moreList ? layout.compactSplit : (layout.visible + [.settings], [])
-    }
-
-    private var accentColor: Color {
-        (AppAccentColor(rawValue: accentColorRaw) ?? .blue).color
-    }
-
-    private var appearance: ColorScheme? {
-        (AppAppearance(rawValue: appearanceRaw) ?? .system).colorScheme
+        #endif
     }
 
     var body: some View {
         let split = Self.split(of: shownLayout, moreList: showsMoreList)
         TabView(selection: $selectedTab) {
+            #if os(macOS)
+            ForEach(split.bar) { tab in
+                Tab(tab.label, systemImage: tab.icon, value: RootTab.tab(tab)) {
+                    tabContent(for: tab)
+                }
+            }
+            #else
             ForEach(split.bar) { tab in
                 tabContent(for: tab)
                     .tabItem { Label(tab.label, systemImage: tab.icon) }
@@ -186,13 +226,17 @@ struct ContentView: View {
                     .tabItem { Label("More", systemImage: "ellipsis") }
                     .tag(RootTab.more)
             }
+            #endif
         }
-        .tint(accentColor)
-        .preferredColorScheme(appearance)
-        .environment(\.typeBadgeStyle, typeBadgeStyle)
-        .environment(\.matchupColors, matchupColors)
-        .environment(\.density, density)
-        .environment(\.typeBackgrounds, typeBackgrounds)
+        #if os(macOS)
+        .tabViewStyle(.sidebarAdaptable)
+        .frame(minWidth: 900, minHeight: 600)
+        // Forms were laid out for iOS's grouped sections. The Mac's default
+        // puts labels and controls in two columns, which pushed the Set
+        // Editor's rows off the side of the window.
+        .formStyle(.grouped)
+        #endif
+        .modifier(AppearanceSettings())
         .environment(\.isArrangingTabs, $isArrangingTabs)
         .onChange(of: tabOrderRaw) { applyStoredLayout() }
         .onChange(of: hiddenTabsRaw) { applyStoredLayout() }
@@ -338,6 +382,7 @@ private struct PokedexTab: View {
     private var wideBody: some View {
         NavigationSplitView {
             indexColumn(selection: $selectedMon)
+                .listColumnWidth()
         } detail: {
             NavigationStack {
                 if let selectedMon {

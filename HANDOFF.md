@@ -101,13 +101,17 @@ The Showdown damage port has its own data (`showdown-champions-data.json`);
    `.leaveWarning(condition ? "What would be lost." : nil)` to its `body`.
 4. Lay it out with `cardPage()`, `CardStack` and `SectionCard`, and use
    `.primaryAction` for its main button.
+5. If it has a list/detail `NavigationSplitView`, add `.listColumnWidth()` to
+   the list column, so the Mac, where it sits beside the app's sidebar,
+   gives it room.
 
 **Adding a setting**
 1. Add a `SettingKey` to `AppSettings`.
 2. Add its name and default to `AppSettingsTests` (the names are pinned:
    renaming one resets that setting for everyone).
-3. If it changes how many views draw, read it once in `ContentView` and pass
-   it through `EnvironmentValues`, as `density` does.
+3. If it changes how many views draw, read it in `AppearanceSettings`
+   (`ContentView.swift`) and pass it through `EnvironmentValues`, as
+   `density` does. That modifier also dresses the Mac's Settings window.
 
 **Adding a Battle Sim move effect**: add the move to the right table in
 `PKDex/battle_moves.json` (its `notes` say what each holds), keyed by its
@@ -247,6 +251,30 @@ xcodebuild build -project PKDex.xcodeproj -scheme PKDex -destination 'platform=m
 - The iOS background colors the views name (`systemGroupedBackground` and
   three others) are defined for `NSColor` in `Theme.swift`, with iOS's
   values.
+- **Checking Mac screens: use the app's own snapshots, not screen capture.**
+  Debug Mac builds save a picture of their window without Screen Recording
+  permission (`DebugSnapshot.swift`). Launch arguments pick the screen, and
+  settings passed the same way apply to that run only:
+
+  ```bash
+  open -g -n -W <path>/PKDex.app --args -debugSnapshot calc -debugSnapshotQuit YES \
+    -defaultTab damageCalc -appAppearance light -debugWindowSize 1280x800
+  ```
+
+  The picture lands in
+  `~/Library/Containers/yukisoft.PKReference/Data/Library/Caches/Snapshots/`.
+  `-debugOpenFirst YES` opens the first set in Sets, for the Set Editor.
+  `-debugOpenSettings YES` opens Settings too, saved as `<name>-Settings.png`.
+  For a screen reached by hand, Debug › Save Window Snapshot (⇧⌘S) saves
+  one there too, and plays a sound.
+- **If every Mac window opens blank**, a layout blew up once and the window
+  saved it as its sidebar's divider position (widths in the billions under
+  `NSSplitView Subview Frames` in the app's preferences). Delete those
+  entries with `defaults delete` on the container's preferences file.
+  Opening an already-running app doesn't reload it: quit it first to try a
+  new build. Glass comes out blank: the app's sidebar, and search
+  fields. So do web views, and sidebar-style lists draw their text dimmer
+  than on screen. For those, ask the owner for a screenshot.
 
 ---
 
@@ -297,13 +325,18 @@ Roughly in order of value for effort.
    `mac-main`, with a PR into it per step; merge `main` into it as `main`
    moves, and `mac-main` into `main` once the Mac app is ready.
    1. Builds and runs. Done: iOS-only APIs guarded, Mac entitlements.
-   2. App shell: a sidebar instead of the tab bar and More; Settings as the
-      ⌘, window; a default and minimum window size (it opens at 900×450 and
-      can't be zoomed, so the tabs overflow into `»`); menu commands.
+   2. App shell. Done: the tabs in a sidebar (`.sidebarAdaptable`), with no
+      More list; Settings as the ⌘, window; a 1280×820 default window, at
+      least 900×600; wider list columns in split-view tabs. The sidebar
+      itself hasn't been seen, since snapshots can't draw glass.
    3. Screen pass: every sheet needs a visible Done or Cancel (Mac sheets
       can't be swiped away), toolbars, and edit-mode stand-ins. The calc's
-      Load Spread sheet has no way to delete on the Mac yet, and Arrange
-      Tabs' footer still says "Tap Reorder".
+      Load Spread sheet has no way to delete on the Mac yet, and segmented
+      pickers repeat their label beside the caption above them (the calc's
+      Weather and Terrain). In the Set Editor, text fields show their
+      placeholder as a label (the set name, the moves, "Lv"), and there's an
+      empty band between the list and the form. Menu commands and
+      shortcuts: switching tabs, paste import, Find.
    4. Developer ID signing, the hardened runtime, notarization, and releases
       on GitHub, with the tagged source for the GPL. Optionally Sparkle for
       updates.

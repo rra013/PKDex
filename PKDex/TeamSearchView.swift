@@ -24,6 +24,7 @@ struct TeamSearchView: View {
         if hSize == .regular {
             NavigationSplitView {
                 screen(selection: $selection)
+                    .listColumnWidth()
             } detail: {
                 NavigationStack {
                     if let composition = model.results.first(where: { $0.id == selection }) {
