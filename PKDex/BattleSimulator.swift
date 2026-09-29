@@ -4934,6 +4934,7 @@ struct BattleSimulatorView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
 
             Toggle(isOn: $championsFormat) {
                 Label("Champions Regulation", systemImage: "trophy")

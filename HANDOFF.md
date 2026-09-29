@@ -101,9 +101,16 @@ The Showdown damage port has its own data (`showdown-champions-data.json`);
    `.leaveWarning(condition ? "What would be lost." : nil)` to its `body`.
 4. Lay it out with `cardPage()`, `CardStack` and `SectionCard`, and use
    `.primaryAction` for its main button.
-5. If it has a list/detail `NavigationSplitView`, add `.listColumnWidth()` to
-   the list column, so the Mac, where it sits beside the app's sidebar,
-   gives it room.
+5. For a list beside the selected item's page in wide layouts, use
+   `ListDetailSplit { list } detail: { page }` (`ContentView.swift`), not a
+   `NavigationSplitView`. On iOS it is one; on the Mac, a split view inside
+   the app's sidebar pushed its page right by the sidebar's width a second
+   time, so there it's a resizable split in the tab's navigation stack.
+6. In a form, give a text field a title and put its example in `prompt:`,
+   with `.labelsHidden()` if a header or label already names it: a Mac form
+   shows the title as a label beside the field. Segmented pickers get
+   `.labelsHidden()` too; iOS never shows their label, and on the Mac it
+   repeated the caption above them.
 
 **Adding a setting**
 1. Add a `SettingKey` to `AppSettings`.

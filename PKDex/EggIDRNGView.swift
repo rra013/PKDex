@@ -72,6 +72,7 @@ struct EggRNGView: View {
                     ForEach(FinderGeneration.allCases) { g in Text(g.rawValue).tag(g) }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
                 .onChange(of: generation) {
                     let games = FinderGameVersion.games(for: generation)
                     if !games.contains(selectedGame) { selectedGame = games[0] }
@@ -437,6 +438,7 @@ struct IDRNGView: View {
                     ForEach(FinderGeneration.allCases) { g in Text(g.rawValue).tag(g) }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
                 .onChange(of: generation) {
                     let games = FinderGameVersion.games(for: generation)
                     if !games.contains(selectedGame) { selectedGame = games[0] }
@@ -542,6 +544,7 @@ struct IDRNGView: View {
             Text("Searcher").tag(1)
         }
         .pickerStyle(.segmented)
+        .labelsHidden()
         .onChange(of: gen4Mode) {
             cancelSearch()
             results4 = []

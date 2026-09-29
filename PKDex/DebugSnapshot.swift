@@ -16,8 +16,8 @@
 //            [-debugSnapshotDelay 4] [-debugWindowSize 1280x800] \
 //            [-debugOpenSettings YES] [-debugOpenFirst YES] [-debugSnapshotQuit YES]
 //
-//  `-debugOpenFirst YES` opens the first item of a list/detail tab (Sets),
-//  so its detail screen can be checked.
+//  `-debugOpenFirst YES` opens the first item of a list/detail tab (Mon
+//  Index, Sets, Teams, Team Search), so its detail screen can be checked.
 //
 //  Pictures go to Library/Caches/Snapshots in the app's container
 //  (~/Library/Containers/yukisoft.PKReference/Data/), named for the
@@ -36,8 +36,16 @@ enum DebugSnapshot {
         URL.cachesDirectory.appending(path: "Snapshots", directoryHint: .isDirectory)
     }
 
-    /// Set by `-debugOpenFirst YES`: list/detail tabs open their first item.
-    static var opensFirstItem: Bool { UserDefaults.standard.bool(forKey: "debugOpenFirst") }
+    /// With `-debugOpenFirst YES`, a list/detail tab calls this from a task
+    /// on its split view, and it runs `open` a second later. Selecting
+    /// before the split view has appeared lays it out billions of points
+    /// wide, and the window saves that as its divider position, so it waits
+    /// as a click would.
+    static func openFirstItem(_ open: () -> Void) async {
+        guard UserDefaults.standard.bool(forKey: "debugOpenFirst") else { return }
+        try? await Task.sleep(for: .seconds(1))
+        open()
+    }
 
     private static var mainWindow: NSWindow? {
         NSApp.mainWindow ?? NSApp.windows.first { $0.isVisible && $0.canBecomeMain }

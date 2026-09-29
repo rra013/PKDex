@@ -20,15 +20,32 @@ extension EnvironmentValues {
     var isWideLayout: Bool { horizontalSizeClass == .regular }
 }
 
-extension View {
-    /// The list column of a tab's split view. On the Mac it sits beside the
-    /// app's sidebar, whose default column width truncates names and wraps
-    /// badges; iOS keeps its own width.
-    func listColumnWidth() -> some View {
+/// A tab's list beside the selected item's page, for wide layouts. On iOS,
+/// a split view whose detail has its own navigation stack. The Mac's
+/// sidebar is already a split view, and a split view inside it pushed its
+/// detail's content right by the sidebar's width a second time, leaving an
+/// empty band and running the page off the window. So on the Mac the list
+/// and page share the tab's navigation stack, which sits beside the
+/// sidebar, in a resizable split; a page the detail opens is pushed over
+/// both.
+struct ListDetailSplit<ListColumn: View, Detail: View>: View {
+    @ViewBuilder var list: ListColumn
+    @ViewBuilder var detail: Detail
+
+    var body: some View {
         #if os(macOS)
-        navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 440)
+        TabNavigationStack {
+            HSplitView {
+                list.frame(minWidth: 260, idealWidth: 300, maxWidth: 440)
+                detail.frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
         #else
-        self
+        NavigationSplitView {
+            list
+        } detail: {
+            NavigationStack { detail }
+        }
         #endif
     }
 }
@@ -380,25 +397,29 @@ private struct PokedexTab: View {
     /// Two-pane split for wide layouts: roster list on the left, live detail on
     /// the right (no push/pop — ideal for glancing alongside the game).
     private var wideBody: some View {
-        NavigationSplitView {
+        ListDetailSplit {
             indexColumn(selection: $selectedMon)
-                .listColumnWidth()
         } detail: {
-            NavigationStack {
-                if let selectedMon {
-                    // A new page for each Pokémon, so a form or move search
-                    // chosen on one doesn't carry over to the next.
-                    monIndexDestination(for: selectedMon, filter: activeFilter)
-                        .id(selectedMon.persistentModelID)
-                } else {
-                    ContentUnavailableView {
-                        Label("Select a Pokémon", systemImage: "sidebar.left")
-                    } description: {
-                        Text("Choose a Pokémon from the list to see its details.")
-                    }
+            if let selectedMon {
+                // A new page for each Pokémon, so a form or move search
+                // chosen on one doesn't carry over to the next.
+                monIndexDestination(for: selectedMon, filter: activeFilter)
+                    .id(selectedMon.persistentModelID)
+            } else {
+                ContentUnavailableView {
+                    Label("Select a Pokémon", systemImage: "sidebar.left")
+                } description: {
+                    Text("Choose a Pokémon from the list to see its details.")
                 }
             }
         }
+        #if DEBUG && os(macOS)
+        .task {
+            await DebugSnapshot.openFirstItem {
+                selectedMon = allPokemon.first { activeFilter != .champions || championsRoster.contains($0.name) }
+            }
+        }
+        #endif
         // Drop the selection when the roster changes so the detail pane never
         // shows a mon that isn't in the newly-selected dex/regulation.
         .onChange(of: activeFilter) { _, _ in selectedMon = nil }

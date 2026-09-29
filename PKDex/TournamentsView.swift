@@ -253,6 +253,7 @@ private struct TournamentFilterSheet: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .labelsHidden()
                 }
             }
             .navigationTitle("Filters")
@@ -394,6 +395,7 @@ struct TournamentDetailView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .listRowSeparator(.hidden)
 
             ForEach(filteredStandings) { standing in

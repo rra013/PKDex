@@ -1478,6 +1478,7 @@ private struct ModifiersCard: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
 
                 if vm.weather == .sand {
                     Text("Rock-type defenders get 1.5x Sp.Def in Sand")
@@ -1497,6 +1498,7 @@ private struct ModifiersCard: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
 
                 if vm.terrain == .electric {
                     Text("1.3x Electric moves for grounded Pokemon")

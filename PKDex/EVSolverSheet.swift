@@ -78,6 +78,7 @@ struct EVSolverSheet: View {
                             ForEach(CertaintyChoice.allCases) { Text($0.label).tag($0) }
                         }
                         .pickerStyle(.segmented)
+                        .labelsHidden()
                     }
                 } footer: {
                     Text("Each answer is the fewest EVs that works, using only EVs not already spent in other stats. Other stats keep their current values.")

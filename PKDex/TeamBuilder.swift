@@ -34,25 +34,25 @@ struct TeamListView: View {
     }
 
     private var wideBody: some View {
-        NavigationSplitView {
+        ListDetailSplit {
             listColumn(selection: $selectedTeam)
-                .listColumnWidth()
         } detail: {
-            NavigationStack {
-                if let selectedTeam {
-                    // A new page for each team: it loads the team once, so a
-                    // reused one kept showing the first team.
-                    TeamDetailView(team: selectedTeam, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
-                        .id(selectedTeam.persistentModelID)
-                } else {
-                    ContentUnavailableView {
-                        Label("Select a Team", systemImage: "sidebar.left")
-                    } description: {
-                        Text("Choose a team from the list to see its coverage.")
-                    }
+            if let selectedTeam {
+                // A new page for each team: it loads the team once, so a
+                // reused one kept showing the first team.
+                TeamDetailView(team: selectedTeam, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+                    .id(selectedTeam.persistentModelID)
+            } else {
+                ContentUnavailableView {
+                    Label("Select a Team", systemImage: "sidebar.left")
+                } description: {
+                    Text("Choose a team from the list to see its coverage.")
                 }
             }
         }
+        #if DEBUG && os(macOS)
+        .task { await DebugSnapshot.openFirstItem { selectedTeam = savedTeams.first } }
+        #endif
     }
 
     @ViewBuilder
