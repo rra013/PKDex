@@ -52,7 +52,13 @@ struct PokedexApp: App {
                     // Trigger the private helper function
                     await performStartupSync()
                 }
+                #if DEBUG && os(macOS)
+                .task { await DebugSnapshot.runFromLaunchArguments() }
+                #endif
         }
+        #if DEBUG && os(macOS)
+        .commands { DebugSnapshot.Commands() }
+        #endif
     }
     
     private func performStartupSync() async {

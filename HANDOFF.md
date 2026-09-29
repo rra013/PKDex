@@ -247,6 +247,21 @@ xcodebuild build -project PKDex.xcodeproj -scheme PKDex -destination 'platform=m
 - The iOS background colors the views name (`systemGroupedBackground` and
   three others) are defined for `NSColor` in `Theme.swift`, with iOS's
   values.
+- **Checking Mac screens: use the app's own snapshots, not screen capture.**
+  Debug Mac builds save a picture of their window without Screen Recording
+  permission (`DebugSnapshot.swift`). Launch arguments pick the screen, and
+  settings passed the same way apply to that run only:
+
+  ```bash
+  open -g -n -W <path>/PKDex.app --args -debugSnapshot calc -debugSnapshotQuit YES \
+    -defaultTab damageCalc -appAppearance light -debugWindowSize 1280x800
+  ```
+
+  The picture lands in
+  `~/Library/Containers/yukisoft.PKReference/Data/Library/Caches/Snapshots/`.
+  For a screen reached by hand, Debug › Save Window Snapshot (⇧⌘S) saves
+  one there too. Glass controls such as search fields come out as blank
+  white shapes, and web views as blank areas.
 
 ---
 
@@ -302,8 +317,9 @@ Roughly in order of value for effort.
       can't be zoomed, so the tabs overflow into `»`); menu commands.
    3. Screen pass: every sheet needs a visible Done or Cancel (Mac sheets
       can't be swiped away), toolbars, and edit-mode stand-ins. The calc's
-      Load Spread sheet has no way to delete on the Mac yet, and Arrange
-      Tabs' footer still says "Tap Reorder".
+      Load Spread sheet has no way to delete on the Mac yet, Arrange Tabs'
+      footer still says "Tap Reorder", and segmented pickers repeat their
+      label beside the caption above them (the calc's Weather and Terrain).
    4. Developer ID signing, the hardened runtime, notarization, and releases
       on GitHub, with the tagged source for the GPL. Optionally Sparkle for
       updates.
