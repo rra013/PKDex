@@ -171,7 +171,9 @@ struct AcknowledgementsView: View {
             }
         }
         .navigationTitle("Acknowledgements")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }
 
@@ -221,6 +223,8 @@ private struct LicenseTextView: View {
             .padding()
         }
         .navigationTitle(item.name)
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }

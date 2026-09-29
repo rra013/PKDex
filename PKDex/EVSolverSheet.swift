@@ -121,7 +121,9 @@ struct EVSolverSheet: View {
                 }
             }
             .navigationTitle("Solve EVs")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }

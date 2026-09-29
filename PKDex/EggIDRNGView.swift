@@ -187,7 +187,9 @@ struct EggRNGView: View {
             .padding()
         }
         .scrollDismissesKeyboard(.interactively)
+        #if os(iOS)
         .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+        #endif
     }
 
     private func parentSection(label: String,
@@ -489,7 +491,9 @@ struct IDRNGView: View {
             .padding()
         }
         .scrollDismissesKeyboard(.interactively)
+        #if os(iOS)
         .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+        #endif
         .onDisappear { cancelSearch() }
         .leaveWarning(gen4Searching ? "The search in progress will stop." : nil)
     }
@@ -560,15 +564,21 @@ struct IDRNGView: View {
                 Spacer()
                 TextField("Y", value: $gen4Year, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder).scaledWidth(60)
+                    #if os(iOS)
                     .keyboardType(.numberPad)
+                    #endif
                 Text("/")
                 TextField("M", value: $gen4Month, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder).scaledWidth(40)
+                    #if os(iOS)
                     .keyboardType(.numberPad)
+                    #endif
                 Text("/")
                 TextField("D", value: $gen4Day, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder).scaledWidth(40)
+                    #if os(iOS)
                     .keyboardType(.numberPad)
+                    #endif
             }
 
             HStack {
@@ -576,11 +586,15 @@ struct IDRNGView: View {
                 Spacer()
                 TextField("H", value: $gen4Hour, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder).scaledWidth(40)
+                    #if os(iOS)
                     .keyboardType(.numberPad)
+                    #endif
                 Text(":")
                 TextField("M", value: $gen4Minute, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder).scaledWidth(40)
+                    #if os(iOS)
                     .keyboardType(.numberPad)
+                    #endif
             }
 
             gen4FilterSection
@@ -599,7 +613,9 @@ struct IDRNGView: View {
                 Spacer()
                 TextField("", value: $gen4SearchYear, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder).scaledWidth(100).multilineTextAlignment(.trailing)
+                    #if os(iOS)
                     .keyboardType(.numberPad)
+                    #endif
             }
             RNGIntField(label: "Min Delay", value: $gen4SearchMinDelay)
             RNGIntField(label: "Max Delay", value: $gen4SearchMaxDelay)

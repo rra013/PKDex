@@ -172,7 +172,7 @@ nonisolated struct AppleIntelligenceInterpreter: TeamQueryInterpreting {
     }
 
     static func message(for error: Error) -> String {
-        if #available(iOS 27.0, *), let error = error as? LanguageModelError {
+        if #available(iOS 27.0, macOS 27.0, *), let error = error as? LanguageModelError {
             switch error {
             case .contextSizeExceeded: return tooLong
             case .rateLimited: return busy

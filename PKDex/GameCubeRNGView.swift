@@ -192,7 +192,9 @@ struct GameCubeRNGView: View {
             .padding()
         }
         .scrollDismissesKeyboard(.interactively)
+        #if os(iOS)
         .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+        #endif
         .onAppear { loadTemplates() }
         .sheet(isPresented: $showSeedSearcher) {
             NavigationStack {

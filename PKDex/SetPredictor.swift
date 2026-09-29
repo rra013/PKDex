@@ -321,7 +321,9 @@ struct SetPredictorSheet: View {
                         }
                     } else {
                         TextField("Search…", text: $query)
+                            #if os(iOS)
                             .textInputAutocapitalization(.words)
+                            #endif
                         ForEach(filteredSpecies, id: \.self) { name in
                             Button(name) {
                                 selectedSpecies = name
@@ -359,7 +361,9 @@ struct SetPredictorSheet: View {
                 }
             }
             .navigationTitle("Predict Set")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

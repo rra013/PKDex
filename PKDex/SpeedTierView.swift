@@ -582,7 +582,9 @@ private struct SpreadPickerSheet: View {
                 }
             }
             .navigationTitle("Load a Set")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

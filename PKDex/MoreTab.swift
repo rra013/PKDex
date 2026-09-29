@@ -84,13 +84,23 @@ private struct MoreTabPage<Content: View>: View {
 
     private var asksFirst: Bool { warnBeforeLeaving && warning != nil }
 
+    /// Where the system back button sits: the top bar's leading edge on
+    /// iOS, the navigation area of a Mac window's toolbar.
+    private static var backButtonPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .topBarLeading
+        #else
+        .navigation
+        #endif
+    }
+
     var body: some View {
         content
             .onPreferenceChange(LeaveWarningKey.self) { warning = $0 }
             .navigationBarBackButtonHidden(asksFirst)
             .toolbar {
                 if asksFirst {
-                    ToolbarItem(placement: .topBarLeading) {
+                    ToolbarItem(placement: Self.backButtonPlacement) {
                         Button {
                             isAsking = true
                         } label: {

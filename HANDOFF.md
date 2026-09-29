@@ -226,6 +226,28 @@ xcodebuild test -project PKDex.xcodeproj -scheme PKDex \
   line for checks: `xcrun simctl ui <udid> content_size accessibility-large`
   and `xcrun simctl ui <udid> appearance dark`.
 
+The Mac app builds from the same target (on `mac-main` until it merges).
+This signs it to run on this Mac only:
+
+```bash
+xcodebuild build -project PKDex.xcodeproj -scheme PKDex -destination 'platform=macOS' \
+  CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=
+```
+
+- **Wrap iOS-only APIs in `#if os(iOS)`**, or the Mac build fails:
+  `navigationBarTitleDisplayMode`, `keyboardType`,
+  `textInputAutocapitalization`, `UIApplication`, `UIPasteboard`,
+  `EditMode`/`EditButton`, and the `.topBarLeading`/`.topBarTrailing`
+  placements. The compiler reports only the first in each modifier chain, so
+  after fixing one, search the file for the rest.
+- **Mac builds use no entitlements file** (`CODE_SIGN_ENTITLEMENTS[sdk=macosx*]`
+  is empty): the iOS file's increased-memory-limit entitlement doesn't exist
+  on macOS. The sandbox, outgoing-network and user-selected-file
+  entitlements come from the build settings.
+- The iOS background colors the views name (`systemGroupedBackground` and
+  three others) are defined for `NSColor` in `Theme.swift`, with iOS's
+  values.
+
 ---
 
 ## Known limitations
@@ -271,17 +293,31 @@ Roughly in order of value for effort.
    validator's setup moves and Choice items (P6) and a set's Tera type (P7).
    See the plan for what each covers and leaves; what's left are the parts
    of P5 and P7 that need features first (items, Tera, Dynamax).
-2. **Team Search open risks.**
+2. **Mac app, distributed outside the App Store.** Work happens on
+   `mac-main`, with a PR into it per step; merge `main` into it as `main`
+   moves, and `mac-main` into `main` once the Mac app is ready.
+   1. Builds and runs. Done: iOS-only APIs guarded, Mac entitlements.
+   2. App shell: a sidebar instead of the tab bar and More; Settings as the
+      ⌘, window; a default and minimum window size (it opens at 900×450 and
+      can't be zoomed, so the tabs overflow into `»`); menu commands.
+   3. Screen pass: every sheet needs a visible Done or Cancel (Mac sheets
+      can't be swiped away), toolbars, and edit-mode stand-ins. The calc's
+      Load Spread sheet has no way to delete on the Mac yet, and Arrange
+      Tabs' footer still says "Tap Reorder".
+   4. Developer ID signing, the hardened runtime, notarization, and releases
+      on GitHub, with the tagged source for the GPL. Optionally Sparkle for
+      updates.
+3. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last
      regulation's teams" option (keeping only teams legal now) was planned
      but not built.
    - Names Limitless writes that the alias table doesn't know still search,
      but saving a team reports them; a log of them would show the gaps.
-3. **Gen 9 in the Showdown port.** Only Champions is ported; other
+4. **Gen 9 in the Showdown port.** Only Champions is ported; other
    generations use the legacy engine, and `calculateShowdown` stops with a
    clear error for them. See [`PKDex/ShowdownPort-NOTES.md`](PKDex/ShowdownPort-NOTES.md).
-4. **App Store.** Blocked on the GPL until PokéFinder's authors give
+5. **App Store.** Blocked on the GPL until PokéFinder's authors give
    permission, or the RNG core is rewritten per
    [`RNGRewrite-PLAN.md`](RNGRewrite-PLAN.md) (on hold).
 

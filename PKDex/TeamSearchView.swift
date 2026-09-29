@@ -510,7 +510,9 @@ struct CompositionDetailView: View {
             }
         }
         .navigationTitle("Composition")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }
 
