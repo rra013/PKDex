@@ -128,7 +128,9 @@ code. In `PokemonStatsModels.swift`, add a `static let` to `HeldItem` and
 put it in `HeldItem.builtIns`, in picker order; then implement its effect
 where the others are (`computeItemModifiers`, the Battle Sim). A 1.2×
 type item or a resist berry only needs an entry in `typeBoostingItemMap`
-or `typeResistBerryMap`.
+or `typeResistBerryMap`. If the Champions calc doesn't model the item, add
+it to `HeldItem.nonChampionsItems` too: Champions-mode pickers then leave it
+out, and a set already holding it shows it marked "not in Champions".
 
 **Adding a color with meaning**: add a case to `ColorRole` with light and
 dark values. `ColorRoleTests` fails until both clear 4.5:1 contrast, and

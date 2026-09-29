@@ -557,8 +557,10 @@ private struct SetFormContent: View {
                         }
                     }
                     Picker("Item", selection: $side.heldItem) {
-                        ForEach(HeldItem.pickerOptions(forSpeciesNamed: pkmn.name)) { item in
-                            Text(item.rawValue).tag(item)
+                        ForEach(HeldItem.pickerOptions(forSpeciesNamed: pkmn.name,
+                                                       championsMode: side.championsMode,
+                                                       keeping: side.heldItem)) { item in
+                            Text(item.pickerLabel(championsMode: side.championsMode)).tag(item)
                         }
                     }
                 }

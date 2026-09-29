@@ -6,7 +6,8 @@
 //  stone-triggered form in `mega_forms.json` make up every item; names are
 //  unique; an unknown name isn't an item; the item tables only use
 //  built-in items; and the picker puts a species' own stones first and
-//  hides the rest. When the item enum became data-backed (2026-09-28), the
+//  hides the rest, leaves out the items the Champions calc ignores in
+//  Champions mode only, and always lists the item a set holds. When the item enum became data-backed (2026-09-28), the
 //  items, the type tables and every Mega species' picker list were checked
 //  identical to the enum's.
 //
@@ -51,10 +52,39 @@ struct HeldItemTests {
 
     @Test("A species' picker lists its own stones first and no others")
     func pickerStones() {
-        let options = HeldItem.pickerOptions(forSpeciesNamed: "Charizard")
+        let options = HeldItem.pickerOptions(forSpeciesNamed: "Charizard", championsMode: true)
         #expect(options.prefix(2).map(\.rawValue) == ["Charizardite X", "Charizardite Y"])
         #expect(options.filter(\.isMegaStone).count == 2)
-        #expect(HeldItem.pickerOptions(forSpeciesNamed: "Pikachu").allSatisfy { !$0.isMegaStone })
-        #expect(!options.contains(.choiceBand))
+        #expect(HeldItem.pickerOptions(forSpeciesNamed: "Pikachu", championsMode: true)
+            .allSatisfy { !$0.isMegaStone })
+    }
+
+    @Test("Champions mode leaves out the items its calc ignores; mainline lists them")
+    func pickerByMode() {
+        let champions = HeldItem.pickerOptions(forSpeciesNamed: "Heatran", championsMode: true)
+        let mainline = HeldItem.pickerOptions(forSpeciesNamed: "Heatran", championsMode: false)
+        #expect(champions.allSatisfy { !HeldItem.nonChampionsItems.contains($0) })
+        #expect(HeldItem.nonChampionsItems.isSubset(of: Set(mainline)))
+        #expect(mainline.count == champions.count + HeldItem.nonChampionsItems.count)
+    }
+
+    /// A set saved in mainline mode, or pasted, can hold an item the picker
+    /// wouldn't offer; it's listed, once, so the picker isn't blank.
+    @Test("The held item is always listed, once", arguments: [true, false])
+    func pickerKeepsCurrent(championsMode: Bool) {
+        for (species, held) in [("Heatran", HeldItem.choiceSpecs), ("Pikachu", .charizarditeX),
+                                ("Heatran", .leftovers), ("Heatran", .none)] {
+            let options = HeldItem.pickerOptions(forSpeciesNamed: species, championsMode: championsMode,
+                                                 keeping: held)
+            #expect(options.filter { $0 == held }.count == 1, "\(species) holding \(held)")
+            #expect(Set(options).count == options.count)
+        }
+    }
+
+    @Test("An item the Champions calc ignores says so in Champions mode")
+    func pickerLabels() {
+        #expect(HeldItem.choiceSpecs.pickerLabel(championsMode: true) == "Choice Specs (not in Champions)")
+        #expect(HeldItem.choiceSpecs.pickerLabel(championsMode: false) == "Choice Specs")
+        #expect(HeldItem.leftovers.pickerLabel(championsMode: true) == "Leftovers")
     }
 }
