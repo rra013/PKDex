@@ -85,6 +85,12 @@ struct TypeChartTests {
         }
     }
 
+    /// Reported gap, found moving the chart to `type_chart.json`: Bug moves
+    /// were neutral against Poison, which has resisted them since Gen 2.
+    @Test func bugMovesAreResistedByPoisonDefenders() {
+        #expect(computeTypeEffectiveness(moveType: "Bug", defenderTypes: ["Poison"]) == 0.5)
+    }
+
     // MARK: - The data file
 
     @Test("type_chart.json loads all 18 types")
@@ -95,6 +101,22 @@ struct TypeChartTests {
         #expect(chart.types == allTypes)
         #expect(chart.effectiveness == typeEffectivenessChart)
         #expect(Set(chart.effectiveness.keys) == Set(chart.types))
+    }
+
+    /// The app's chart and the Showdown port's are separate data; every one
+    /// of the 324 matchups must agree.
+    @Test("Every matchup agrees with the Showdown port's chart")
+    func matchesShowdown() {
+        let showdown = ShowdownGen0.shared
+        for attacking in allTypes {
+            for defending in allTypes {
+                guard let a = ShowdownType(rawValue: attacking), let d = ShowdownType(rawValue: defending) else {
+                    Issue.record("\(attacking) or \(defending) isn't a Showdown type"); continue
+                }
+                #expect(computeTypeEffectiveness(moveType: attacking, defenderTypes: [defending])
+                        == showdown.effectiveness(a, d), "\(attacking) → \(defending)")
+            }
+        }
     }
 
     @Test("A type missing from the type list fails the file")
