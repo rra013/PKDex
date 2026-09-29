@@ -393,201 +393,149 @@ nonisolated func statStageMultiplier(stage: Int) -> Double {
 
 // MARK: - Held Items
 
-nonisolated enum HeldItem: String, CaseIterable, Identifiable, Sendable {
-    case none = "None"
+/// A held item, identified by its name ("Leftovers"), which is also how
+/// saved sets store it (`itemRawValue`).
+///
+/// Items with an effect are declared below, since their effects are code;
+/// `case .choiceBand:` and `== .leftovers` work as they did when this was
+/// an enum. Mega stones aren't declared: each stone-triggered form in
+/// `mega_forms.json` names its stone, and that makes it an item. Adding a
+/// Mega is a line there.
+nonisolated struct HeldItem: RawRepresentable, Hashable, CaseIterable, Identifiable,
+                             CustomStringConvertible, Sendable {
+    let rawValue: String
 
-    // Offensive
-    case choiceBand = "Choice Band"
-    case choiceSpecs = "Choice Specs"
-    case lifeOrb = "Life Orb"
-    case expertBelt = "Expert Belt"
-    case metronome = "Metronome"
+    /// A known item: a built-in one, or a Mega stone from `mega_forms.json`.
+    init?(rawValue: String) {
+        guard Self.knownNames.contains(rawValue) else { return nil }
+        self.rawValue = rawValue
+    }
 
-    // Type-boosting plates / gems
-    case typeBoost = "Type-Boost (1.2x)"
-
-    // Defensive
-    case assaultVest = "Assault Vest"
-    case eviolite = "Eviolite"
-
-    // Species-specific
-    case lightBall = "Light Ball"
-    case thickClub = "Thick Club"
-
-    // Mega Stones — no damage-calc effect, but required to trigger Mega Evolution
-    // in the Battle Simulator. Mega Rayquaza uses Dragon Ascent instead of a stone.
-    case venusaurite     = "Venusaurite"
-    case charizarditeX   = "Charizardite X"
-    case charizarditeY   = "Charizardite Y"
-    case blastoisinite   = "Blastoisinite"
-    case beedrillite     = "Beedrillite"
-    case pidgeotite      = "Pidgeotite"
-    case alakazite       = "Alakazite"
-    case slowbronite     = "Slowbronite"
-    case gengarite       = "Gengarite"
-    case kangaskhanite   = "Kangaskhanite"
-    case pinsirite       = "Pinsirite"
-    case gyaradosite     = "Gyaradosite"
-    case aerodactylite   = "Aerodactylite"
-    case mewtwoniteX     = "Mewtwonite X"
-    case mewtwoniteY     = "Mewtwonite Y"
-    case ampharosite     = "Ampharosite"
-    case steelixite      = "Steelixite"
-    case scizorite       = "Scizorite"
-    case heracronite     = "Heracronite"
-    case houndoominite   = "Houndoominite"
-    case tyranitarite    = "Tyranitarite"
-    case sceptilite      = "Sceptilite"
-    case blazikenite     = "Blazikenite"
-    case swampertite     = "Swampertite"
-    case gardevoirite    = "Gardevoirite"
-    case sablenite       = "Sablenite"
-    case mawilite        = "Mawilite"
-    case medichamite     = "Medichamite"
-    case manectite       = "Manectite"
-    case sharpedonite    = "Sharpedonite"
-    case cameruptite     = "Cameruptite"
-    case altarianite     = "Altarianite"
-    case banettite       = "Banettite"
-    case absolite        = "Absolite"
-    case glalitite       = "Glalitite"
-    case salamencite     = "Salamencite"
-    case metagrossite    = "Metagrossite"
-    case latiasite       = "Latiasite"
-    case latiosite       = "Latiosite"
-    case garchompite     = "Garchompite"
-    case lucarionite     = "Lucarionite"
-    case abomasite       = "Abomasite"
-    case lopunnite       = "Lopunnite"
-    case audinite        = "Audinite"
-    case diancite        = "Diancite"
-
-    // Additional Mega Stones (canon Gallade/Aggron + Z-A roster). Stones in this
-    // group exist as held-item data so users can save them on team spreads. Forms
-    // without entries in `mega_forms.json` won't trigger a Mega Evolution yet — they're
-    // present here so the team builder doesn't reject the item.
-    case aggronite       = "Aggronite"
-    case galladite       = "Galladite"
-    case chandelurite    = "Chandelurite"
-    case chesnaughtite   = "Chesnaughtite"
-    case chimechite      = "Chimechite"
-    case clefablite      = "Clefablite"
-    case crabominite     = "Crabominite"
-    case delphoxite      = "Delphoxite"
-    case dragoninite     = "Dragoninite"
-    case drampanite      = "Drampanite"
-    case emboarite       = "Emboarite"
-    case excadrite       = "Excadrite"
-    case feraligite      = "Feraligite"
-    case floettite       = "Floettite"
-    case froslassite     = "Froslassite"
-    case glimmoranite    = "Glimmoranite"
-    case golurkite       = "Golurkite"
-    case greninjite      = "Greninjite"
-    case hawluchanite    = "Hawluchanite"
-    case meganiumite     = "Meganiumite"
-    case meowsticite     = "Meowsticite"
-    case scovillainite   = "Scovillainite"
-    case skarmorite      = "Skarmorite"
-    case starminite      = "Starminite"
-    case victreebelite   = "Victreebelite"
-
-    // Pokemon Champions Regulation M-B Mega Stones. Stones introduced for
-    // M-B's Champions-original Mega forms (Raichu X/Y, Staraptor, Scolipede,
-    // Scrafty, Eelektross, Pyroar, Malamar, Barbaracle, Dragalge, Falinks).
-    // Names sourced from game8.co's M-B item list. The corresponding
-    // Mega forms live in `mega_forms.json`.
-    case raichuniteX     = "Raichunite X"
-    case raichuniteY     = "Raichunite Y"
-    case staraptite      = "Staraptite"
-    case scolipite       = "Scolipite"
-    case scraftinite     = "Scraftinite"
-    case eelektrossite   = "Eelektrossite"
-    case pyroarite       = "Pyroarite"
-    case malamarite      = "Malamarite"
-    case barbaracite     = "Barbaracite"
-    case dragalgite      = "Dragalgite"
-    case falinksite      = "Falinksite"
-
-    // Pokemon Champions Regulation M-C Mega Stones. Adds the M-C-original
-    // Megas (Golisopod, Baxcalibur) plus the three second "Z" Megas layered
-    // onto species that already had a Mega in M-B (Garchomp, Lucario, Absol).
-    // Salamencite already exists above. The corresponding Mega forms live in
-    // `mega_forms.json`.
-    case golisopodite    = "Golisopodite"
-    case baxcaliburite   = "Baxcaliburite"
-    case garchompiteZ    = "Garchompite Z"
-    case lucarioniteZ    = "Lucarionite Z"
-    case absoliteZ       = "Absolite Z"
-
-    // Type-boosting items (1.2x to moves of the listed type).
-    case silkScarf       = "Silk Scarf"        // Normal
-    case charcoal        = "Charcoal"          // Fire
-    case mysticWater     = "Mystic Water"      // Water
-    case magnet          = "Magnet"            // Electric
-    case miracleSeed     = "Miracle Seed"      // Grass
-    case neverMeltIce    = "Never-Melt Ice"    // Ice
-    case blackBelt       = "Black Belt"        // Fighting
-    case poisonBarb      = "Poison Barb"       // Poison
-    case softSand        = "Soft Sand"         // Ground
-    case sharpBeak       = "Sharp Beak"        // Flying
-    case twistedSpoon    = "Twisted Spoon"     // Psychic
-    case silverPowder    = "Silver Powder"     // Bug
-    case hardStone       = "Hard Stone"        // Rock
-    case spellTag        = "Spell Tag"         // Ghost
-    case dragonFang      = "Dragon Fang"       // Dragon
-    case blackGlasses    = "Black Glasses"     // Dark
-    case metalCoat       = "Metal Coat"        // Steel
-    case fairyFeather    = "Fairy Feather"     // Fairy
-
-    // Other competitive items
-    case choiceScarf     = "Choice Scarf"
-    case focusSash       = "Focus Sash"
-    case focusBand       = "Focus Band"
-    case leftovers       = "Leftovers"
-    case scopeLens       = "Scope Lens"
-    case shellBell       = "Shell Bell"
-    case quickClaw       = "Quick Claw"
-    case kingsRock       = "King's Rock"
-    case brightPowder    = "Bright Powder"
-    case mentalHerb      = "Mental Herb"
-    case whiteHerb       = "White Herb"
-    case rockyHelmet     = "Rocky Helmet"
-    case lightClay       = "Light Clay"   // extends screens from 5 → 8 turns
-
-    // Healing & status berries
-    case aspearBerry     = "Aspear Berry"
-    case cheriBerry      = "Cheri Berry"
-    case chestoBerry     = "Chesto Berry"
-    case leppaBerry      = "Leppa Berry"
-    case lumBerry        = "Lum Berry"
-    case oranBerry       = "Oran Berry"
-    case pechaBerry      = "Pecha Berry"
-    case persimBerry     = "Persim Berry"
-    case rawstBerry      = "Rawst Berry"
-    case sitrusBerry     = "Sitrus Berry"
-
-    // Type-resist berries (halve a supereffective hit of the matching type, once).
-    case occaBerry       = "Occa Berry"        // Fire
-    case passhoBerry     = "Passho Berry"      // Water
-    case wacanBerry      = "Wacan Berry"       // Electric
-    case rindoBerry      = "Rindo Berry"       // Grass
-    case yacheBerry      = "Yache Berry"       // Ice
-    case chopleBerry     = "Chople Berry"      // Fighting
-    case kebiaBerry      = "Kebia Berry"       // Poison
-    case shucaBerry      = "Shuca Berry"       // Ground
-    case cobaBerry       = "Coba Berry"        // Flying
-    case payapaBerry     = "Payapa Berry"      // Psychic
-    case tangaBerry      = "Tanga Berry"       // Bug
-    case chartiBerry     = "Charti Berry"      // Rock
-    case kasibBerry      = "Kasib Berry"       // Ghost
-    case habanBerry      = "Haban Berry"       // Dragon
-    case colburBerry     = "Colbur Berry"      // Dark
-    case babiriBerry     = "Babiri Berry"      // Steel
-    case roseliBerry     = "Roseli Berry"      // Fairy
-    case chilanBerry     = "Chilan Berry"      // Normal (triggers regardless of effectiveness)
+    private init(_ name: String) { rawValue = name }
 
     var id: String { rawValue }
+    var description: String { rawValue }
+
+    static let none = HeldItem("None")
+
+    // Offensive
+    static let choiceBand = HeldItem("Choice Band")
+    static let choiceSpecs = HeldItem("Choice Specs")
+    static let lifeOrb = HeldItem("Life Orb")
+    static let expertBelt = HeldItem("Expert Belt")
+    static let metronome = HeldItem("Metronome")
+
+    // Type-boosting plates / gems
+    static let typeBoost = HeldItem("Type-Boost (1.2x)")
+
+    // Defensive
+    static let assaultVest = HeldItem("Assault Vest")
+    static let eviolite = HeldItem("Eviolite")
+
+    // Species-specific
+    static let lightBall = HeldItem("Light Ball")
+    static let thickClub = HeldItem("Thick Club")
+
+    // Type-boosting items (1.2x to moves of the listed type).
+    static let silkScarf       = HeldItem("Silk Scarf")        // Normal
+    static let charcoal        = HeldItem("Charcoal")          // Fire
+    static let mysticWater     = HeldItem("Mystic Water")      // Water
+    static let magnet          = HeldItem("Magnet")            // Electric
+    static let miracleSeed     = HeldItem("Miracle Seed")      // Grass
+    static let neverMeltIce    = HeldItem("Never-Melt Ice")    // Ice
+    static let blackBelt       = HeldItem("Black Belt")        // Fighting
+    static let poisonBarb      = HeldItem("Poison Barb")       // Poison
+    static let softSand        = HeldItem("Soft Sand")         // Ground
+    static let sharpBeak       = HeldItem("Sharp Beak")        // Flying
+    static let twistedSpoon    = HeldItem("Twisted Spoon")     // Psychic
+    static let silverPowder    = HeldItem("Silver Powder")     // Bug
+    static let hardStone       = HeldItem("Hard Stone")        // Rock
+    static let spellTag        = HeldItem("Spell Tag")         // Ghost
+    static let dragonFang      = HeldItem("Dragon Fang")       // Dragon
+    static let blackGlasses    = HeldItem("Black Glasses")     // Dark
+    static let metalCoat       = HeldItem("Metal Coat")        // Steel
+    static let fairyFeather    = HeldItem("Fairy Feather")     // Fairy
+
+    // Other competitive items
+    static let choiceScarf     = HeldItem("Choice Scarf")
+    static let focusSash       = HeldItem("Focus Sash")
+    static let focusBand       = HeldItem("Focus Band")
+    static let leftovers       = HeldItem("Leftovers")
+    static let scopeLens       = HeldItem("Scope Lens")
+    static let shellBell       = HeldItem("Shell Bell")
+    static let quickClaw       = HeldItem("Quick Claw")
+    static let kingsRock       = HeldItem("King's Rock")
+    static let brightPowder    = HeldItem("Bright Powder")
+    static let mentalHerb      = HeldItem("Mental Herb")
+    static let whiteHerb       = HeldItem("White Herb")
+    static let rockyHelmet     = HeldItem("Rocky Helmet")
+    static let lightClay       = HeldItem("Light Clay")   // extends screens from 5 → 8 turns
+
+    // Healing & status berries
+    static let aspearBerry     = HeldItem("Aspear Berry")
+    static let cheriBerry      = HeldItem("Cheri Berry")
+    static let chestoBerry     = HeldItem("Chesto Berry")
+    static let leppaBerry      = HeldItem("Leppa Berry")
+    static let lumBerry        = HeldItem("Lum Berry")
+    static let oranBerry       = HeldItem("Oran Berry")
+    static let pechaBerry      = HeldItem("Pecha Berry")
+    static let persimBerry     = HeldItem("Persim Berry")
+    static let rawstBerry      = HeldItem("Rawst Berry")
+    static let sitrusBerry     = HeldItem("Sitrus Berry")
+
+    // Type-resist berries (halve a supereffective hit of the matching type, once).
+    static let occaBerry       = HeldItem("Occa Berry")        // Fire
+    static let passhoBerry     = HeldItem("Passho Berry")      // Water
+    static let wacanBerry      = HeldItem("Wacan Berry")       // Electric
+    static let rindoBerry      = HeldItem("Rindo Berry")       // Grass
+    static let yacheBerry      = HeldItem("Yache Berry")       // Ice
+    static let chopleBerry     = HeldItem("Chople Berry")      // Fighting
+    static let kebiaBerry      = HeldItem("Kebia Berry")       // Poison
+    static let shucaBerry      = HeldItem("Shuca Berry")       // Ground
+    static let cobaBerry       = HeldItem("Coba Berry")        // Flying
+    static let payapaBerry     = HeldItem("Payapa Berry")      // Psychic
+    static let tangaBerry      = HeldItem("Tanga Berry")       // Bug
+    static let chartiBerry     = HeldItem("Charti Berry")      // Rock
+    static let kasibBerry      = HeldItem("Kasib Berry")       // Ghost
+    static let habanBerry      = HeldItem("Haban Berry")       // Dragon
+    static let colburBerry     = HeldItem("Colbur Berry")      // Dark
+    static let babiriBerry     = HeldItem("Babiri Berry")      // Steel
+    static let roseliBerry     = HeldItem("Roseli Berry")      // Fairy
+    static let chilanBerry     = HeldItem("Chilan Berry")      // Normal (triggers regardless of effectiveness)
+
+    /// Every built-in item, in picker order. A new built-in item needs an
+    /// entry here as well as its declaration above.
+    static let builtIns: [HeldItem] = [
+        .none, .choiceBand, .choiceSpecs, .lifeOrb, .expertBelt,
+        .metronome, .typeBoost, .assaultVest, .eviolite, .lightBall,
+        .thickClub, .silkScarf, .charcoal, .mysticWater, .magnet,
+        .miracleSeed, .neverMeltIce, .blackBelt, .poisonBarb, .softSand,
+        .sharpBeak, .twistedSpoon, .silverPowder, .hardStone, .spellTag,
+        .dragonFang, .blackGlasses, .metalCoat, .fairyFeather, .choiceScarf,
+        .focusSash, .focusBand, .leftovers, .scopeLens, .shellBell,
+        .quickClaw, .kingsRock, .brightPowder, .mentalHerb, .whiteHerb,
+        .rockyHelmet, .lightClay, .aspearBerry, .cheriBerry, .chestoBerry,
+        .leppaBerry, .lumBerry, .oranBerry, .pechaBerry, .persimBerry,
+        .rawstBerry, .sitrusBerry, .occaBerry, .passhoBerry, .wacanBerry,
+        .rindoBerry, .yacheBerry, .chopleBerry, .kebiaBerry, .shucaBerry,
+        .cobaBerry, .payapaBerry, .tangaBerry, .chartiBerry, .kasibBerry,
+        .habanBerry, .colburBerry, .babiriBerry, .roseliBerry, .chilanBerry,
+    ]
+
+    /// Every item: the built-in ones, then the Mega stones in
+    /// `mega_forms.json` order.
+    static let allCases: [HeldItem] = builtIns + MegaForms.all.compactMap(\.stone)
+
+    private static let knownNames = Set(allCases.map(\.rawValue))
+
+    /// The stone a stone-triggered form in `mega_forms.json` names. Called
+    /// while that file loads, so it can't consult `allCases`; it only
+    /// refuses a name that's already a built-in item.
+    static func megaStone(named name: String) -> HeldItem? {
+        builtInNames.contains(name) ? nil : HeldItem(name)
+    }
+
+    private static let builtInNames = Set(builtIns.map(\.rawValue))
 
     /// True for any item that exists as a Mega Stone in `MegaForms.all`. Used by
     /// Knock Off (can't remove a Mega Stone) and similar item-removal effects.

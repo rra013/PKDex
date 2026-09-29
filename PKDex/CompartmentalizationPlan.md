@@ -5,7 +5,7 @@ ship, the app should be updateable by editing a small number of bundled JSON
 files. No hunting through Swift, no parallel lists that can drift apart.
 
 This document is an audit + a prioritized migration plan. Priorities 1,
-2, 4 and 7 (Tera only) are done (2026-09-28); the rest aren't started —
+2, 4, 5 and 7 (Tera only) are done (2026-09-28); 3 and 6 aren't started —
 pick items off as they become relevant. Line numbers in the audit date
 from June.
 
@@ -31,8 +31,8 @@ from June.
 |---|---|---|
 | ~~Gimmick legality flags~~ | `rules` block of each regulation JSON | **Done (P1).** `ChampionsRules` reads them. Mega flags gate the calc and battles; Tera, Z-Move and Dynamax flags are read but have nothing to gate yet (see P7). |
 | ~~Numeric regulation rules~~ | `rules` block of each regulation JSON | **Done (P1).** Caps, IV lock, team size and clauses come from the JSON. `max_restricted_per_team` waits for a restricted-species list. |
-| ~~Mega forms~~ | `PKDex/mega_forms.json` | **Done (P4).** 87 forms (86 by stone, plus Mega Rayquaza). A new stone still needs a `HeldItem` case (P5). |
-| **Held items** (~72 entries including all mega stones) | `HeldItem` enum in `PokemonStatsModels.swift:352-531` | Enum is type-safe, but new items (new generation, new event items) require Swift edits. `isMegaStone` already does the right thing dynamically against `MegaForms.all`. |
+| ~~Mega forms~~ | `PKDex/mega_forms.json` | **Done (P4).** 87 forms (86 by stone, plus Mega Rayquaza). A form's stone is an item from its line (P5). |
+| ~~Held items~~ | `HeldItem` struct; stones from `mega_forms.json` | **Done (P5).** Mega stones are data. Items with effects stay in Swift, since their effects are code. |
 | ~~Battle move effect tables~~ | `PKDex/battle_moves.json` | **Done (P2).** 22 tables. Tables that route moves to hand-written code stay in Swift. |
 | **Type chart** | `damageCalculator.swift:13-35` (`allTypes`, `typeEffectivenessChart`) | Hardcoded. Stable in practice, but balance changes (or fan-game support) require code edit. |
 | **Setup moves + choice items list** | `03_ChampionsValidator.swift:169-179` | Hardcoded with a comment defending it ("setup moves are stable"). Fair, but inconsistent with the rest of the regulation-driven design. |
@@ -266,8 +266,8 @@ It lives in the synced `PKDex/` folder, so it's bundled without project
 edits. `MegaForms.all` (stone-triggered) and `MegaForms.moveTriggered`
 (Mega Rayquaza) load it once; the Rayquaza special case became the general
 rule that a form with `requires_move` needs that move instead of a stone.
-Loading is strict: a stone with no `HeldItem` case, or a form with no
-trigger, fails the file, and `MegaFormsTests` checks the bundled one loads.
+Loading is strict: a form with no trigger fails the file (and, since P5,
+so does a stone named like a built-in item), and `MegaFormsTests` checks the bundled one loads.
 When it moved, the loaded forms and every species × item × move lookup
 were checked identical to the Swift table. `MegaForm` and every caller are
 unchanged.
@@ -319,7 +319,34 @@ a JSON edit*. Migration is mechanical.
 
 ---
 
-### Priority 5 — Externalize Held Items (optional, lower urgency)
+### Priority 5 — Externalize Held Items ✅ Done, for Mega stones
+
+**Done 2026-09-28**, as a narrower form of approach A. Of the 156 items,
+the 86 Mega stones were the only pure data: every other item has an effect
+written in Swift (Leftovers heals, Choice Scarf boosts Speed...), so adding
+one needs code whatever holds its name. And every regulation so far has
+added stones.
+
+`HeldItem` is now a struct (`RawRepresentable`, `Hashable`, `CaseIterable`)
+instead of an enum:
+- The 70 items with effects are `static let`s in `PokemonStatsModels.swift`,
+  listed in `HeldItem.builtIns` in picker order. `case .choiceBand:` and
+  `== .leftovers` compile unchanged, and every switch already had a
+  `default`, so no call site changed.
+- The Mega stones aren't declared anywhere: `allCases` is the built-ins
+  plus each stone-triggered form's stone in `mega_forms.json`, so a new
+  Mega is one JSON line. A stone named like a built-in item fails that
+  file.
+- `typeBoostingItemMap` and `typeResistBerryMap` stay in Swift; they're
+  complete (all 18 types) and tied to the damage code.
+
+Saved sets store items by name, so no stored data changed. Before the
+enum was removed, the items, the two type tables and the item picker for
+every Mega species were checked identical. Stones now list in
+`mega_forms.json` order rather than the enum's, which only a no-species
+picker (unused) would show.
+
+The original plan:
 
 **Why:** Same logic as megas. Adding a new gen's items shouldn't require
 editing a Swift enum.
@@ -413,7 +440,7 @@ before activating.
 4. ~~**P2 — battle move tables.**~~ Done.
 5. **P3 — type chart.** Easy, low risk.
 6. **P6 — setup moves into regulation JSON.** Consistency win.
-7. **P5 — held items.** Defer unless item churn picks up.
+7. ~~**P5 — held items.**~~ Done, for Mega stones.
 
 ---
 

@@ -3,8 +3,8 @@
 //  PKDex
 //
 //  Every Mega Evolution the app knows. The forms themselves are data, in
-//  `mega_forms.json`: adding a Mega is an entry there, plus a `HeldItem`
-//  case if its stone is new.
+//  `mega_forms.json`: adding a Mega is an entry there. Its stone becomes a
+//  `HeldItem` from that entry too.
 //
 
 import Foundation
@@ -73,23 +73,25 @@ nonisolated enum MegaForms {
     }()
 
     enum LoadError: Error, Equatable {
-        /// A form's stone isn't a `HeldItem` case, which a new stone needs.
-        case unknownStone(form: String, stone: String)
+        /// A form's stone has the name of a built-in item (Leftovers), which
+        /// can't also be a Mega stone.
+        case stoneIsBuiltInItem(form: String, stone: String)
         /// A form has neither a stone nor a required move, so nothing triggers it.
         case noTrigger(form: String)
     }
 
     /// The forms in a `mega_forms.json` file, in file order. Strict: one
     /// bad entry fails the whole file, and `MegaFormsTests` checks the
-    /// bundled one loads.
+    /// bundled one loads. Mustn't read `HeldItem.allCases`, which is built
+    /// from these forms.
     static func decode(_ data: Data) throws -> [MegaForm] {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return try decoder.decode(MegaFormsFile.self, from: data).forms.map { entry in
             var stone: HeldItem?
             if let name = entry.stone {
-                guard let item = HeldItem(rawValue: name) else {
-                    throw LoadError.unknownStone(form: entry.displayName, stone: name)
+                guard let item = HeldItem.megaStone(named: name) else {
+                    throw LoadError.stoneIsBuiltInItem(form: entry.displayName, stone: name)
                 }
                 stone = item
             } else if entry.requiresMove == nil {

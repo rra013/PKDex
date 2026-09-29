@@ -3,9 +3,10 @@
 //  PKDexTests
 //
 //  Covers `mega_forms.json` and its loader: the bundled file loads in
-//  full, each stone belongs to one form, a move-triggered form needs its
-//  move rather than a stone, and a bad entry (a stone with no `HeldItem`
-//  case, or no trigger at all) fails the file instead of being dropped.
+//  full, each stone belongs to one form and is a held item, a
+//  move-triggered form needs its move rather than a stone, and a bad entry
+//  (a stone named like a built-in item, or no trigger at all) fails the
+//  file instead of being dropped.
 //  When the table moved from Swift to JSON (2026-09-28), the loaded forms
 //  and every lookup were checked identical to the Swift table.
 //
@@ -52,10 +53,13 @@ struct MegaFormsTests {
         #expect(MegaForms.form(forSpecies: "Rayquaza", heldItem: .none, moveNames: ["Outrage"]) == nil)
     }
 
-    @Test("Every Mega stone the item list has is a Mega stone")
+    @Test("Every form's stone is a held item, found by its name")
     func stonesAreHeldItems() {
         for form in MegaForms.all {
-            #expect(form.stone?.isMegaStone == true, "\(form.displayName)")
+            let stone = form.stone
+            #expect(stone?.isMegaStone == true, "\(form.displayName)")
+            #expect(stone.flatMap { HeldItem(rawValue: $0.rawValue) } == stone, "\(form.displayName)")
+            #expect(stone.map(HeldItem.allCases.contains) == true, "\(form.displayName)")
         }
     }
 
@@ -65,10 +69,17 @@ struct MegaFormsTests {
         Data(#"{"forms": [\#(form)]}"#.utf8)
     }
 
-    @Test("A stone with no HeldItem case fails the file")
-    func unknownStone() {
+    @Test("A new stone needs only its form's line")
+    func newStone() throws {
         let data = file(#"{"species_key": "pikachu", "display_name": "Mega Pikachu", "stone": "Pikachunite", "requires_move": null, "type1": "Electric", "type2": null, "base_stats": {"atk": 1, "def": 1, "spa": 1, "spd": 1, "spe": 1}, "ability": "static"}"#)
-        #expect(throws: MegaForms.LoadError.unknownStone(form: "Mega Pikachu", stone: "Pikachunite")) {
+        let forms = try MegaForms.decode(data)
+        #expect(forms.first?.stone?.rawValue == "Pikachunite")
+    }
+
+    @Test("A stone named like a built-in item fails the file")
+    func stoneIsBuiltInItem() {
+        let data = file(#"{"species_key": "pikachu", "display_name": "Mega Pikachu", "stone": "Leftovers", "requires_move": null, "type1": "Electric", "type2": null, "base_stats": {"atk": 1, "def": 1, "spa": 1, "spd": 1, "spe": 1}, "ability": "static"}"#)
+        #expect(throws: MegaForms.LoadError.stoneIsBuiltInItem(form: "Mega Pikachu", stone: "Leftovers")) {
             try MegaForms.decode(data)
         }
     }
