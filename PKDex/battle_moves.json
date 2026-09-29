@@ -1,5 +1,5 @@
 {
-  "about": "Battle Sim move effects, read by BattleMoveEffects. Keys are move names normalized by BattleSimSeed.normalize (lowercase letters and digits only: \"Swords Dance\" is swordsdance). Values name effects the engine already implements, so a move works from a line here only if it uses one of them. Stats are atk, def, spAtk, spDef, speed; stages are [stat, change] pairs. Lists that route moves to hand-written code (tier 3 and 5 status moves, fixed-damage moves, damage modifiers) stay in BattleSimulator.swift, since a line here alone wouldn't do anything.",
+  "about": "Move effects and classes, read by BattleMoveEffects (the Battle Sim, and the Champions validator's setup-move check). Keys are move names normalized by BattleSimSeed.normalize (lowercase letters and digits only: \"Swords Dance\" is swordsdance). Values name effects the engine already implements, so a move works from a line here only if it uses one of them. Stats are atk, def, spAtk, spDef, speed; stages are [stat, change] pairs. Lists that route moves to hand-written code (tier 3 and 5 status moves, fixed-damage moves, damage modifiers) stay in BattleSimulator.swift, since a line here alone wouldn't do anything.",
   "notes": {
     "first_turn_only": "Fail after the user's first action since switching in (Fake Out, First Impression).",
     "stat_changes": "Status moves that change stat stages: target is self or opponent.",
@@ -23,7 +23,8 @@
     "invulnerability_double_damage": "Of those, the ones that deal double damage.",
     "multi_hit_fallback": "[min, max] hits, for moves whose synced data lacks them.",
     "secondary_effects": "On-hit effects when the target survives. chance is the printed percent.",
-    "self_stat_changes_on_hit": "Stat changes the user always takes after a damaging hit."
+    "self_stat_changes_on_hit": "Stat changes the user always takes after a damaging hit.",
+    "setup_moves": "Moves that set the user up (stat boosts and the like). The Champions validator flags one on a set holding a Choice item, which locks the user into a single move."
   },
   "first_turn_only": [
     "fakeout", "firstimpression"
@@ -327,5 +328,12 @@
     "makeitrain": [["spAtk", -1]],
     "overheat": [["spAtk", -2]],
     "superpower": [["atk", -1], ["def", -1]]
-  }
+  },
+  "setup_moves": [
+    "acidarmor", "agility", "amnesia", "autotomize", "barrier", "bellydrum", "bulkup", "calmmind",
+    "charge", "clangoroussoul", "coil", "cosmicpower", "cottonguard", "curse", "dragondance", "geomancy",
+    "growth", "honeclaws", "howl", "irondefense", "magnetrise", "meditate", "nastyplot", "noretreat",
+    "poweruppunch", "quiverdance", "rockpolish", "sharpen", "shellsmash", "shiftgear", "stockpile", "swordsdance",
+    "tailglow", "victorydance", "workup"
+  ]
 }
