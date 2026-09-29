@@ -375,7 +375,7 @@ private struct TypeWash: View {
     let opacity: Double
 
     var body: some View {
-        let colors = types.prefix(2).map(TypePalette.fill(for:))
+        let colors = types.prefix(2).map { TypePalette.fill(for: $0) }
         LinearGradient(colors: colors.count == 1 ? colors + colors : colors,
                        startPoint: .leading, endPoint: .trailing)
             .opacity(opacity)

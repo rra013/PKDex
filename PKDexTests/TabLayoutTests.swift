@@ -14,6 +14,7 @@ import Foundation
 import SwiftUI
 @testable import PKDex
 
+@MainActor
 @Suite("Tab Layout")
 struct TabLayoutTests {
 
