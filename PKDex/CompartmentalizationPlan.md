@@ -5,9 +5,9 @@ ship, the app should be updateable by editing a small number of bundled JSON
 files. No hunting through Swift, no parallel lists that can drift apart.
 
 This document is an audit + a prioritized migration plan. Priorities 1,
-4 and 7 (Tera only) are done (2026-09-28); the rest aren't started — pick
-items off as they become relevant. Line numbers in the audit date from
-June.
+2, 4 and 7 (Tera only) are done (2026-09-28); the rest aren't started —
+pick items off as they become relevant. Line numbers in the audit date
+from June.
 
 ---
 
@@ -33,7 +33,7 @@ June.
 | ~~Numeric regulation rules~~ | `rules` block of each regulation JSON | **Done (P1).** Caps, IV lock, team size and clauses come from the JSON. `max_restricted_per_team` waits for a restricted-species list. |
 | ~~Mega forms~~ | `PKDex/mega_forms.json` | **Done (P4).** 87 forms (86 by stone, plus Mega Rayquaza). A new stone still needs a `HeldItem` case (P5). |
 | **Held items** (~72 entries including all mega stones) | `HeldItem` enum in `PokemonStatsModels.swift:352-531` | Enum is type-safe, but new items (new generation, new event items) require Swift edits. `isMegaStone` already does the right thing dynamically against `MegaForms.all`. |
-| **Battle move effect tables** | `BattleSimulator.swift:60-200`: `spreadMoves`, `firstTurnOnlyMoves`, `statChanges` (~50 entries), `statusInflicts`, `weatherSetters`, `terrainSetters`, `hazardSetters`, `protectFamily`, `pivotMoves` | All hardcoded. New move in a future gen = code edit. Hard to keep in sync with `move_categories.json`. |
+| ~~Battle move effect tables~~ | `PKDex/battle_moves.json` | **Done (P2).** 22 tables. Tables that route moves to hand-written code stay in Swift. |
 | **Type chart** | `damageCalculator.swift:13-35` (`allTypes`, `typeEffectivenessChart`) | Hardcoded. Stable in practice, but balance changes (or fan-game support) require code edit. |
 | **Setup moves + choice items list** | `03_ChampionsValidator.swift:169-179` | Hardcoded with a comment defending it ("setup moves are stable"). Fair, but inconsistent with the rest of the regulation-driven design. |
 | Gimmick-aware battle state | `SavedSpread.teraType` | **Tera type stored (P7).** Nothing Terastallizes yet, and there's no Dynamax or Z-Move state; see P7. |
@@ -137,7 +137,35 @@ M-B with Tera on = one JSON edit + one enum case.
 
 ---
 
-### Priority 2 — Externalize battle move effect tables
+### Priority 2 — Externalize battle move effect tables ✅ Done
+
+**Done 2026-09-28.** The tables had grown from ~10 to ~30 since June.
+`PKDex/battle_moves.json` now holds the 22 that are facts about moves, where
+a new line works without code as long as it uses an effect the engine
+already has: stat changes, status and confusion moves, weather, terrain
+and hazard setters, Protect variants, pivots, screens, rooms, hazard
+removers, first-turn-only, OHKO and trapping moves, ballistic, sound and
+contact moves, charge moves and semi-invulnerability, multi-hit counts,
+secondary effects, and self stat changes on hit. `BattleMovesData` loads
+it strictly (an unknown kind or stat fails the file) and
+`BattleMoveEffects` keeps its property names, so no call site changed.
+Spread moves already came from the Showdown data (`SpreadMoves`).
+
+Stays in Swift: the tier 3 and tier 5 status moves, fixed-damage moves and
+damage-modifier keys (each routes to hand-written code, so a JSON line
+alone would do nothing), the target-picker list (built from the data plus
+a curated list), species weights, and weather/terrain abilities (not move
+data).
+
+The JSON was written by the running Swift code, not retyped, and all 22
+tables were checked identical before the Swift ones were deleted. Three
+entries that never had an effect were then dropped: "psychic noise" and
+"gearGrind" (duplicates of the normalized "psychicnoise" and "geargrind",
+which a lookup can never match) and Water Sport's multi-hit count (a
+status move never reaches the hit count). `BattleMovesDataTests` now
+requires every key to be normalized.
+
+The original plan:
 
 **Why:** `BattleSimulator.swift:60-200` has ~10 lookup tables covering
 ~100 moves total. Every new generation adds moves; today each one is a code
@@ -382,8 +410,7 @@ before activating.
 1. ~~**P1 — wire rules JSON end-to-end.**~~ Done.
 2. ~~**P4 — Mega forms JSON.**~~ Done.
 3. ~~**P7 — `SavedSpread` gimmick fields.**~~ Done for Tera.
-4. **P2 — battle move tables.** Biggest file, but high value before adding
-   Gen 10 moves or Tera Blast.
+4. ~~**P2 — battle move tables.**~~ Done.
 5. **P3 — type chart.** Easy, low risk.
 6. **P6 — setup moves into regulation JSON.** Consistency win.
 7. **P5 — held items.** Defer unless item churn picks up.
