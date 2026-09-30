@@ -58,6 +58,7 @@ struct PokedexApp: App {
         }
         #if os(macOS)
         .defaultSize(width: 1280, height: 820)
+        .commands { AppCommands() }
         #endif
         #if DEBUG && os(macOS)
         .commands { DebugSnapshot.Commands() }

@@ -133,7 +133,8 @@ struct TeamPasteImportSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Imported Team", text: $teamName)
+                    TextField("Team name", text: $teamName, prompt: Text("Imported Team"))
+                        .labelsHidden()
                 } header: {
                     Text("Team name")
                 }

@@ -81,6 +81,11 @@ struct SetListView: View {
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 deleteButton(for: spread)
                             }
+                            #if os(macOS)
+                            // Swiping needs a trackpad on the Mac. The same
+                            // button, so it asks first too.
+                            .contextMenu { deleteButton(for: spread) }
+                            #endif
                     }
                 }
             } else {
@@ -109,7 +114,11 @@ struct SetListView: View {
         }
         .sheet(isPresented: $showNewSetSheet) {
             NewSetSheet(allPokemon: allPokemon, allMoves: allMoves)
+            .sheetSize()
         }
+        #if DEBUG && os(macOS)
+        .task { await DebugSnapshot.openSheet("newSet") { showNewSetSheet = true } }
+        #endif
         .alert("Delete \(pendingDeletion?.name ?? "set")?",
                isPresented: Binding(
                 get: { pendingDeletion != nil },
@@ -233,6 +242,17 @@ struct NewSetSheet: View {
         side.pokemon != nil || !name.isEmpty
     }
 
+    /// Predict Set's place: the middle of the top bar on iOS. A Mac sheet
+    /// shows its toolbar only along the bottom, which has no middle spot,
+    /// so there it sits with Cancel and Save.
+    private static var predictButtonPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .principal
+        #else
+        .automatic
+        #endif
+    }
+
     var body: some View {
         NavigationStack {
             SetFormContent(name: $name, side: side, allPokemon: allPokemon, allMoves: allMoves)
@@ -241,7 +261,7 @@ struct NewSetSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
                 .toolbar {
-                    ToolbarItem(placement: .principal) {
+                    ToolbarItem(placement: Self.predictButtonPlacement) {
                         SetPredictorButton(initialSpecies: side.pokemon?.name) { generated in
                             applyGeneratedSet(generated)
                         }

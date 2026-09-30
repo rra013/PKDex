@@ -20,6 +20,19 @@ extension EnvironmentValues {
     var isWideLayout: Bool { horizontalSizeClass == .regular }
 }
 
+extension View {
+    /// A sheet's size on the Mac, where a sheet is as big as its content
+    /// asks, and a list asks for no height: the calc's Load Spread sheet
+    /// opened as just its title bar. iOS sizes sheets itself.
+    func sheetSize() -> some View {
+        #if os(macOS)
+        frame(minWidth: 480, idealWidth: 560, minHeight: 440, idealHeight: 640)
+        #else
+        self
+        #endif
+    }
+}
+
 /// A tab's list beside the selected item's page, for wide layouts. On iOS,
 /// a split view whose detail has its own navigation stack. The Mac's
 /// sidebar is already a split view, and a split view inside it pushed its
@@ -247,6 +260,7 @@ struct ContentView: View {
         }
         #if os(macOS)
         .tabViewStyle(.sidebarAdaptable)
+        .focusedSceneValue(\.selectedTab, $selectedTab)
         .frame(minWidth: 900, minHeight: 600)
         // Forms were laid out for iOS's grouped sections. The Mac's default
         // puts labels and controls in two columns, which pushed the Set
@@ -513,6 +527,7 @@ private struct PokedexTab: View {
                 availableAbilities: ChampionsFilterOptions.availableAbilities(),
                 availableMoves: ChampionsFilterOptions.availableMoves()
             )
+            .sheetSize()
         }
     }
 }

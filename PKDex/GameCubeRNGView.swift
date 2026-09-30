@@ -209,6 +209,7 @@ struct GameCubeRNGView: View {
                         }
                     }
             }
+            .sheetSize()
         }
         .sheet(isPresented: $showJirachiPattern) {
             NavigationStack {
@@ -220,6 +221,7 @@ struct GameCubeRNGView: View {
                         }
                     }
             }
+            .sheetSize()
         }
     }
 

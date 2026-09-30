@@ -251,7 +251,8 @@ struct ChampionsFilterSheet: View {
                 Section("Ability") {
                     HStack {
                         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                        TextField("Search abilities", text: $abilitySearch)
+                        TextField("Search abilities", text: $abilitySearch, prompt: Text("Search abilities"))
+                            .labelsHidden()
                             .textFieldStyle(.plain)
                             .autocorrectionDisabled(true)
                             #if os(iOS)
@@ -300,7 +301,8 @@ struct ChampionsFilterSheet: View {
                 Section("Move") {
                     HStack {
                         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                        TextField("Search moves", text: $moveSearch)
+                        TextField("Search moves", text: $moveSearch, prompt: Text("Search moves"))
+                            .labelsHidden()
                             .textFieldStyle(.plain)
                             .autocorrectionDisabled(true)
                             #if os(iOS)

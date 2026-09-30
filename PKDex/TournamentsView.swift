@@ -130,6 +130,7 @@ struct TournamentsTab: View {
             }
             .sheet(isPresented: $showFilters) {
                 TournamentFilterSheet(vm: vm)
+                .sheetSize()
             }
             .task {
                 if vm.games.isEmpty {

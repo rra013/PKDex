@@ -704,6 +704,7 @@ private struct ResultCard: View {
         }
         .sheet(item: $solveRequest) { request in
             EVSolverSheet(vm: vm, request: request)
+            .sheetSize()
         }
     }
 
@@ -1356,13 +1357,23 @@ private struct SideCard: View {
         }
         .sheet(isPresented: $showSaveSheet) {
             SaveSpreadSheet(side: side, modelContext: modelContext, isPresented: $showSaveSheet)
+            .sheetSize()
         }
         .sheet(isPresented: $showPasteSheet) {
             PasteImportSheet(side: side, allPokemon: allPokemon, allMoves: allMoves)
+            .sheetSize()
         }
         .sheet(isPresented: $showLoadSheet) {
             LoadSpreadSheet(side: side, spreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves, modelContext: modelContext, isPresented: $showLoadSheet)
+            .sheetSize()
         }
+        #if DEBUG && os(macOS)
+        .task {
+            await DebugSnapshot.openSheet("save") { showSaveSheet = true }
+            await DebugSnapshot.openSheet("paste") { showPasteSheet = true }
+            await DebugSnapshot.openSheet("load") { showLoadSheet = true }
+        }
+        #endif
     }
 }
 
@@ -1571,7 +1582,8 @@ private struct SaveSpreadSheet: View {
         NavigationStack {
             Form {
                 Section("Spread Name") {
-                    TextField("e.g. Physical Sweeper", text: $name)
+                    TextField("Spread Name", text: $name, prompt: Text("e.g. Physical Sweeper"))
+                        .labelsHidden()
                 }
                 Section("Summary") {
                     if let pkmn = side.pokemon {
@@ -1675,6 +1687,13 @@ private struct LoadSpreadSheet: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    #if os(macOS)
+                    // Swiping to delete needs a trackpad on the Mac, and
+                    // there's no edit mode.
+                    .contextMenu {
+                        Button("Delete", role: .destructive) { modelContext.delete(spread) }
+                    }
+                    #endif
                 }
                 .onDelete { indices in
                     for i in indices {

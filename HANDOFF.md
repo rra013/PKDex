@@ -111,6 +111,12 @@ The Showdown damage port has its own data (`showdown-champions-data.json`);
    shows the title as a label beside the field. Segmented pickers get
    `.labelsHidden()` too; iOS never shows their label, and on the Mac it
    repeated the caption above them.
+7. A sheet's content gets `.sheetSize()`: a Mac sheet is as big as its
+   content asks, and a list asks for no height. Give it a Cancel or Done
+   toolbar button (Mac sheets can't be swiped away), and don't put a button
+   at `.principal`, which a Mac sheet doesn't show.
+8. Rows that delete by swiping also get a Mac-only `.contextMenu` with the
+   same Delete: swipes need a trackpad, and Mac lists have no edit mode.
 
 **Adding a setting**
 1. Add a `SettingKey` to `AppSettings`.
@@ -258,30 +264,38 @@ xcodebuild build -project PKDex.xcodeproj -scheme PKDex -destination 'platform=m
 - The iOS background colors the views name (`systemGroupedBackground` and
   three others) are defined for `NSColor` in `Theme.swift`, with iOS's
   values.
-- **Checking Mac screens: use the app's own snapshots, not screen capture.**
-  Debug Mac builds save a picture of their window without Screen Recording
-  permission (`DebugSnapshot.swift`). Launch arguments pick the screen, and
-  settings passed the same way apply to that run only:
+- **Checking Mac screens: use the app's own snapshots, not screen capture**
+  (the owner prefers no screen access). Debug Mac builds draw their windows
+  into pictures themselves (`DebugSnapshot.swift`). Run the app's binary
+  with launch arguments; settings passed the same way apply to that run only:
 
   ```bash
-  open -g -n -W <path>/PKDex.app --args -debugSnapshot calc -debugSnapshotQuit YES \
-    -defaultTab damageCalc -appAppearance light -debugWindowSize 1280x800
+  <path>/PKDex.app/Contents/MacOS/PKDex -debugSnapshot calc -debugSnapshotQuit YES \
+    -debugSnapshotStdout YES -defaultTab damageCalc -appAppearance light \
+    -debugWindowSize 1280x820 > run.log
   ```
 
-  The picture lands in
-  `~/Library/Containers/yukisoft.PKReference/Data/Library/Caches/Snapshots/`.
-  `-debugOpenFirst YES` opens the first set in Sets, for the Set Editor.
-  `-debugOpenSettings YES` opens Settings too, saved as `<name>-Settings.png`.
-  For a screen reached by hand, Debug › Save Window Snapshot (⇧⌘S) saves
-  one there too, and plays a sound.
+  Each open window's picture is printed as a `[DebugSnapshot png <name>]
+  <base64>` line; decode those from the log. Don't read the pictures from
+  the app's container: macOS asks permission before another app reads it,
+  and the prompt stalls a script. To reach a screen:
+  - `-debugOpenFirst YES`: the first item in Mon Index, Sets, Teams or Team
+    Search.
+  - `-debugOpenSheet <name>`: `save`, `paste` or `load` (the calc), `newSet`
+    (Sets). A presenter adds a name with `DebugSnapshot.openSheet`.
+  - `-debugOpenSettings YES`: the Settings window, as `<name>-Settings`.
+  - `-debugMenus YES` prints the menu bar with shortcuts, as `[menu]` lines.
+
+  Glass comes out blank (the app's sidebar, search fields), as do web
+  views. For a screen reached by hand, Debug › Save Window Snapshot (⇧⌘S)
+  saves the window into the container and plays a sound; ask the owner to
+  share it.
 - **If every Mac window opens blank**, a layout blew up once and the window
   saved it as its sidebar's divider position (widths in the billions under
   `NSSplitView Subview Frames` in the app's preferences). Delete those
   entries with `defaults delete` on the container's preferences file.
   Opening an already-running app doesn't reload it: quit it first to try a
-  new build. Glass comes out blank: the app's sidebar, and search
-  fields. So do web views, and sidebar-style lists draw their text dimmer
-  than on screen. For those, ask the owner for a screenshot.
+  new build.
 
 ---
 
@@ -336,14 +350,13 @@ Roughly in order of value for effort.
       More list; Settings as the ⌘, window; a 1280×820 default window, at
       least 900×600; wider list columns in split-view tabs. The sidebar
       itself hasn't been seen, since snapshots can't draw glass.
-   3. Screen pass: every sheet needs a visible Done or Cancel (Mac sheets
-      can't be swiped away), toolbars, and edit-mode stand-ins. The calc's
-      Load Spread sheet has no way to delete on the Mac yet, and segmented
-      pickers repeat their label beside the caption above them (the calc's
-      Weather and Terrain). In the Set Editor, text fields show their
-      placeholder as a label (the set name, the moves, "Lv"), and there's an
-      empty band between the list and the form. Menu commands and
-      shortcuts: switching tabs, paste import, Find.
+   3. Screen pass. Done: list/detail tabs in `ListDetailSplit`; form text
+      fields and segmented pickers without stray labels; a right-click
+      Delete where rows only swiped (Sets, Teams, Load Spread); every sheet
+      sized with `sheetSize()` (all 17 already had Done or Cancel); Edit ›
+      Find (⌘F) and the tabs in the View menu (⌘1–⌘9), which the owner
+      checked on the Mac along with right-click Delete. Left out: a
+      paste-import command, since the calc has two sides to paste into.
    4. Developer ID signing, the hardened runtime, notarization, and releases
       on GitHub, with the tagged source for the GPL. Optionally Sparkle for
       updates.

@@ -75,6 +75,12 @@ struct TeamListView: View {
                     ForEach(savedTeams) { team in
                         TeamRowView(team: team, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
                             .tag(team)
+                            #if os(macOS)
+                            // Swiping to delete needs a trackpad on the Mac.
+                            .contextMenu {
+                                Button("Delete", role: .destructive) { modelContext.delete(team) }
+                            }
+                            #endif
                     }
                     .onDelete { indices in
                         for i in indices { modelContext.delete(savedTeams[i]) }
@@ -113,10 +119,12 @@ struct TeamListView: View {
         }
         .sheet(isPresented: $showNewTeam) {
             NewTeamSheet(savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+            .sheetSize()
         }
         .sheet(isPresented: $showImportTeam) {
             TeamPasteImportSheet(savedSpreads: savedSpreads, savedTeams: savedTeams,
                                  allPokemon: allPokemon, allMoves: allMoves)
+            .sheetSize()
         }
     }
 }
@@ -397,6 +405,7 @@ private struct TeamEditorContent: View {
         .cardPage()
         .sheet(isPresented: $showAddSlot) {
             AddSlotSheet(slots: $slots, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+            .sheetSize()
         }
     }
 }
