@@ -24,7 +24,10 @@
     "multi_hit_fallback": "[min, max] hits, for moves whose synced data lacks them.",
     "secondary_effects": "On-hit effects when the target survives. chance is the printed percent.",
     "self_stat_changes_on_hit": "Stat changes the user always takes after a damaging hit.",
-    "setup_moves": "Moves that set the user up (stat boosts and the like). The Champions validator flags one on a set holding a Choice item, which locks the user into a single move."
+    "setup_moves": "Moves that set the user up (stat boosts and the like). The Champions validator flags one on a set holding a Choice item, which locks the user into a single move.",
+    "recharge_moves": "Damaging moves the user must recharge after (Hyper Beam). The Battle Sim doesn't model recharging yet; the Problem Solver marks them.",
+    "self_ko_moves": "Damaging moves that faint the user (Explosion). The Battle Sim doesn't model this yet; the Problem Solver marks them.",
+    "fails_if_hit_moves": "Damaging moves that fail if the user is hit first (Focus Punch). The Battle Sim doesn't model this yet; the Problem Solver marks them."
   },
   "first_turn_only": [
     "fakeout", "firstimpression"
@@ -335,5 +338,11 @@
     "growth", "honeclaws", "howl", "irondefense", "magnetrise", "meditate", "nastyplot", "noretreat",
     "poweruppunch", "quiverdance", "rockpolish", "sharpen", "shellsmash", "shiftgear", "stockpile", "swordsdance",
     "tailglow", "victorydance", "workup"
-  ]
+  ],
+  "recharge_moves": [
+    "blastburn", "eternabeam", "frenzyplant", "gigaimpact", "hydrocannon", "hyperbeam", "meteorassault",
+    "prismaticlaser", "roaroftime", "rockwrecker"
+  ],
+  "self_ko_moves": ["explosion", "mistyexplosion", "selfdestruct"],
+  "fails_if_hit_moves": ["focuspunch"]
 }
