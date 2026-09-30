@@ -14,8 +14,9 @@ one app:
 - a full suite of Gen 3–5 RNG tools, ported from PokéFinder and EonTimer
 - tournament results and team sheets from Limitless
 
-The Xcode project and target are named `PKDex`, and the app's display name is
-**PK Reference** (bundle ID `yukisoft.PKReference`).
+The app is **PK Reference** (`PK Reference.app`, bundle ID
+`yukisoft.PKReference`). The Xcode project, its target and the Swift module
+are still named `PKDex`.
 
 > PK Reference is an unofficial, fan-made tool. It is not affiliated with,
 > endorsed by, or associated with Nintendo, The Pokémon Company, Creatures Inc.,
@@ -29,12 +30,13 @@ The Xcode project and target are named `PKDex`, and the app's display name is
 1. [Features at a glance](#features-at-a-glance)
 2. [The tabs in detail](#the-tabs-in-detail)
 3. [Pokémon Champions support](#pokémon-champions-support)
-4. [On-device machine learning](#on-device-machine-learning)
-5. [Architecture](#architecture)
-6. [Building, running and testing](#building-running-and-testing)
-7. [Repository layout](#repository-layout)
-8. [Data sources and credits](#data-sources-and-credits)
-9. [License](#license)
+4. [Siri, Spotlight and Shortcuts](#siri-spotlight-and-shortcuts)
+5. [On-device machine learning](#on-device-machine-learning)
+6. [Architecture](#architecture)
+7. [Building, running and testing](#building-running-and-testing)
+8. [Repository layout](#repository-layout)
+9. [Data sources and credits](#data-sources-and-credits)
+10. [License](#license)
 
 ---
 
@@ -316,6 +318,23 @@ Champions-specific mechanics that are modelled include:
 
 ---
 
+## Siri, Spotlight and Shortcuts
+
+Three actions work from Siri, Spotlight (including running them straight
+from Spotlight on the Mac) and the Shortcuts app, and answer in place, with
+an **Open in PK Reference** button:
+
+- **Look Up Pokémon**: its types, what it's weak to and resists by type, and
+  its base stat total. "What is Garchomp weak to in PK Reference?"
+- **Calculate Damage**: one Pokémon's move against another, as the calc
+  would run it. Each side's stats are asked for (no investment, full
+  investment, or a saved set of that Pokémon), never assumed.
+  "Calculate damage in PK Reference."
+- **Search Teams**: the top tournament compositions for a description, as
+  in Team Search. "Search teams in PK Reference."
+
+See [`AppIntents-PLAN.md`](AppIntents-PLAN.md) for what's next.
+
 ## On-device machine learning
 
 All inference runs on the device.
@@ -391,7 +410,7 @@ project has no Swift package dependencies.
    later launches work offline, except for Tournaments. The Mac app is
    sandboxed, with outgoing network access.
 
-**Tests:** 1,083 tests written with Swift Testing. They cover the damage engines
+**Tests:** 1,092 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
 tools, ML parity, the tournament import and data store, Team Search's parser,

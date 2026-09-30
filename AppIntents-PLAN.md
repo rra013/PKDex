@@ -1,7 +1,7 @@
 # Siri, Spotlight and Shortcuts: implementation plan
 
-Status: **planned** (2026-09-30). Nothing is built yet. The questions in §7
-come first.
+Status: **Phase 1 built** (2026-09-30): the foundation and the three actions, with
+their tests. Phases 2 and 3 are next. The decisions are in §7.
 
 The goal: people can ask Siri to look things up, run the calc or search
 teams without opening the app, on iPhone, iPad and the Mac. The same actions
@@ -79,13 +79,15 @@ What's missing:
    Ninetales"). Suggestions: the current regulation's roster.
 3. **Intents**:
    - **Look Up Pokémon**: answers with its types, what it's weak to and
-     resists, and its base stat total, with an option to open its page.
-   - **Calculate Damage**: attacker, move, defender; answers with the
-     damage range as a percentage and the hits to KO. Uses the calc's mode
-     (Champions or mainline) from the Default Generation setting. How it
-     picks stats is question §7.1.
-   - **Search Teams**: opens Team Search with the query, which its existing
-     interpreter handles.
+     resists by type, and its base stat total.
+   - **Calculate Damage**: attacker, move, defender and each side's stats
+     (§7.1); answers with the damage range as a percentage and the hits to
+     KO. A saved set brings its own mode; otherwise the mode (Champions or
+     mainline) follows the Default Generation setting, as the calc does.
+   - **Search Teams**: answers with the top compositions for the query,
+     which the existing parser reads.
+
+   Each answers in place with an "Open in PK Reference" button (§7.2).
 4. **App Shortcuts**, a few phrases each, for example "What is \(Pokémon)
    weak to in PK Reference", "Look up \(Pokémon) in PK Reference", "Search
    teams in PK Reference".
@@ -135,14 +137,19 @@ sentence), separate from the intents, so they can be tested directly.
 
 ---
 
-## 7. Questions to settle first
+## 7. Decisions
 
-1. **Stats for Calculate Damage when no set is named.** Options: no
-   investment (clear, but rarely what's meant); the most recently saved set
-   for that species if there is one, else no investment; or a standard
-   spread (full investment in the attacking stat). Whatever it picks, the
-   answer says which.
-2. **Answer in Siri or open the app?** Proposed: lookups and the calc
-   answer in place, with an option to open; Team Search and loading a set
-   open the app.
-3. **Which actions first.** Proposed: Phase 1's three.
+Settled with the owner on 2026-09-30:
+
+1. **Calculate Damage assumes nothing.** Each side's stats are a required
+   parameter, so Siri asks when they aren't given. The choices are the
+   saved sets for that Pokémon, "No investment" and "Full investment", each
+   saying exactly what it means (for example, full investment is the
+   highest attacking stat for the move's category, or the highest HP and
+   matching defense, with a neutral nature, at level 50).
+2. **Every action answers in place, with an option to open the app.** The
+   answer is a dialog and a snippet whose "Open in PK Reference" button
+   opens the page: the Pokémon's page, the calc with both sides loaded, or
+   Team Search with the query. Team Search answers with its top
+   compositions.
+3. **Phase 1's three actions come first.**

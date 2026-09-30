@@ -3078,7 +3078,7 @@
 		33C3ECC12F94745F004BB026 /* zdict.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = zdict.h; sourceTree = "<group>"; };
 		33C3ECC22F94745F004BB026 /* zstd.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = zstd.h; sourceTree = "<group>"; };
 		33C3ECC32F94745F004BB026 /* zstd_errors.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = zstd_errors.h; sourceTree = "<group>"; };
-		33C6C9A02F8D3CFB005FFCCC /* PKDex.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PKDex.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		33C6C9A02F8D3CFB005FFCCC /* PK Reference.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "PK Reference.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -9072,7 +9072,7 @@
 		33C6C9A12F8D3CFB005FFCCC /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				33C6C9A02F8D3CFB005FFCCC /* PKDex.app */,
+				33C6C9A02F8D3CFB005FFCCC /* PK Reference.app */,
 				332D1F312F9128C500E7D180 /* PKDexTests.xctest */,
 			);
 			name = Products;
@@ -9124,7 +9124,7 @@
 			packageProductDependencies = (
 			);
 			productName = PKDex;
-			productReference = 33C6C9A02F8D3CFB005FFCCC /* PKDex.app */;
+			productReference = 33C6C9A02F8D3CFB005FFCCC /* PK Reference.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -9271,7 +9271,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PKDex.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PKDex";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PK Reference.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PK Reference";
 			};
 			name = Debug;
 		};
@@ -9294,7 +9294,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PKDex.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PKDex";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PK Reference.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PK Reference";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -9453,6 +9453,7 @@
 					/opt/homebrew/include,
 					"$(SRCROOT)/PKDex/zstd_lib",
 				);
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "PK Reference";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -9475,7 +9476,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = yukisoft.PKReference;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = PKDex;
+				PRODUCT_NAME = "PK Reference";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -9533,6 +9535,7 @@
 					/opt/homebrew/include,
 					"$(SRCROOT)/PKDex/zstd_lib",
 				);
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "PK Reference";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -9555,7 +9558,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = yukisoft.PKReference;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = PKDex;
+				PRODUCT_NAME = "PK Reference";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
