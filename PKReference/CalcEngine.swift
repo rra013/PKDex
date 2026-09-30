@@ -204,9 +204,12 @@ nonisolated enum CalcEngine {
             // The port's own HP, not the snapshot's: Champions mons are fixed
             // at level 50 / 31 IVs and the port computes max HP itself.
             defenderHP: def.rawStats.hp,
-            effectiveness: computeTypeEffectiveness(moveType: move.type,
-                                                    defenderTypes: defender.types),
-            isSTAB: attacker.types.contains(move.type),
+            // The port's own type and effectiveness, after Liquid Voice,
+            // Pixilate, Scrappy and the like, so a sound move made Water
+            // isn't reported as having no effect on a Dark type.
+            effectiveness: result.typeEffectiveness
+                ?? computeTypeEffectiveness(moveType: move.type, defenderTypes: defender.types),
+            isSTAB: attacker.types.contains(result.moveType?.rawValue ?? move.type),
             rolls: damage.rolls.map { $0.map { Int(floor(Double($0) * post)) } },
             // The port's own current HP, converted against its real max.
             defenderCurrentHP: def.curHP() < def.maxHP() ? def.curHP() : nil

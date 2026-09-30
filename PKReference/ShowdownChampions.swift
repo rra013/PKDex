@@ -200,6 +200,8 @@ nonisolated func calculateChampions(_ gen: ShowdownGeneration, _ attacker: Showd
         && defender.hasItem("Iron Ball") && !defender.hasAbility("Klutz") {
         typeEffectiveness = 1
     }
+    result.moveType = move.type
+    result.typeEffectiveness = typeEffectiveness
 
     if typeEffectiveness == 0 {
         return result

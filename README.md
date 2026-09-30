@@ -53,7 +53,7 @@ commits use.
 | **Sets** | Library of saved spreads, with a set editor and an on-device **set predictor**. |
 | **Teams** | Six-slot teams built from saved sets, with type-coverage analysis and whole-team Showdown paste import. |
 | **Speed Tiers** | Your Pokémon's final Speed, after every modifier, ranked against the roster. |
-| **Problem Solver** | Pick the set you need to beat and see every Champions Pokémon, move and investment that knocks it out in one hit, guaranteed, in doubles, grouped by whether it moves first. |
+| **Problem Solver** | Pick the set you need to beat and see every Champions Pokémon, move and investment that knocks it out in one hit (or two), guaranteed, in doubles, grouped by whether it moves first. |
 | **Battle Sim** | Singles and doubles battle engine using your saved teams, with Mega Evolution and an on-device AI that can play either side. |
 | **RNG Tools** | Timer, seed finder, wild and static encounters, eggs, TID/SID, GameCube (Colosseum/XD), IV calculator, IV→PID and Hidden Power, for Gen 3–5, plus Sword/Shield raid dens. |
 | **Tournaments** | Tournaments, standings and team sheets from Limitless, with one-tap import of any team. |
@@ -169,7 +169,7 @@ modifiers.
 
 Enter the set you need to beat, the same way as a side of the calc (or load a
 saved set or paste one), and the tab lists every combination in the current
-Champions regulation that knocks it out in one hit:
+Champions regulation that knocks it out in one hit, or in two:
 
 - **Guaranteed:** the lowest damage roll must KO, under doubles rules
   (spread moves do 0.75×) and after the set's own ability, including its
@@ -183,6 +183,11 @@ Champions regulation that knocks it out in one hit:
   faster.
 - **The field:** weather, terrain, a partner's Helping Hand, Tailwind on
   your side, and Trick Room, under which the slower Pokémon moves first.
+- **Two hits:** the same move on two turns running, from the lowest rolls,
+  allowing for what happens between them: a Sitrus Berry or Leftovers,
+  Multiscale, a resist berry, Knock Off taking the item, Draco Meteor's
+  drop. When anything does, every answer is then played out in the battle
+  simulator, and the answer says so.
 - **Grouped:** outspeeds and OHKOs; OHKOs with priority; OHKOs but slower
   (Trick Room, Tailwind or a switch-in). Each Pokémon shows its best answer,
   with its other moves a tap away. Accuracy under 100% and drawbacks (must
@@ -457,7 +462,7 @@ project has no Swift package dependencies.
    later launches work offline, except for Tournaments. The Mac app is
    sandboxed, with outgoing network access.
 
-**Tests:** 1,143 tests written with Swift Testing. They cover the damage engines
+**Tests:** 1,152 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
 tools, ML parity, the tournament import and data store, Team Search's parser,

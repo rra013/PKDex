@@ -3,9 +3,9 @@
 //  PKReference
 //
 //  The Problem Solver tab: the set to beat, edited like a side of the calc,
-//  and the Pokémon, moves and investments that knock it out in one hit,
-//  guaranteed, under Champions doubles rules (`ProblemSolver`). Each answer
-//  opens in the damage calc exactly as solved, or saves as a set.
+//  and the Pokémon, moves and investments that knock it out in one hit or
+//  two, guaranteed, under Champions doubles rules (`ProblemSolver`). Each
+//  answer opens in the damage calc exactly as solved, or saves as a set.
 //  ProblemSolver-PLAN.md has the plan.
 //
 
@@ -16,6 +16,9 @@ import SwiftData
 
 /// Runs the solver for the screen: off the main thread, with the
 /// candidates built once per regulation. A new solve cancels the last.
+/// Two-hit answers show as soon as the fast check has them, then the
+/// battle simulator re-checks the ones it needs to, on the main actor
+/// (its damage goes through `DamageCalcVM`).
 @MainActor @Observable
 final class ProblemSolverModel {
     enum Status: Equatable {
@@ -28,9 +31,15 @@ final class ProblemSolverModel {
     private(set) var status: Status = .waiting
     private(set) var counters: [ProblemSolver.Counter] = []
     private(set) var candidateCount = 0
+    /// The battle simulator's progress through the two-hit answers it's
+    /// re-checking; nil when it isn't.
+    private(set) var simulating: (done: Int, of: Int)?
     private var candidates: [ChampionsRegulation: [ProblemSolver.Candidate]] = [:]
 
-    func solve(_ problem: ProblemSolver.Problem?, regulation: ChampionsRegulation, context: ModelContext) async {
+    /// `target` is the set to beat as the simulator loads it.
+    func solve(_ problem: ProblemSolver.Problem?, target: SideSetup?, regulation: ChampionsRegulation,
+               context: ModelContext) async {
+        simulating = nil
         guard let problem else {
             status = .waiting
             counters = []
@@ -44,6 +53,42 @@ final class ProblemSolverModel {
         guard !Task.isCancelled else { return }
         counters = found
         status = .solved
+        if let target { await simulate(problem, target: target, context: context) }
+    }
+
+    /// Re-checks the answers that need it, then puts them back in order,
+    /// without any the simulator found can't do it.
+    private func simulate(_ problem: ProblemSolver.Problem, target: SideSetup, context: ModelContext) async {
+        let pending = counters.indices.filter { ProblemSolver.needsSimulation(counters[$0], problem) }
+        guard !pending.isEmpty else { return }
+        let allPokemon = (try? context.fetch(FetchDescriptor<PKMNStats>())) ?? []
+        let allMoves = (try? context.fetch(FetchDescriptor<MoveData>())) ?? []
+        let moves = Dictionary(allMoves.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let vm = DamageCalcVM()
+        vm.multi = true
+        vm.weather = problem.field.weather
+        vm.terrain = problem.field.terrain
+        guard target.apply(to: vm.side2, allPokemon: allPokemon, allMoves: allMoves) else { return }
+
+        var checked: [ProblemSolver.Counter?] = counters
+        simulating = (0, pending.count)
+        // Yielding after every answer costs a pass of the run loop each
+        // time, which was most of the work; a slice of work a frame keeps
+        // the screen live at a fraction of that.
+        var slice = ContinuousClock.now
+        for (done, index) in pending.enumerated() {
+            if ContinuousClock.now - slice > .milliseconds(25) {
+                simulating = (done, pending.count)
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                slice = .now
+            }
+            guard let counter = checked[index], let move = moves[counter.move.id] else { continue }
+            checked[index] = ProblemSolver.simulated(counter, problem, vm: vm, move: move,
+                                                     allPokemon: allPokemon, allMoves: allMoves)
+        }
+        counters = ProblemSolver.sorted(checked.compactMap { $0 })
+        simulating = nil
     }
 
     @concurrent
@@ -70,6 +115,7 @@ struct ProblemSolverView: View {
     @State private var helpingHand = false
     @State private var tailwind = false
     @State private var trickRoom = false
+    @State private var twoHits = false
     /// Wide layouts show the chosen answer above the list.
     @State private var selected: ProblemSolver.Counter?
 
@@ -87,13 +133,14 @@ struct ProblemSolverView: View {
     private var rules: ProblemSolver.Problem? {
         problem.snapshot().map {
             ProblemSolver.Problem(defender: $0, intimidate: intimidate, weather: weather, terrain: terrain,
-                                  helpingHand: helpingHand, tailwind: tailwind, trickRoom: trickRoom)
+                                  helpingHand: helpingHand, tailwind: tailwind, trickRoom: trickRoom,
+                                  twoHits: twoHits)
         }
     }
 
     private struct SolveKey: Equatable {
         let problem: CalcSnapshot?
-        let intimidate, helpingHand, tailwind, trickRoom: Bool
+        let intimidate, helpingHand, tailwind, trickRoom, twoHits: Bool
         let weather: WeatherCondition
         let terrain: TerrainCondition
         let regulation: ChampionsRegulation
@@ -101,7 +148,7 @@ struct ProblemSolverView: View {
 
     private var solveKey: SolveKey {
         SolveKey(problem: problem.snapshot(), intimidate: intimidate, helpingHand: helpingHand,
-                 tailwind: tailwind, trickRoom: trickRoom, weather: weather, terrain: terrain,
+                 tailwind: tailwind, trickRoom: trickRoom, twoHits: twoHits, weather: weather, terrain: terrain,
                  regulation: regulation)
     }
 
@@ -154,10 +201,11 @@ struct ProblemSolverView: View {
                 // Let a burst of edits settle before searching.
                 try? await Task.sleep(for: .milliseconds(400))
                 guard !Task.isCancelled else { return }
-                await model.solve(rules, regulation: regulation, context: modelContext)
+                await model.solve(rules, target: SideSetup(problem), regulation: regulation, context: modelContext)
             }
             .onChange(of: model.counters) {
-                if let selected, !model.counters.contains(selected) { self.selected = nil }
+                // The simulator may have changed or dropped the answer showing.
+                if let selected { self.selected = model.counters.first { $0.id == selected.id } }
                 #if DEBUG && os(macOS)
                 // `-debugOpenFirst YES`: show the first answer, for snapshots.
                 if selected == nil, UserDefaults.standard.bool(forKey: "debugOpenFirst") {
@@ -165,6 +213,10 @@ struct ProblemSolverView: View {
                 }
                 #endif
             }
+            #if DEBUG
+            // `-debugTwoHits YES`: start in two-hit mode, for snapshots.
+            .onAppear { if UserDefaults.standard.bool(forKey: "debugTwoHits") { twoHits = true } }
+            #endif
             .onChange(of: problem.championsMode) {
                 // The solver works on Champions rules only.
                 if !problem.championsMode { problem.setChampionsMode(true) }
@@ -191,7 +243,18 @@ struct ProblemSolverView: View {
 
     private var rulesCard: some View {
         SectionCard(title: "Rules", icon: "list.bullet.clipboard") {
-            Text("\(regulation.displayName), doubles: spread moves do 0.75×. Only guaranteed one-hit KOs count, from the lowest damage roll.")
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Knock out in").font(.subheadline).foregroundStyle(.secondary)
+                Picker("Knock out in", selection: $twoHits) {
+                    Text("One hit").tag(false)
+                    Text("Two hits").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+            Text(twoHits
+                 ? "\(regulation.displayName), doubles: spread moves do 0.75×. Only guaranteed two-hit KOs count: the same move on two turns running, from the lowest damage rolls, allowing for what happens between them (Sitrus Berry, Leftovers, Multiscale)."
+                 : "\(regulation.displayName), doubles: spread moves do 0.75×. Only guaranteed one-hit KOs count, from the lowest damage roll.")
                 .font(.subheadline).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if problem.selectedAbility == "intimidate" {
@@ -226,7 +289,7 @@ struct ProblemSolverView: View {
 
     private func resultsCard(wide: Bool) -> some View {
         CountersCard(model: model, problemName: problem.effectiveDisplayName,
-                     regulation: regulation, trickRoom: trickRoom, wide: wide, selected: $selected)
+                     regulation: regulation, trickRoom: trickRoom, twoHits: twoHits, wide: wide, selected: $selected)
     }
 }
 
@@ -237,6 +300,7 @@ private struct CountersCard: View {
     let problemName: String
     let regulation: ChampionsRegulation
     let trickRoom: Bool
+    let twoHits: Bool
     let wide: Bool
     @Binding var selected: ProblemSolver.Counter?
 
@@ -268,8 +332,9 @@ private struct CountersCard: View {
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
             case .solved:
+                SimulatorProgress(model: model)
                 if model.counters.isEmpty {
-                    Text("Nothing in \(regulation.displayName) knocks out \(problemName) in one hit, guaranteed.")
+                    Text("Nothing in \(regulation.displayName) knocks out \(problemName) in \(hitsPhrase), guaranteed.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 } else {
                     results
@@ -281,7 +346,7 @@ private struct CountersCard: View {
     @ViewBuilder
     private var results: some View {
         let pokemon = Set(model.counters.map(\.name)).count
-        Text("\(pokemon.formatted()) Pokémon can knock out \(problemName) in one hit, \(model.counters.count.formatted()) ways.")
+        Text("\(pokemon.formatted()) Pokémon can knock out \(problemName) in \(hitsPhrase), \(model.counters.count.formatted()) ways.")
             .font(.subheadline).foregroundStyle(.secondary)
         TextField("Filter by Pokémon or move", text: $filter)
             .textFieldStyle(.roundedBorder)
@@ -292,11 +357,11 @@ private struct CountersCard: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Divider()
                     HStack(alignment: .firstTextBaseline) {
-                        Text(group.title(trickRoom: trickRoom)).font(.headline)
+                        Text(group.title(trickRoom: trickRoom, twoHits: twoHits)).font(.headline)
                         Spacer()
                         Text("\(members.count) Pokémon").font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
                     }
-                    Text(group.explanation(problemName, trickRoom: trickRoom))
+                    Text(group.explanation(problemName, trickRoom: trickRoom, twoHits: twoHits))
                         .font(.caption).foregroundStyle(.secondary)
                     let shown = showingAll.contains(group) ? members : Array(members.prefix(Self.firstShown))
                     ForEach(shown, id: \.first!.id) { answers in
@@ -310,6 +375,8 @@ private struct CountersCard: View {
             }
         }
     }
+
+    private var hitsPhrase: String { twoHits ? "two hits" : "one hit" }
 
     /// A Pokémon's best answer, then its others when opened.
     @ViewBuilder
@@ -347,6 +414,22 @@ private struct CountersCard: View {
         } else {
             NavigationLink(value: counter) { CounterRow(counter: counter) }
                 .buttonStyle(.plain)
+        }
+    }
+}
+
+/// Its own view, so each step of the simulator's progress redraws the bar
+/// and not the list.
+private struct SimulatorProgress: View {
+    let model: ProblemSolverModel
+
+    var body: some View {
+        if let progress = model.simulating {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Checking \(progress.of.formatted()) answers in the battle simulator…")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                ProgressView(value: Double(progress.done), total: Double(max(progress.of, 1)))
+            }
         }
     }
 }
@@ -417,9 +500,15 @@ private struct CounterDetailCard: View {
             }
             Divider()
             VStack(alignment: .leading, spacing: 4) {
-                Text("\(Int(counter.outcome.damageMin))–\(Int(counter.outcome.damageMax)) damage (\(counter.percentLabel)) of \(counter.outcome.defenderHP) HP: a guaranteed one-hit KO.")
+                Text(counter.damageSummary)
                     .font(.subheadline)
                     .fixedSize(horizontal: false, vertical: true)
+                if let rules, counter.twoHits != nil {
+                    ForEach(counter.twoHitNotes(rules, targetName: problem.effectiveDisplayName), id: \.self) { note in
+                        Text(note).font(.subheadline).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
                 Text(counter.speedLabel(against: ProblemSolver.speed(problemSnapshot, fieldSnapshot),
                                         problemName: problem.effectiveDisplayName,
                                         trickRoom: rules?.trickRoom ?? false))
@@ -486,20 +575,26 @@ private struct CounterDetailCard: View {
 // MARK: - Wording
 
 extension ProblemSolver.Group {
-    func title(trickRoom: Bool) -> String {
-        switch self {
-        case .outspeeds: trickRoom ? "Moves first in Trick Room, and OHKOs" : "Outspeeds and OHKOs"
-        case .priority: "OHKOs with priority"
-        case .slower: trickRoom ? "OHKOs but moves later" : "OHKOs but slower"
+    func title(trickRoom: Bool, twoHits: Bool = false) -> String {
+        let ko = twoHits ? "2HKOs" : "OHKOs"
+        return switch self {
+        case .outspeeds: trickRoom ? "Moves first in Trick Room, and \(ko)" : "Outspeeds and \(ko)"
+        case .priority: "\(ko) with priority"
+        case .slower: trickRoom ? "\(ko) but moves later" : "\(ko) but slower"
         }
     }
 
-    func explanation(_ problemName: String, trickRoom: Bool) -> String {
+    func explanation(_ problemName: String, trickRoom: Bool, twoHits: Bool = false) -> String {
         switch self {
+        case .outspeeds where twoHits && trickRoom:
+            "Slower than \(problemName), so under Trick Room it hits first on both turns."
+        case .outspeeds where twoHits: "Faster than \(problemName), so it hits first on both turns."
         case .outspeeds where trickRoom:
             "Slower than \(problemName), so under Trick Room it knocks it out before it moves."
         case .outspeeds: "Faster than \(problemName), so it knocks it out before it moves."
         case .priority: "A priority move goes first, whatever the Speeds."
+        case .slower where twoHits && trickRoom: "Too fast for Trick Room: \(problemName) moves first each turn."
+        case .slower where twoHits: "\(problemName) moves first each turn, unless Trick Room or Tailwind turns it around."
         case .slower where trickRoom: "Too fast for Trick Room: it needs a switch-in to land the hit."
         case .slower: "Needs Trick Room, Tailwind or a switch-in to land the hit."
         }
@@ -520,10 +615,56 @@ extension ProblemSolver.Counter {
         return parts.isEmpty ? "No investment needed" : parts.joined(separator: " / ")
     }
 
-    /// "112.4% – 132.7%".
-    var percentLabel: String {
+    /// "112.4% – 132.7%": the first hit, in two-hit mode.
+    var percentLabel: String { Self.percentLabel(outcome) }
+
+    private static func percentLabel(_ outcome: CalcOutcome) -> String {
         let hp = Double(max(outcome.defenderHP, 1))
         return "\(DamageAnswer.percent(outcome.damageMin / hp * 100)) – \(DamageAnswer.percent(outcome.damageMax / hp * 100))"
+    }
+
+    /// "218–258 damage (107.9% – 127.7%) of 202 HP: a guaranteed one-hit
+    /// KO.", or both hits.
+    var damageSummary: String {
+        func range(_ hit: CalcOutcome) -> String {
+            "\(Int(hit.damageMin))–\(Int(hit.damageMax)) damage (\(Self.percentLabel(hit)))"
+        }
+        guard let twoHits else {
+            return "\(range(outcome)) of \(outcome.defenderHP) HP: a guaranteed one-hit KO."
+        }
+        let same = (twoHits.second.damageMin, twoHits.second.damageMax) == (twoHits.first.damageMin, twoHits.first.damageMax)
+        let hits = same
+            ? "Two hits of \(range(twoHits.first)) each"
+            : "A first hit of \(range(twoHits.first)), then \(range(twoHits.second))"
+        return "\(hits), of \(outcome.defenderHP) HP: a guaranteed two-hit KO."
+    }
+
+    /// What a two-hit answer allows for between the hits, and whether the
+    /// battle simulator checked it.
+    @MainActor
+    func twoHitNotes(_ problem: ProblemSolver.Problem, targetName: String) -> [String] {
+        let target = problem.defender
+        let item = target.effectiveHeldItem
+        var effects: [String] = []
+        if [.sitrusBerry, .oranBerry, .leftovers].contains(item)
+            || typeResistBerryMap[item] == move.type || item == .chilanBerry && move.type == "Normal" {
+            effects.append("\(targetName)'s \(item.rawValue)")
+        }
+        if let ability = target.effectiveAbility, ProblemSolver.betweenHitAbilities.contains(ability) {
+            effects.append("\(targetName)'s \(formatAbilityName(ability))")
+        }
+        if problem.field.terrain == .grassy, problem.targetIsGrounded { effects.append("Grassy Terrain healing it") }
+        if !ProblemSolver.selfStatChanges(for: move.name).isEmpty { effects.append("\(move.name) lowering its user's stats") }
+        if BattleSimSeed.normalize(move.name) == "knockoff", item != .none { effects.append("Knock Off taking its item") }
+        guard !effects.isEmpty else { return [] }
+
+        var notes = ["Allows for \(effects.joined(separator: " and "))."]
+        if simulated {
+            notes.append("Checked in the battle simulator.")
+        } else if problem.helpingHand {
+            notes.append("Not checked in the battle simulator, which doesn't model Helping Hand.")
+        }
+        return notes
     }
 
     /// "Atk -1" or "Atk +1, SpA +2".
