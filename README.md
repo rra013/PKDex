@@ -190,8 +190,9 @@ Champions regulation that knocks it out in one hit, or in two:
   simulator, and the answer says so.
 - **Grouped:** outspeeds and OHKOs; OHKOs with priority; OHKOs but slower
   (Trick Room, Tailwind or a switch-in). Each Pokémon shows its best answer,
-  with its other moves a tap away. Accuracy under 100% and drawbacks (must
-  recharge, faints the user, charges first) are marked.
+  with its other moves a tap away, and a filter finds answers by Pokémon,
+  move or ability. Accuracy under 100% and drawbacks (must recharge, faints
+  the user, charges first) are marked.
 - **Each answer** opens in the Damage Calc exactly as solved, or saves as a
   set.
 
@@ -462,7 +463,7 @@ project has no Swift package dependencies.
    later launches work offline, except for Tournaments. The Mac app is
    sandboxed, with outgoing network access.
 
-**Tests:** 1,152 tests written with Swift Testing. They cover the damage engines
+**Tests:** 1,153 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
 tools, ML parity, the tournament import and data store, Team Search's parser,

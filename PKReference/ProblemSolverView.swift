@@ -312,11 +312,7 @@ private struct CountersCard: View {
     private static let firstShown = 25
 
     private var filtered: [ProblemSolver.Counter] {
-        let wanted = IntentNames.key(filter)
-        guard !wanted.isEmpty else { return model.counters }
-        return model.counters.filter {
-            IntentNames.key($0.name).contains(wanted) || IntentNames.key($0.move.name).contains(wanted)
-        }
+        model.counters.filter { $0.matches(filter: filter) }
     }
 
     var body: some View {
@@ -348,9 +344,13 @@ private struct CountersCard: View {
         let pokemon = Set(model.counters.map(\.name)).count
         Text("\(pokemon.formatted()) Pokémon can knock out \(problemName) in \(hitsPhrase), \(model.counters.count.formatted()) ways.")
             .font(.subheadline).foregroundStyle(.secondary)
-        TextField("Filter by Pokémon or move", text: $filter)
+        TextField("Filter by Pokémon, move or ability", text: $filter)
             .textFieldStyle(.roundedBorder)
         let counters = filtered
+        if counters.isEmpty {
+            Text("No answers match “\(filter)”.")
+                .font(.subheadline).foregroundStyle(.secondary)
+        }
         ForEach(ProblemSolver.Group.allCases, id: \.self) { group in
             let members = ProblemSolver.byPokemon(counters.filter { $0.group == group })
             if !members.isEmpty {
@@ -404,7 +404,7 @@ private struct CountersCard: View {
     private func row(_ counter: ProblemSolver.Counter) -> some View {
         if wide {
             Button { selected = counter } label: {
-                CounterRow(counter: counter)
+                CounterRow(counter: counter, ability: counter.abilityMatching(filter: filter))
                     .padding(6)
                     .background(selected?.id == counter.id ? Color.accentColor.opacity(0.15) : .clear,
                                 in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -412,7 +412,9 @@ private struct CountersCard: View {
             }
             .buttonStyle(.plain)
         } else {
-            NavigationLink(value: counter) { CounterRow(counter: counter) }
+            NavigationLink(value: counter) {
+                CounterRow(counter: counter, ability: counter.abilityMatching(filter: filter))
+            }
                 .buttonStyle(.plain)
         }
     }
@@ -436,6 +438,8 @@ private struct SimulatorProgress: View {
 
 private struct CounterRow: View {
     let counter: ProblemSolver.Counter
+    /// The ability the filter found it by, shown with the move.
+    var ability: String? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -445,7 +449,8 @@ private struct CounterRow: View {
                     Text(counter.name).font(.subheadline.bold()).fixedSize()
                     ForEach(counter.attacker.effectiveTypes, id: \.self) { TypeBadge(type: $0) }
                 }
-                Text("\(counter.move.name) · \(counter.itemName)")
+                Text(([counter.move.name, counter.itemName] + [ability.map(formatAbilityName)].compactMap { $0 })
+                        .joined(separator: " · "))
                     .font(.caption)
                 Text(counter.pointsLabel)
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
@@ -602,6 +607,24 @@ extension ProblemSolver.Group {
 }
 
 extension ProblemSolver.Counter {
+    /// Whether the results filter finds this answer by its Pokémon, move or
+    /// one of its abilities, ignoring case, accents and punctuation ("speed
+    /// boost" finds Speed Boost).
+    func matches(filter: String) -> Bool {
+        let wanted = IntentNames.key(filter)
+        return wanted.isEmpty || IntentNames.key(name).contains(wanted)
+            || IntentNames.key(move.name).contains(wanted) || abilityMatching(filter: filter) != nil
+    }
+
+    /// The ability the filter names, when that's what finds this answer
+    /// rather than its Pokémon or move.
+    func abilityMatching(filter: String) -> String? {
+        let wanted = IntentNames.key(filter)
+        guard !wanted.isEmpty, !IntentNames.key(name).contains(wanted),
+              !IntentNames.key(move.name).contains(wanted) else { return nil }
+        return abilities.first { IntentNames.key($0).contains(wanted) }
+    }
+
     /// The item held: the move's booster, Choice Scarf, or a Mega's stone.
     var itemName: String {
         attacker.heldItem == .none ? "No item" : attacker.heldItem.rawValue
