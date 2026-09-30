@@ -21,6 +21,24 @@ enum FormChoice: Hashable {
     case alternate(String)
 }
 
+extension FormChoice {
+    /// The regulation's listing of a Pokédex form, matched as Check
+    /// Legality matches it: a Mega by its name ("Mega Gardevoir"), another
+    /// form by the start of the Pokédex's form name ("Alola Form" is
+    /// "alola"). Nil when the regulation doesn't list it.
+    static func matching(_ form: AppNavigator.PokemonForm, in species: ChampionsSpecies) -> FormChoice? {
+        let formName = form.formName.lowercased()
+        if formName == "mega" || formName.hasPrefix("mega-") {
+            let wanted = IntentNames.key(form.spokenName)
+            return species.megas.first { IntentNames.key($0.name) == wanted }.map { .mega($0.name) }
+        }
+        let wanted = IntentNames.key(formName)
+        return species.alternateForms
+            .first { PokemonLegality.formKeys($0.name).contains { wanted.hasPrefix($0) } }
+            .map { .alternate($0.name) }
+    }
+}
+
 /// The concrete data displayed for a resolved `FormChoice`.
 struct DisplayedForm {
     let name: String
@@ -65,10 +83,18 @@ struct ChampionsPokemonDetailView: View {
     @Query(sort: \PKMNStats.id) private var allPokemonStats: [PKMNStats]
     @Query(sort: \MoveData.name) private var allMoves: [MoveData]
 
-    @State private var selectedForm: FormChoice = .base
+    @State private var selectedForm: FormChoice
     @State private var moveSearch: String = ""
     @State private var showSetSheet: Bool = false
     @State private var showCompare: Bool = false
+
+    /// `form` is the form the page opens on, such as the Mega a search
+    /// named.
+    init(pokemon: PKMN, detailURL: URL?, form: FormChoice = .base) {
+        self.pokemon = pokemon
+        self.detailURL = detailURL
+        _selectedForm = State(initialValue: form)
+    }
 
     private var species: ChampionsSpecies? {
         ChampionsLearnsetStore.shared.data(for: pokemon.name)

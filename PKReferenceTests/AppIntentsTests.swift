@@ -468,7 +468,7 @@ struct AppIntentsTests {
     @Test("A search opens what it names, or the Mon Index filtered to it", arguments: [
         ("Garchomp", AppNavigator.Request.pokemon(speciesID: 445)),
         ("  garchomp ", .pokemon(speciesID: 445)),
-        ("Mega Garchomp", .pokemon(speciesID: 445)),
+        ("Mega Garchomp", .pokemon(speciesID: 445, form: .init(formName: "mega", spokenName: "Mega Garchomp"))),
         ("earthquake", .indexSearch(.moveIndex, "Earthquake")),
         ("rough skin", .indexSearch(.abilityIndex, "Rough Skin")),
         ("chomp", .indexSearch(.monIndex, "chomp")),
@@ -482,5 +482,107 @@ struct AppIntentsTests {
                                  baseSpAtk: 120, baseSpDef: 95, baseSpeed: 92, ability1: "sand-force"))
         try context.save()
         #expect(IntentData.searchRequest(for: said, in: context) == expected)
+    }
+
+    @Test("A named form opens on the regulation's listing of it", arguments: [
+        ("mega-x", "Mega Charizard X", FormChoice?.some(.mega("Mega Charizard X"))),
+        ("mega", "Mega Charizard", nil),
+        ("alola", "Alolan Charizard", .alternate("Alola Form")),
+        ("paldea-combat-breed", "Tauros (Paldea Combat Breed)", .alternate("Paldean Form")),
+        ("wash", "Rotom (Wash)", nil),
+    ] as [(String, String, FormChoice?)])
+    func formsOnPage(formName: String, spoken: String, expected: FormChoice?) {
+        let form = { (name: String) in ChampionsForm(name: name, abilities: [], stats: nil, moves: nil) }
+        let species = ChampionsSpecies(
+            name: "Test", abilities: [], stats: .init(hp: 1, atk: 1, def: 1, spa: 1, spd: 1, spe: 1), moves: [],
+            megas: [form("Mega Charizard X"), form("Mega Charizard Y")],
+            alternateForms: [form("Alola Form"), form("Paldean Form")])
+        #expect(FormChoice.matching(.init(formName: formName, spokenName: spoken), in: species) == expected)
+    }
+
+    // MARK: Reading a search
+
+    private let readingPokemon = ["gardevoir": 282, "megagardevoir": 10051, "gardevoirmega": 10051,
+                                  "rillaboom": 812, "tapukoko": 785]
+    private let readingMoves = ["hypervoice": 304, "woodhammer": 452, "uturn": 369]
+
+    @Test("A search names Pokémon, forms and moves in order, with each Pokémon's investment")
+    func reading() {
+        let reading = SearchReading("mega gardevoir hyper voice vs max investment rillaboom",
+                                    pokemon: readingPokemon, moves: readingMoves)
+        #expect(reading.spans == [
+            .init(kind: .pokemon, id: 10051, words: 0..<2),
+            .init(kind: .move, id: 304, words: 2..<4),
+            .init(kind: .pokemon, id: 812, words: 7..<8),
+        ])
+        #expect(reading.investment(of: reading.pokemon[0]) == nil)
+        #expect(reading.investment(of: reading.pokemon[1]) == .full)
+    }
+
+    @Test("Investment words go to the Pokémon beside them", arguments: [
+        ("252+ SpA Mega Gardevoir Hyper Voice into Rillaboom max def", IntentNames.Investment?.some(.fullWithNature), IntentNames.Investment?.some(.full)),
+        ("Mega Gardevoir max SpA Hyper Voice vs uninvested Rillaboom", .full, .uninvested),
+        ("Rillaboom Wood Hammer on Tapu Koko", nil, nil),
+    ] as [(String, IntentNames.Investment?, IntentNames.Investment?)])
+    func readingInvestments(text: String, first: IntentNames.Investment?, second: IntentNames.Investment?) {
+        let reading = SearchReading(text, pokemon: readingPokemon, moves: readingMoves)
+        #expect(reading.pokemon.count == 2 && reading.moves.count == 1)
+        #expect(reading.investment(of: reading.pokemon[0]) == first)
+        #expect(reading.investment(of: reading.pokemon[1]) == second)
+    }
+
+    @Test("Hyphens and punctuation don't split a name")
+    func readingPunctuation() {
+        let reading = SearchReading("Tapu-Koko U-turn, Rillaboom?", pokemon: readingPokemon, moves: readingMoves)
+        #expect(reading.spans.map(\.id) == [785, 369, 812])
+    }
+
+    /// Gardevoir, its Mega, Rillaboom and Hyper Voice, with the store's
+    /// values.
+    private func calcSearchStore() throws -> ModelContainer {
+        let container = try store()
+        let context = container.mainContext
+        context.insert(PKMNStats(id: 282, speciesID: 282, name: "Gardevoir", type1: "Psychic", type2: "Fairy",
+                                 baseHP: 68, baseAtk: 65, baseDef: 65, baseSpAtk: 125, baseSpDef: 115, baseSpeed: 80,
+                                 ability1: "synchronize", ability2: "trace", hiddenAbility: "telepathy"))
+        context.insert(PKMNStats(id: 10051, speciesID: 282, name: "Gardevoir-Mega", formName: "mega",
+                                 type1: "Psychic", type2: "Fairy", baseHP: 68, baseAtk: 85, baseDef: 65,
+                                 baseSpAtk: 165, baseSpDef: 135, baseSpeed: 100, ability1: "pixilate"))
+        context.insert(PKMNStats(id: 812, speciesID: 812, name: "Rillaboom", type1: "Grass",
+                                 baseHP: 100, baseAtk: 125, baseDef: 90, baseSpAtk: 60, baseSpDef: 70, baseSpeed: 85,
+                                 ability1: "overgrow", hiddenAbility: "grassy-surge"))
+        context.insert(MoveData(id: 304, name: "Hyper Voice", type: "Normal", damageClass: "special",
+                                power: 90, accuracy: 100, pp: 10, generationId: 3))
+        try context.save()
+        return container
+    }
+
+    @Test("Two Pokémon and a move open the calc on that matchup")
+    func searchOpensCalc() throws {
+        let container = try calcSearchStore()
+        let request = IntentData.searchRequest(for: "mega gardevoir hyper voice vs max investment rillaboom",
+                                               in: container.mainContext)
+        #expect(request == .calc(CalcRequest(attackerID: 10051, attackerStats: .noInvestment,
+                                             defenderID: 812, defenderStats: .fullInvestment, moveID: 304)))
+        #expect(IntentData.searchRequest(for: "is rillaboom any good", in: container.mainContext)
+                == .pokemon(speciesID: 812))
+        #expect(IntentData.searchRequest(for: "hyper voice spread damage", in: container.mainContext)
+                == .indexSearch(.moveIndex, "Hyper Voice"))
+    }
+
+    /// A Mega loads as the calc sets one up by hand: its species holding the
+    /// stone, Mega Evolved, so Pixilate and the Mega's stats apply.
+    @Test("A Mega loads as its species with the stone, Mega Evolved")
+    func megaInCalc() throws {
+        let container = try calcSearchStore()
+        let request = CalcRequest(attackerID: 10051, attackerStats: .noInvestment,
+                                  defenderID: 812, defenderStats: .fullInvestment, moveID: 304)
+        let vm = DamageCalcVM()
+        #expect(vm.load(request, championsMode: true, context: container.mainContext))
+        #expect(vm.side1.pokemon?.id == 282 && vm.side1.heldItem.rawValue == "Gardevoirite")
+        #expect(vm.side1.activeMegaForm?.displayName == "Mega Gardevoir")
+        let answer = try IntentData.damage(request, championsMode: true, in: container.mainContext)
+        #expect(answer.attacker == "Mega Gardevoir")
+        #expect(answer.details.hasPrefix("Mega Gardevoir: Pixilate, no investment. Rillaboom: Overgrow, full investment."))
     }
 }

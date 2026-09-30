@@ -128,7 +128,18 @@ sentence), separate from the intents, so they can be tested directly.
   in-app searches through my system tools", and went to the web. The app
   now has the system search (`@AppIntent(schema: .system.search)`, renamed
   `.system.searchInApp` in the 27 SDKs). It opens the Pokémon, move or
-  ability the words name, or the Mon Index filtered to them.
+  ability the words name, or the Mon Index filtered to them. The owner
+  confirmed it with Siri on the Mac ("garchomp pk reference"). A form or
+  Mega opens its species' page on that form when the regulation lists it
+  ("Mega Gardevoir"), as does Look Up Pokémon's Open button.
+- **Search reads sentences** (built): typed to Siri, "mega gardevoir hyper
+  voice vs max investment rillaboom" went to the search whole and filtered
+  the Mon Index to nothing. The search now reads the words
+  (`SearchReading.swift`): two Pokémon and a damaging move open the damage
+  calc on that matchup, the first attacking, each side with the investment
+  said beside it ("max def", "252+ SpA") or none, which the calc shows. A
+  Mega loads as its species holding the stone, Mega Evolved, in the calc
+  and in Calculate Damage's answer.
 - **Left:** revisit once the conversational Siri is on the owner's devices:
   which requests it maps to these intents, and which descriptions need
   work.

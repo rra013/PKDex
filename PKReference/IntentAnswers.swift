@@ -69,8 +69,8 @@ nonisolated enum IntentNames {
 
     /// The investment in what someone said: "uninvested" or "no EVs";
     /// "max", "max def" or "252 Atk"; or one of those with a nature, "max
-    /// Adamant" or "max plus nature". Nil when it's none of these, such as
-    /// a saved set's name.
+    /// Adamant", "max plus nature" or "252+ SpA". Nil when it's none of
+    /// these, such as a saved set's name.
     static func investment(said text: String) -> Investment? {
         let said = key(text)
         guard !said.isEmpty else { return nil }
@@ -80,7 +80,7 @@ nonisolated enum IntentNames {
         guard ["max", "full", "252", "32"].contains(where: said.contains) else { return nil }
         let natures = ["nature", "plus", "positive", "boost",
                        "adamant", "modest", "bold", "calm", "jolly", "timid"]
-        return natures.contains(where: said.contains) ? .fullWithNature : .full
+        return natures.contains(where: said.contains) || text.contains("+") ? .fullWithNature : .full
     }
 
     struct Candidate: Sendable {

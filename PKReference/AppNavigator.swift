@@ -15,9 +15,17 @@ import SwiftData
 final class AppNavigator {
     static let shared = AppNavigator()
 
+    /// A form of a Pokémon, as the Pokédex names it ("mega", "alola") and
+    /// as it's said ("Mega Gardevoir"), for opening its page on that form.
+    struct PokemonForm: Hashable, Sendable {
+        let formName: String
+        let spokenName: String
+    }
+
     enum Request: Equatable {
-        /// A Pokémon's page in the Mon Index, by National Dex number.
-        case pokemon(speciesID: Int)
+        /// A Pokémon's page in the Mon Index, by National Dex number, on the
+        /// given form when the regulation lists it.
+        case pokemon(speciesID: Int, form: PokemonForm? = nil)
         /// The calc, with both sides loaded.
         case calc(CalcRequest)
         /// Team Search, with this query.

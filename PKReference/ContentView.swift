@@ -400,6 +400,26 @@ private struct PokedexTab: View {
     /// Whether the list has been on screen a moment, so a request can be
     /// shown; see the task that sets it.
     @State private var isSettled = false
+    /// The form an App Intent asked to open a Pokémon on, until another
+    /// Pokémon is chosen.
+    @State private var requestedForm: RequestedForm?
+
+    private struct RequestedForm: Equatable {
+        let speciesID: Int
+        let form: FormChoice
+    }
+
+    /// A detail page's identity: a new page for each Pokémon, and for a
+    /// request to open it on another form.
+    private struct PageID: Hashable {
+        let pokemon: PersistentIdentifier
+        let form: FormChoice
+    }
+
+    /// The form to open `mon`'s page on: the requested one, if any.
+    private func form(for mon: PKMN) -> FormChoice {
+        requestedForm?.speciesID == mon.nationalPokedexNumber ? requestedForm?.form ?? .base : .base
+    }
 
     private var activeFilter: PokedexFilter {
         selectedFilter ?? PokedexFilter(rawValue: defaultGeneration) ?? .champions
@@ -435,6 +455,13 @@ private struct PokedexTab: View {
         .onChange(of: AppNavigator.shared.request) {
             if isSettled { openRequestedPokemon() }
         }
+        // Choosing another Pokémon, or going back to the list, ends the
+        // request: the requested Pokémon opens on its base form next time.
+        .onChange(of: selectedMon) {
+            if selectedMon?.nationalPokedexNumber != requestedForm?.speciesID { requestedForm = nil }
+        }
+        .onChange(of: path) { if path.isEmpty { requestedForm = nil } }
+        .onChange(of: requestedMon) { if requestedMon == nil { requestedForm = nil } }
         .task {
             // This tab is on screen from launch, so a request that opened
             // the app arrives during its first layout, when a selection is
@@ -459,9 +486,13 @@ private struct PokedexTab: View {
             searchText = term
             return
         }
-        guard case .pokemon(let speciesID) = AppNavigator.shared.request else { return }
+        guard case .pokemon(let speciesID, let form) = AppNavigator.shared.request else { return }
         AppNavigator.shared.request = nil
         guard let mon = allPokemon.first(where: { $0.nationalPokedexNumber == speciesID }) else { return }
+        // A form the regulation lists; otherwise the species' page as usual.
+        requestedForm = form
+            .flatMap { form in ChampionsLearnsetStore.shared.data(for: mon.name).flatMap { FormChoice.matching(form, in: $0) } }
+            .map { RequestedForm(speciesID: speciesID, form: $0) }
         if hSize == .regular {
             selectedMon = mon
         } else if isInMoreList {
@@ -474,10 +505,10 @@ private struct PokedexTab: View {
     private var compactColumn: some View {
         indexColumn(selection: nil)
             .navigationDestination(for: PKMN.self) { mon in
-                monIndexDestination(for: mon, filter: activeFilter)
+                monIndexDestination(for: mon, filter: activeFilter, form: form(for: mon))
             }
             .navigationDestination(item: $requestedMon) { mon in
-                monIndexDestination(for: mon, filter: activeFilter)
+                monIndexDestination(for: mon, filter: activeFilter, form: form(for: mon))
             }
     }
 
@@ -490,8 +521,8 @@ private struct PokedexTab: View {
             if let selectedMon {
                 // A new page for each Pokémon, so a form or move search
                 // chosen on one doesn't carry over to the next.
-                monIndexDestination(for: selectedMon, filter: activeFilter)
-                    .id(selectedMon.persistentModelID)
+                monIndexDestination(for: selectedMon, filter: activeFilter, form: form(for: selectedMon))
+                    .id(PageID(pokemon: selectedMon.persistentModelID, form: form(for: selectedMon)))
             } else {
                 ContentUnavailableView {
                     Label("Select a Pokémon", systemImage: "sidebar.left")
@@ -772,10 +803,10 @@ struct FilteredList: View {
 /// the Serebii web view for generation dexes. Shared by the compact push rows
 /// (implicitly, via the same views) and the wide split-view detail pane.
 @ViewBuilder
-func monIndexDestination(for pokemon: PKMN, filter: PokedexFilter) -> some View {
+func monIndexDestination(for pokemon: PKMN, filter: PokedexFilter, form: FormChoice = .base) -> some View {
     let detailURL = pokemon.detailURL(for: filter)
     if filter == .champions {
-        ChampionsPokemonDetailView(pokemon: pokemon, detailURL: detailURL)
+        ChampionsPokemonDetailView(pokemon: pokemon, detailURL: detailURL, form: form)
     } else if let detailURL {
         PokemonDetailView(pokemon: pokemon, filter: filter, detailURL: detailURL)
     } else {
