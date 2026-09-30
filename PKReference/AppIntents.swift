@@ -430,6 +430,25 @@ struct LegalitySnippetIntent: SnippetIntent {
     }
 }
 
+// MARK: - Search in the app
+
+/// The system's in-app search, which Siri and Spotlight use for "search PK
+/// Reference for …" and for requests they route to the app's search. It
+/// opens the app on the result: the Pokémon, move or ability the words
+/// name, or the Mon Index filtered to them.
+@AppIntent(schema: .system.search)
+struct SearchPKReferenceIntent: ShowInAppSearchResultsIntent {
+    static let searchScopes: [StringSearchScope] = [.general]
+
+    var criteria: StringSearchCriteria
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        AppNavigator.shared.request = IntentData.searchRequest(for: criteria.term)
+        return .result()
+    }
+}
+
 // MARK: - Siri phrases
 
 struct PKReferenceShortcuts: AppShortcutsProvider {
@@ -483,6 +502,11 @@ struct PKReferenceShortcuts: AppShortcutsProvider {
             "\(.applicationName), load a set into the calc",
             "Load \(\.$savedSet) into the calc in \(.applicationName)",
         ], shortTitle: "Load Set into Calc", systemImageName: "bolt.fill")
+        AppShortcut(intent: SearchPKReferenceIntent(), phrases: [
+            "Search in \(.applicationName)",
+            "Search \(.applicationName)",
+            "\(.applicationName), search the Pokédex",
+        ], shortTitle: "Search", systemImageName: "magnifyingglass")
         AppShortcut(intent: ShowTeamIntent(), phrases: [
             "\(.applicationName), show my team \(\.$team)",
             "\(.applicationName), show a saved team",
@@ -537,6 +561,31 @@ extension IntentData {
         case .fullInvestmentBoostingNature: return "\(ability), full investment, \(side.nature.name) nature"
         case .savedSet: return "\(ability), your set \(side.loadedSpreadName ?? "")"
         }
+    }
+
+    /// Where a search goes: the page of the Pokémon it names (a form or
+    /// Mega opens its species), else the Move or Ability Index on the move
+    /// or ability it names, else the Mon Index filtered to it. Names match
+    /// as Siri says them: case, accents, spaces and punctuation don't
+    /// matter.
+    static func searchRequest(for text: String, in store: ModelContext? = nil) -> AppNavigator.Request {
+        let context = store ?? storeContext
+        let term = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wanted = IntentNames.key(term)
+        guard !wanted.isEmpty else { return .indexSearch(.monIndex, "") }
+        let pokemon = (try? context.fetch(FetchDescriptor<PKMNStats>())) ?? []
+        if let named = pokemon.first(where: { IntentNames.keys(name: $0.name, formName: $0.formName).contains(wanted) }) {
+            return .pokemon(speciesID: named.speciesID)
+        }
+        let moves = (try? context.fetch(FetchDescriptor<MoveData>())) ?? []
+        if let move = moves.first(where: { IntentNames.key($0.name) == wanted }) {
+            return .indexSearch(.moveIndex, move.name)
+        }
+        let abilities = Set(pokemon.flatMap(\.allAbilities).map(formatAbilityName))
+        if let ability = abilities.first(where: { IntentNames.key($0) == wanted }) {
+            return .indexSearch(.abilityIndex, ability)
+        }
+        return .indexSearch(.monIndex, term)
     }
 
     /// Whether a Pokémon without a saved set gets Champions rules: the

@@ -38,7 +38,7 @@ and what was checked.
 | [#55](https://github.com/rra013/PKReference/pull/55) | Siri, Spotlight and Shortcuts, Phase 1; the app is named PK Reference |
 | [#56](https://github.com/rra013/PKReference/pull/56) | The Xcode project, targets, module and folders renamed to PKReference |
 
-Full suite with Siri Phase 2: 1115 tests, all passing.
+Full suite with in-app search: 1116 tests, all passing.
 
 ---
 
@@ -365,8 +365,9 @@ Roughly in order of value for effort.
    App Intents for iPhone, iPad and the Mac. Phases 1 and 2 are built: Look
    Up Pokémon, Calculate Damage, Search Teams, Compare Speed, Check
    Legality, Show Saved Set, Show Saved Team and Load Set into Damage Calc,
-   answering in place with an Open button, and saved sets and teams in
-   Spotlight (`AppIntents.swift`, `SavedIntents.swift`,
+   answering in place with an Open button; the system's in-app search
+   (`.system.search`, which the new Siri looks for); and saved sets and
+   teams in Spotlight (`AppIntents.swift`, `SavedIntents.swift`,
    `IntentEntities.swift`, `IntentAnswers.swift`, `IntentSnippets.swift`;
    `AppNavigator` opens the page). Left: trying the phrases with the
    conversational Siri on the owner's devices and tuning descriptions to
