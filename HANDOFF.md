@@ -41,7 +41,7 @@ Full suite at #53: 1083 tests, all passing.
 
 ## Where things live
 
-**`PKDex/Theme.swift`**: every shared style. Use these rather than
+**`PKReference/Theme.swift`**: every shared style. Use these rather than
 hand-rolling colors, radii or paddings.
 
 | Piece | What it's for |
@@ -55,15 +55,15 @@ hand-rolling colors, radii or paddings.
 | `scaledWidth`, `scaledFont`, `AdaptiveStack`, `FlowLayout`, `DynamicTypeSize.gridColumns(_:)` | Layouts that hold up at large text sizes. |
 | `EnvironmentValues`: `typeBadgeStyle`, `matchupColors`, `density`, `typeBackgrounds` | Set once in `ContentView`, read by the views above. |
 
-**`PKDex/AppSettings.swift`**: every app-wide setting's key and default.
+**`PKReference/AppSettings.swift`**: every app-wide setting's key and default.
 Views use `@AppStorage(AppSettings.x)`. The RNG tools' `finder_*` keys are
 form inputs and stay where they are.
 
-**`PKDex/TabLayout.swift`**: the user's tab order and hidden tabs, and
+**`PKReference/TabLayout.swift`**: the user's tab order and hidden tabs, and
 `compactSplit`, which decides what goes in the iPhone tab bar and what goes
 under More.
 
-**`PKDex/MoreTab.swift`**: the iPhone More tab. `TabNavigationStack` is a
+**`PKReference/MoreTab.swift`**: the iPhone More tab. `TabNavigationStack` is a
 tab's navigation root that joins More's stack when opened from it.
 `leaveWarning(_:)` is how a tab says closing it loses work.
 `TabReselectGuard` stops a second tap on More from closing a tab silently.
@@ -71,7 +71,7 @@ It works by sitting in front of the UITabBarController's delegate, the only
 code that changes how the tab bar behaves underneath SwiftUI, so check it
 first if tab switching ever misbehaves.
 
-**Game data in `PKDex/`**: facts that change with games and regulations
+**Game data in `PKReference/`**: facts that change with games and regulations
 are JSON, each loaded strictly (a misspelled name fails the file) and
 checked by a test that it loads:
 
@@ -125,7 +125,7 @@ The Showdown damage port has its own data (`showdown-champions-data.json`);
    `density` does. That modifier also dresses the Mac's Settings window.
 
 **Adding a Battle Sim move effect**: add the move to the right table in
-`PKDex/battle_moves.json` (its `notes` say what each holds), keyed by its
+`PKReference/battle_moves.json` (its `notes` say what each holds), keyed by its
 normalized name (`BattleSimSeed.normalize`: "Swords Dance" is
 `swordsdance`). That's all when the effect is one the engine already has.
 A move that needs new behavior needs code; the dispatch lists for those
@@ -133,7 +133,7 @@ A move that needs new behavior needs code; the dispatch lists for those
 `BattleMoveEffects`. `BattleMovesDataTests` fails on a misspelled kind,
 stat or key.
 
-**Adding a Mega Evolution**: add a line to `PKDex/mega_forms.json` (its
+**Adding a Mega Evolution**: add a line to `PKReference/mega_forms.json` (its
 `about` field explains each key). Its stone becomes a held item from that
 line; there's nothing to add in Swift. For a Champions regulation, the
 stone also needs to be in that regulation's `mega_stones` and item list.
@@ -157,9 +157,9 @@ both sides' light and dark values. `ColorRoleTests` holds each pair to the
 same contrast rules, and checks its sides stay apart from each other and
 from the ability and item colors.
 
-**Adding a note or build input inside `PKDex/`**: the folder is synced, so
+**Adding a note or build input inside `PKReference/`**: the folder is synced, so
 Xcode copies every file in it into the app. Add a file the app doesn't
-read to the "Exceptions for PKDex folder" list in the target's file
+read to the "Exceptions for PKReference folder" list in the target's file
 membership (Xcode's File inspector, or `membershipExceptions` in
 `project.pbxproj`), as the developer notes and PokéFinder's generator
 inputs are. The list takes files, not folders: a folder path is ignored.
@@ -224,7 +224,7 @@ wasn't checked.
 ## Building and testing
 
 ```bash
-xcodebuild test -project PKDex.xcodeproj -scheme PKDex \
+xcodebuild test -project PKReference.xcodeproj -scheme PKReference \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
   -parallel-testing-enabled NO
 ```
@@ -245,7 +245,7 @@ The Mac app builds from the same target.
 This signs it to run on this Mac only:
 
 ```bash
-xcodebuild build -project PKDex.xcodeproj -scheme PKDex -destination 'platform=macOS' \
+xcodebuild build -project PKReference.xcodeproj -scheme PKReference -destination 'platform=macOS' \
   CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=
 ```
 
@@ -333,7 +333,7 @@ From the recent PRs, each also noted in its description:
 
 Roughly in order of value for effort.
 
-1. **Data compartmentalization.** [`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md)
+1. **Data compartmentalization.** [`PKReference/CompartmentalizationPlan.md`](PKReference/CompartmentalizationPlan.md)
    lists seven migrations of game data into JSON, all done: each
    regulation's `rules` block (P1), the Battle Sim's move tables (P2), the
    type chart (P3), the Mega forms (P4), Mega stones as held items (P5), the
@@ -376,7 +376,7 @@ Roughly in order of value for effort.
      but saving a team reports them; a log of them would show the gaps.
 5. **Gen 9 in the Showdown port.** Only Champions is ported; other
    generations use the legacy engine, and `calculateShowdown` stops with a
-   clear error for them. See [`PKDex/ShowdownPort-NOTES.md`](PKDex/ShowdownPort-NOTES.md).
+   clear error for them. See [`PKReference/ShowdownPort-NOTES.md`](PKReference/ShowdownPort-NOTES.md).
 6. **App Store.** Blocked on the GPL until PokéFinder's authors give
    permission, or the RNG core is rewritten per
    [`RNGRewrite-PLAN.md`](RNGRewrite-PLAN.md) (on hold).
@@ -389,10 +389,10 @@ Roughly in order of value for effort.
 |---|---|
 | [`README.md`](README.md) | The app: features, architecture, building, data sources, license |
 | [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) | Bundled third-party code and its licenses |
-| [`PKDex/Core/MODIFICATIONS.md`](PKDex/Core/MODIFICATIONS.md) | Changes made to PokéFinder's code (required by its GPL) |
-| [`PKDex/ShowdownPort-NOTES.md`](PKDex/ShowdownPort-NOTES.md) | Scope and wiring of the `@smogon/calc` port |
-| [`PKDex/AbilityReference.md`](PKDex/AbilityReference.md) | Which abilities the legacy damage engine models |
-| [`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md) | Plan for moving game data into JSON (done) |
+| [`PKReference/Core/MODIFICATIONS.md`](PKReference/Core/MODIFICATIONS.md) | Changes made to PokéFinder's code (required by its GPL) |
+| [`PKReference/ShowdownPort-NOTES.md`](PKReference/ShowdownPort-NOTES.md) | Scope and wiring of the `@smogon/calc` port |
+| [`PKReference/AbilityReference.md`](PKReference/AbilityReference.md) | Which abilities the legacy damage engine models |
+| [`PKReference/CompartmentalizationPlan.md`](PKReference/CompartmentalizationPlan.md) | Plan for moving game data into JSON (done) |
 | [`AppIntents-PLAN.md`](AppIntents-PLAN.md) | Plan for Siri, Spotlight and Shortcuts actions (Phase 1 built) |
 | [`RNGRewrite-PLAN.md`](RNGRewrite-PLAN.md) | Plan for an independent RNG core (on hold) |
 | [`tools/README.md`](tools/README.md) | Scripts that regenerate the bundled data |

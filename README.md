@@ -1,4 +1,4 @@
-# PK Reference (PKDex)
+# PK Reference
 
 **PK Reference** is a SwiftUI + SwiftData app for competitive Pokémon players,
 on iPhone, iPad and the Mac.
@@ -15,8 +15,9 @@ one app:
 - tournament results and team sheets from Limitless
 
 The app is **PK Reference** (`PK Reference.app`, bundle ID
-`yukisoft.PKReference`). The Xcode project, its target and the Swift module
-are still named `PKDex`.
+`yukisoft.PKReference`). The Xcode project, its targets and the Swift module
+are named `PKReference`; until 2026-09-29 they were `PKDex`, the name older
+commits use.
 
 > PK Reference is an unofficial, fan-made tool. It is not affiliated with,
 > endorsed by, or associated with Nintendo, The Pokémon Company, Creatures Inc.,
@@ -112,10 +113,10 @@ critical hits, spread damage and a free-form multiplier.
    upstream code line by line, including modifier order and rounding, and
    runs on data generated from the calc's own tables. The whole calc is
    ported, including Z-Moves, Dynamax and Tera, but only what Champions uses
-   is switched on. See [`PKDex/ShowdownPort-NOTES.md`](PKDex/ShowdownPort-NOTES.md).
+   is switched on. See [`PKReference/ShowdownPort-NOTES.md`](PKReference/ShowdownPort-NOTES.md).
 2. **The legacy engine** implements the Gen V+ damage formula directly. It
    handles anything the port can't represent, such as a side that isn't in
-   Champions mode. [`PKDex/AbilityReference.md`](PKDex/AbilityReference.md)
+   Champions mode. [`PKReference/AbilityReference.md`](PKReference/AbilityReference.md)
    lists which abilities it models.
 
 **Showdown paste import and export.** Paste any Showdown set to load it into
@@ -381,7 +382,7 @@ the git history.
   paste parser and tournament data store, are explicitly `nonisolated`, so
   solvers and network work run off the main thread. See
   [`HANDOFF.md`](HANDOFF.md#conventions).
-- **C++ core:** PokéFinder's generators and searchers live in `PKDex/Core`,
+- **C++ core:** PokéFinder's generators and searchers live in `PKReference/Core`,
   and `PFBridge.h/.mm` wraps them. `PFBridgeSwift.swift` gives the RNG
   views a Swift interface to them.
 - **Networking:** `LimitlessAPIService` (an actor with a short in-memory cache)
@@ -391,9 +392,9 @@ the git history.
 More internal documentation:
 [`HANDOFF.md`](HANDOFF.md) (where the code lives, conventions, known
 limitations and what's next),
-[`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md)
+[`PKReference/CompartmentalizationPlan.md`](PKReference/CompartmentalizationPlan.md)
 (moving game data into JSON), and
-[`PKDex/ShowdownPort-NOTES.md`](PKDex/ShowdownPort-NOTES.md).
+[`PKReference/ShowdownPort-NOTES.md`](PKReference/ShowdownPort-NOTES.md).
 
 ---
 
@@ -404,7 +405,7 @@ The deployment targets are iOS 26.4 and macOS 26.4; the device families are
 iPhone, iPad and Apple Vision, and the same target builds the Mac app. The
 project has no Swift package dependencies.
 
-1. Open `PKDex.xcodeproj` and select the **PKDex** scheme.
+1. Open `PKReference.xcodeproj` and select the **PKReference** scheme.
 2. Run on a simulator, a device or **My Mac**. The first launch downloads
    Pokémon and move data from PokeAPI, so it needs a network connection;
    later launches work offline, except for Tournaments. The Mac app is
@@ -419,7 +420,7 @@ answers), and the bundled license files. None of them need the network or a
 SwiftData store.
 
 ```bash
-xcodebuild test -project PKDex.xcodeproj -scheme PKDex -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+xcodebuild test -project PKReference.xcodeproj -scheme PKReference -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
 **Developer tools** (not shipped in the app):
@@ -427,7 +428,7 @@ xcodebuild test -project PKDex.xcodeproj -scheme PKDex -destination 'platform=iO
 - `tools/gen_mc.py` and `tools/scrape_mc.py` build a new regulation's JSON
   files from Serebii's Champions pages. See [`tools/README.md`](tools/README.md).
 - `tools/gen_showdown_data.ts` regenerates
-  `PKDex/showdown-champions-data.json` from the vendored `@smogon/calc` data:
+  `PKReference/showdown-champions-data.json` from the vendored `@smogon/calc` data:
 
   ```bash
   npx tsx tools/gen_showdown_data.ts
@@ -442,16 +443,16 @@ xcodebuild test -project PKDex.xcodeproj -scheme PKDex -destination 'platform=iO
 
 | Path | Contents |
 |---|---|
-| `PKDex/` | App sources (a synced folder: new files are added to the target automatically) |
-| `PKDex/Core/` | PokéFinder's C++ RNG core, plus its vendored libraries (`External/`) and encounter resources. `MODIFICATIONS.md` lists the changes made to it |
-| `PKDex/Show*.swift` | The `@smogon/calc` port (`ShowdownCalc`, `ShowdownRuntime`, `ShowdownMechanics`, `ShowdownChampions`, `ShowdownItems`, `ShowdownData`) and Showdown paste parsing and import |
-| `PKDex/showdown-champions-data.json` | Species, move and type data generated from `@smogon/calc` |
-| `PKDexTests/` | Swift Testing suites |
+| `PKReference/` | App sources (a synced folder: new files are added to the target automatically) |
+| `PKReference/Core/` | PokéFinder's C++ RNG core, plus its vendored libraries (`External/`) and encounter resources. `MODIFICATIONS.md` lists the changes made to it |
+| `PKReference/Show*.swift` | The `@smogon/calc` port (`ShowdownCalc`, `ShowdownRuntime`, `ShowdownMechanics`, `ShowdownChampions`, `ShowdownItems`, `ShowdownData`) and Showdown paste parsing and import |
+| `PKReference/showdown-champions-data.json` | Species, move and type data generated from `@smogon/calc` |
+| `PKReferenceTests/` | Swift Testing suites |
 | `champions-m-*.json` | Regulation definitions and learnsets |
 | `move_categories.json` | Move damage classes (physical, special, status) |
 | `*.npz`, `*_vocab.json`, `pokii_battler.safetensors`, `feature_config.json` | On-device model weights and vocabularies |
 | `zstd/` | Zstandard sources, compiled into the app for PokéFinder's compressed resources |
-| `PKDex/Licenses/` | License and notice texts for the app and the bundled third-party code, shipped in the app |
+| `PKReference/Licenses/` | License and notice texts for the app and the bundled third-party code, shipped in the app |
 | `LICENSE` | The GNU General Public License, version 3 |
 | `THIRD_PARTY_NOTICES.md` | Every third-party component, its copyright and its license |
 | `HANDOFF.md` | Notes for contributors: where the code lives, conventions, known limitations and what's next |
@@ -478,7 +479,7 @@ PK Reference is built on the work of many people and projects. Thank you all.
 |---|---|---|---|
 | [**@smogon/calc** (damage-calc)](https://github.com/smogon/damage-calc) | Created by Honko; maintained by Austin, Kris and the damage-calc contributors | MIT | The Champions damage engine (a line-by-line Swift port), stat formulas, and the bundled species, move and type data |
 | [**Pokémon Showdown**](https://github.com/smogon/pokemon-showdown) | Guangcong Luo and contributors | MIT | Vendored under `tools/vendor` as the reference for Champions mechanics and data |
-| [**PokéFinder**](https://github.com/Admiral-Fish/PokeFinder) | Admiral_Fish, bumba and EzPzStreamz | **GPL-3.0-or-later** | The RNG core in `PKDex/Core` (generators, searchers, encounter data), and the algorithms behind the IV calculator, IV→PID and seed recovery |
+| [**PokéFinder**](https://github.com/Admiral-Fish/PokeFinder) | Admiral_Fish, bumba and EzPzStreamz | **GPL-3.0-or-later** | The RNG core in `PKReference/Core` (generators, searchers, encounter data), and the algorithms behind the IV calculator, IV→PID and seed recovery |
 | [**EonTimer**](https://github.com/DasAmpharos/EonTimer) | DasAmpharos | MIT | The RNG timer: phase calculations, calibration, console frame rates and rounding |
 | [**nlohmann/json**](https://github.com/nlohmann/json) 3.12.0 | Niels Lohmann | MIT | JSON parsing in the C++ core (bundled with PokéFinder) |
 | [**Flash Perfect Hash Table**](https://github.com/renzibei/fph-table) (fph) | renzibei (includes code derived from robin-hood-hashing and Abseil) | Apache-2.0 | Perfect hash maps in the C++ core (bundled with PokéFinder) |
@@ -520,7 +521,7 @@ They're listed with their copyright holders in
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), and the license texts ship
 with the app, shown under Settings → Acknowledgements & Licenses. The changes
 made to PokéFinder's files are listed in
-[`PKDex/Core/MODIFICATIONS.md`](PKDex/Core/MODIFICATIONS.md).
+[`PKReference/Core/MODIFICATIONS.md`](PKReference/Core/MODIFICATIONS.md).
 
 **The App Store:** Apple's App Store terms add restrictions that the GPL
 doesn't allow, so distributing the app there needs permission from every

@@ -36,7 +36,7 @@ The process that makes that credible, and leaves a paper trail:
    plain-English spec (`docs/rng-spec/*.md`) describing the game's behavior,
    with every fact cited to a public, non-PokéFinder source (§4).
 2. **Implement from the spec only.** While implementing, don't open
-   `PKDex/Core`, `PFBridge*`, or the existing "PokeFinder Port" Swift code.
+   `PKReference/Core`, `PFBridge*`, or the existing "PokeFinder Port" Swift code.
    Structure, names and decomposition come from the spec and Swift idiom,
    not from PokéFinder's classes.
 3. **Test against PokéFinder as a black box.** Before PokéFinder is removed,
@@ -70,7 +70,7 @@ as everyone with code in the app agrees. Today that's only rra013.
 
 ## 2. What there is today
 
-### 2.1 PokéFinder's code (`PKDex/Core`, GPL-3.0)
+### 2.1 PokéFinder's code (`PKReference/Core`, GPL-3.0)
 
 | Area | Lines (C++, incl. headers) | What it holds |
 |---|---|---|
@@ -124,7 +124,7 @@ Tabs and what they use:
 
 ## 3. Target design
 
-- **A new folder, `PKDex/RNG/`,** of pure Swift. Types are `nonisolated`,
+- **A new folder, `PKReference/RNG/`,** of pure Swift. Types are `nonisolated`,
   because the module defaults to main-actor isolation, so searches can run
   off the main thread.
   - `RNG/Engines/`: `LCRNG32` (the GBA/NDS and GameCube constants, and
@@ -153,7 +153,7 @@ Tabs and what they use:
 
   Target: every search within 1.5× of the C++ baseline on the same device
   (§5).
-- **Removed at the end:** `PKDex/Core`, `PFBridge.h/.mm`,
+- **Removed at the end:** `PKReference/Core`, `PFBridge.h/.mm`,
   `PFBridgeSwift.swift`, the bridging header (it only imports `PFBridge.h`),
   the C++ build settings, and the top-level `zstd/` and the `External/`
   libraries, since only PokéFinder uses them.
@@ -186,7 +186,7 @@ Every fact in a spec cites where it came from. Acceptable sources:
 
 The embedded PokéFinder data is replaced with data rebuilt from other
 sources. A generator script in `tools/rng-data/` writes JSON into
-`PKDex/RNGData/`, and each record says where it came from.
+`PKReference/RNGData/`, and each record says where it came from.
 
 | Data | Source | Notes |
 |---|---|---|
@@ -210,7 +210,7 @@ sources. They are never a source.
    - A test-only recorder runs the current `PFBridge` over a large grid of
      inputs: seeds, advances, profiles, methods, leads, filters, encounter
      areas, dates and keypresses.
-   - It writes the outputs as JSON fixtures in `PKDexTests/Fixtures/RNG/`:
+   - It writes the outputs as JSON fixtures in `PKReferenceTests/Fixtures/RNG/`:
      PID, IVs, nature, ability, gender, shininess, slot, level, advance,
      seed and time.
    - About 50,000 cases, split by feature and compressed.
@@ -281,7 +281,7 @@ built in until phase 8, so the app works at every step.
    - SwSh (Xoroshiro): raids from den data.
    - Only what decision 2 keeps.
 8. **Removal and relicensing**
-   - Delete `PKDex/Core`, the bridge, the C++ settings and the external
+   - Delete `PKReference/Core`, the bridge, the C++ settings and the external
      libraries.
    - Remove differential mode.
    - Update:
