@@ -2,7 +2,7 @@
 // Run:  npx tsx tools/gen_showdown_data.ts
 // Imports the calc's own bundled data (data/*.ts) so the output matches what
 // @smogon/calc computes against (parity). MIT — data © Smogon calc contributors.
-// See PKDex/ShowdownPort-NOTES.md. Emits PKDex/showdown-champions-data.json
+// See PKReference/ShowdownPort-NOTES.md. Emits PKReference/showdown-champions-data.json
 // (inside the synchronized source folder so it auto-bundles).
 import { writeFileSync } from 'node:fs';
 import { Generations } from './vendor/damage-calc/calc/src/data/index.ts';
@@ -78,7 +78,7 @@ function dumpGen(num: number) {
 // Champions is upstream "gen 0". Bundle it (Gen 9 can be added later if the
 // mainline calculator is exposed — see ShowdownPort-NOTES.md).
 const data = dumpGen(0);
-const path = 'PKDex/showdown-champions-data.json';
+const path = 'PKReference/showdown-champions-data.json';
 writeFileSync(path, JSON.stringify(data));
 console.error(`wrote ${path}: ${Object.keys(data.species).length} species, ` +
   `${Object.keys(data.moves).length} moves, ${Object.keys(data.typechart).length} types`);

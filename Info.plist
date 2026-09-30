@@ -1,11 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!--
-  Merged into the Info.plist Xcode generates from the build settings, for
-  keys those settings can't set: how Siri says the app's name, and the ways
-  people say it, so "…in PK Reference" reaches the app. Outside PKDex/, so
-  the synced folder doesn't copy it into the app as a resource.
--->
 <plist version="1.0">
 <dict>
 	<key>CFBundleSpokenName</key>

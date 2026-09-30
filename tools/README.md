@@ -1,7 +1,7 @@
 # Adding a Pokémon Champions Regulation
 
 This directory holds the dev-only tooling used to ingest a new Champions
-ranked-battle regulation into PKDex. None of it ships in the app bundle — it
+ranked-battle regulation into PK Reference. None of it ships in the app bundle — it
 just generates the two JSON data files the app *does* bundle.
 
 Follow this guide the next time a regulation (e.g. **M-D**) drops. Worked
@@ -138,7 +138,7 @@ slug (e.g. `mr.mime`) is only the Serebii fetch slug, kept in `SLUGS`'s value.
 
 ## Step 4 — Register the enum
 
-In `PKDex/ChampionsRegulation.swift`:
+In `PKReference/ChampionsRegulation.swift`:
 - add `case mD = "m-d"` to the enum;
 - add `case .mD: return "Regulation M-D"` in `displayName`.
 
@@ -151,9 +151,9 @@ whitelist cache, and the Settings picker are all derived automatically.
 
 Only if the regulation introduces Megas not already in `MegaForms.all`.
 
-- `PKDex/PokemonStatsModels.swift` — add a `HeldItem` case per new stone
+- `PKReference/PokemonStatsModels.swift` — add a `HeldItem` case per new stone
   (`rawValue` = the exact stone name used in `mega_stones`).
-- `PKDex/MegaForms.swift` — add a `MegaForm` to `MegaForms.all` with the scraped
+- `PKReference/MegaForms.swift` — add a `MegaForm` to `MegaForms.all` with the scraped
   type / stats / ability. `speciesKey` is `BattleSimSeed.normalize(species)`
   (lowercase). Extra Megas on an existing species (X/Y/Z) are just additional
   entries with the same `speciesKey` and a different `stone`.
@@ -170,8 +170,8 @@ The champions JSONs are referenced **individually** in `project.pbxproj` (not a
 synced folder), and that file **must not be edited by tooling while Xcode is
 open**. In Xcode:
 
-1. **File ▸ Add Files to "PKDex"…**, pick the two new files at the repo root.
-2. Uncheck **Copy items if needed**; check the **PKDex** app target.
+1. **File ▸ Add Files to "PKReference"…**, pick the two new files at the repo root.
+2. Uncheck **Copy items if needed**; check the **PKReference** app target.
 3. Confirm they sit in the same group as `champions-m-b.json` and appear under
    **Build Phases ▸ Copy Bundle Resources**.
 
@@ -197,7 +197,7 @@ PY
 **Build:** `BuildProject` (xcode-tools MCP) — catches any exhaustive `switch`
 over `HeldItem` that the new cases break.
 
-**Runtime load test:** `RunCodeSnippet` against `PKDex/ChampionsRegulation.swift`:
+**Runtime load test:** `RunCodeSnippet` against `PKReference/ChampionsRegulation.swift`:
 
 ```swift
 let reg = ChampionsRegulation.mD
