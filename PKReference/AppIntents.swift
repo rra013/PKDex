@@ -77,7 +77,8 @@ struct OpenPokemonIntent: OpenIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        AppNavigator.shared.request = .pokemon(speciesID: target.speciesID)
+        let form = (try? IntentData.pokemon(target.id)).flatMap(IntentData.form)
+        AppNavigator.shared.request = .pokemon(speciesID: target.speciesID, form: form)
         return .result()
     }
 }
@@ -541,8 +542,10 @@ extension IntentData {
             throw IntentError.notFound("those Pokémon, that move, or that saved set")
         }
         return DamageAnswer(
-            attacker: IntentNames.spoken(name: attacker.name, formName: attacker.formName),
-            defender: IntentNames.spoken(name: defender.name, formName: defender.formName),
+            attacker: vm.side1.activeMegaForm?.displayName
+                ?? IntentNames.spoken(name: attacker.name, formName: attacker.formName),
+            defender: vm.side2.activeMegaForm?.displayName
+                ?? IntentNames.spoken(name: defender.name, formName: defender.formName),
             move: result.move.name,
             minPercent: result.minPercent, maxPercent: result.maxPercent,
             minDamage: Int(result.damageMin), maxDamage: Int(result.damageMax),
@@ -554,7 +557,7 @@ extension IntentData {
     /// "Sand Veil, no investment", "Intimidate, full investment, Adamant
     /// nature", or "Intimidate, your set Screenshot Test".
     private static func setup(_ side: CalcSide, _ choice: StatChoice) -> String {
-        let ability = side.selectedAbility.map(formatAbilityName) ?? "no ability"
+        let ability = side.effectiveAbility.map(formatAbilityName) ?? "no ability"
         switch choice {
         case .noInvestment: return "\(ability), no investment"
         case .fullInvestment: return "\(ability), full investment"
@@ -563,10 +566,32 @@ extension IntentData {
         }
     }
 
-    /// Where a search goes: the page of the Pokémon it names (a form or
-    /// Mega opens its species), else the Move or Ability Index on the move
-    /// or ability it names, else the Mon Index filtered to it. Names match
-    /// as Siri says them: case, accents, spaces and punctuation don't
+    /// Every Pokémon's keys, as `SearchReading` reads names: species first,
+    /// so a key both share names the species.
+    static func searchKeys(_ pokemon: [PKMNStats]) -> [String: Int] {
+        var keys: [String: Int] = [:]
+        for row in pokemon.sorted(by: { !$0.isForm && $1.isForm }) {
+            for key in IntentNames.keys(name: row.name, formName: row.formName) where keys[key] == nil {
+                keys[key] = row.id
+            }
+        }
+        return keys
+    }
+
+    /// A form's names for opening its page on it; nil for a species itself.
+    static func form(of stats: PKMNStats) -> AppNavigator.PokemonForm? {
+        guard let formName = stats.formName, !formName.isEmpty else { return nil }
+        return .init(formName: formName, spokenName: IntentNames.spoken(name: stats.name, formName: formName))
+    }
+
+    /// Where a search goes. Text that is just a name opens it: the page of
+    /// the Pokémon, on the form or Mega it names, else the Move or Ability
+    /// Index on the move or ability. Otherwise the words are read
+    /// (`SearchReading`): two Pokémon and a damaging move open the damage
+    /// calc on that matchup, the first attacking, each side with the
+    /// investment said beside it or none; one Pokémon opens its page; a move
+    /// opens the Move Index. Anything else filters the Mon Index. Names
+    /// match as Siri says them: case, accents, spaces and punctuation don't
     /// matter.
     static func searchRequest(for text: String, in store: ModelContext? = nil) -> AppNavigator.Request {
         let context = store ?? storeContext
@@ -575,7 +600,7 @@ extension IntentData {
         guard !wanted.isEmpty else { return .indexSearch(.monIndex, "") }
         let pokemon = (try? context.fetch(FetchDescriptor<PKMNStats>())) ?? []
         if let named = pokemon.first(where: { IntentNames.keys(name: $0.name, formName: $0.formName).contains(wanted) }) {
-            return .pokemon(speciesID: named.speciesID)
+            return .pokemon(speciesID: named.speciesID, form: form(of: named))
         }
         let moves = (try? context.fetch(FetchDescriptor<MoveData>())) ?? []
         if let move = moves.first(where: { IntentNames.key($0.name) == wanted }) {
@@ -584,6 +609,31 @@ extension IntentData {
         let abilities = Set(pokemon.flatMap(\.allAbilities).map(formatAbilityName))
         if let ability = abilities.first(where: { IntentNames.key($0) == wanted }) {
             return .indexSearch(.abilityIndex, ability)
+        }
+
+        let reading = SearchReading(term, pokemon: searchKeys(pokemon), moves: Dictionary(
+            moves.map { (IntentNames.key($0.name), $0.id) }, uniquingKeysWith: { first, _ in first }))
+        let named = reading.pokemon
+        let damaging = reading.moves.first { span in
+            moves.first { $0.id == span.id }.map { $0.damageClass != "status" } ?? false
+        }
+        if named.count >= 2, let move = damaging {
+            func stats(_ span: SearchReading.Span) -> StatChoice {
+                switch reading.investment(of: span) {
+                case .full: .fullInvestment
+                case .fullWithNature: .fullInvestmentBoostingNature
+                case .uninvested, nil: .noInvestment
+                }
+            }
+            return .calc(CalcRequest(attackerID: named[0].id, attackerStats: stats(named[0]),
+                                     defenderID: named[1].id, defenderStats: stats(named[1]),
+                                     moveID: move.id))
+        }
+        if let first = named.first, let row = pokemon.first(where: { $0.id == first.id }) {
+            return .pokemon(speciesID: row.speciesID, form: form(of: row))
+        }
+        if let first = reading.moves.first, let move = moves.first(where: { $0.id == first.id }) {
+            return .indexSearch(.moveIndex, move.name)
         }
         return .indexSearch(.monIndex, term)
     }

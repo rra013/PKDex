@@ -38,7 +38,7 @@ and what was checked.
 | [#55](https://github.com/rra013/PKReference/pull/55) | Siri, Spotlight and Shortcuts, Phase 1; the app is named PK Reference |
 | [#56](https://github.com/rra013/PKReference/pull/56) | The Xcode project, targets, module and folders renamed to PKReference |
 
-Full suite with in-app search: 1116 tests, all passing.
+Full suite with in-app search, forms and read searches: 1122 tests, all passing.
 
 ---
 

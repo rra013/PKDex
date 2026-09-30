@@ -51,7 +51,7 @@ extension CalcSide {
             megaActive = canMegaEvolve
         case .noInvestment, .fullInvestment, .fullInvestmentSpeedNature:
             guard let match = allPokemon.first(where: { $0.id == pokemonID }) else { return false }
-            loadUninvested(match, championsMode: championsMode)
+            loadUninvested(match, championsMode: championsMode, allPokemon: allPokemon)
             if speed == .fullInvestmentSpeedNature {
                 nature = allNatures.first { $0.id == "jolly" } ?? nature
             }

@@ -72,7 +72,7 @@ extension CalcSide {
             guard pokemon?.id == pokemonID else { return false }
         case .noInvestment, .fullInvestment, .fullInvestmentBoostingNature:
             guard let match = allPokemon.first(where: { $0.id == pokemonID }) else { return false }
-            loadUninvested(match, championsMode: championsMode)
+            loadUninvested(match, championsMode: championsMode, allPokemon: allPokemon)
             let physical = move.damageClass == "physical"
             if stats != .noInvestment {
                 let full = evPerStatMax
@@ -96,8 +96,10 @@ extension CalcSide {
 
     /// `pokemon` with no set: its first ability, no item, `championsMode`,
     /// a neutral nature, level 50 and no EVs or stat points. What "no
-    /// investment" means to every App Intent that asks for stats.
-    func loadUninvested(_ match: PKMNStats, championsMode: Bool) {
+    /// investment" means to every App Intent that asks for stats. A Mega
+    /// is its species holding the Mega Stone and Mega Evolved, as the calc
+    /// sets one up by hand.
+    func loadUninvested(_ match: PKMNStats, championsMode: Bool, allPokemon: [PKMNStats]) {
         pokemon = match
         selectedAbility = match.ability1
         heldItem = .none
@@ -108,5 +110,17 @@ extension CalcSide {
         nature = allNatures.first { $0.id == "serious" } ?? allNatures[0]
         level = 50
         evHP = 0; evAtk = 0; evDef = 0; evSpAtk = 0; evSpDef = 0; evSpeed = 0
+        let form = match.formName?.lowercased() ?? ""
+        if form == "mega" || form.hasPrefix("mega-"),
+           let base = allPokemon.first(where: { $0.speciesID == match.speciesID && !$0.isForm }),
+           let mega = MegaForms.all.first(where: {
+               $0.displayName == IntentNames.spoken(name: match.name, formName: match.formName)
+           }),
+           let stone = mega.stone {
+            pokemon = base
+            selectedAbility = base.ability1
+            heldItem = stone
+            megaActive = true
+        }
     }
 }
