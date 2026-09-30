@@ -34,7 +34,7 @@ struct AcknowledgementsTests {
         #expect(app.credit.contains("©"))
         #expect(app.use.contains("ABSOLUTELY NO WARRANTY"))
         #expect(app.use.contains("version 3 or (at your option) any later version"))
-        #expect(app.url.absoluteString == "https://github.com/rra013/PKDex")
+        #expect(app.url.absoluteString == "https://github.com/rra013/PKReference")
         let file = try #require(app.licenseFiles.first)
         let text = try #require(Acknowledgement.text(of: file))
         #expect(text.contains("GNU GENERAL PUBLIC LICENSE"))

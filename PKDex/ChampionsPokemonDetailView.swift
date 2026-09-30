@@ -563,10 +563,7 @@ struct ChampionsPokemonDetailView: View {
     private func defensiveBuckets(for defenderTypes: [String]) -> [MultiplierBucket: [String]] {
         var result: [MultiplierBucket: [String]] = [:]
         for attackingType in allTypes {
-            var mult = 1.0
-            for t in defenderTypes {
-                mult *= typeEffectivenessChart[attackingType]?[t] ?? 1.0
-            }
+            let mult = TypeChart.bundled.multiplier(attackingType, against: defenderTypes)
             let bucket = MultiplierBucket.bucket(for: mult)
             result[bucket, default: []].append(attackingType)
         }

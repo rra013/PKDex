@@ -47,6 +47,13 @@ struct TeamSearchView: View {
 
     private func screen(selection: Binding<TeamComposition.ID?>?) -> some View {
         content(selection: selection)
+            .onChange(of: AppNavigator.shared.request, initial: true) {
+                // A query from an App Intent's Open button.
+                guard case .teamSearch(let query) = AppNavigator.shared.request else { return }
+                AppNavigator.shared.request = nil
+                text = query
+                model.setText(query)
+            }
             .navigationTitle("Team Search")
             .searchable(text: $text, prompt: "Trick Room with Mega Gardevoir, no Incineroar")
             .autocorrectionDisabled()

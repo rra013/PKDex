@@ -566,6 +566,7 @@ struct DamageCalculatorView: View {
     @Query(sort: \PKMNStats.name) private var allPokemon: [PKMNStats]
     @Query(sort: \MoveData.name) private var allMoves: [MoveData]
     @AppStorage(AppSettings.defaultGeneration) private var defaultGeneration: String
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var hSize
 
     var body: some View {
@@ -616,10 +617,24 @@ struct DamageCalculatorView: View {
                 if isChampions != vm.side2.championsMode {
                     vm.side2.setChampionsMode(isChampions)
                 }
+                // After the sync above, so a saved set keeps its own mode.
+                openRequestedCalc()
             }
+            .onChange(of: AppNavigator.shared.request) { openRequestedCalc() }
         }
         .leaveWarning(vm.side1.pokemon != nil || vm.side2.pokemon != nil
                       ? "The Pokémon you entered will be cleared." : nil)
+    }
+
+    /// Loads the calc an App Intent asked for into a new view model, so no
+    /// field condition or stat stage left on screen changes its answer.
+    private func openRequestedCalc() {
+        guard case .calc(let request) = AppNavigator.shared.request else { return }
+        AppNavigator.shared.request = nil
+        let requested = DamageCalcVM()
+        requested.load(request, championsMode: defaultGeneration == PokedexFilter.champions.rawValue,
+                       context: modelContext)
+        vm = requested
     }
 }
 

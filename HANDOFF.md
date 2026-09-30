@@ -25,15 +25,15 @@ and what was checked.
 
 | PR | Change |
 |---|---|
-| [#36](https://github.com/rra013/PKDex/pull/36) | Matchup colors for Pokémon 1 and 2 (`MatchupColors`) |
-| [#37](https://github.com/rra013/PKDex/pull/37), [#38](https://github.com/rra013/PKDex/pull/38) | iPad layout fixes |
-| [#39](https://github.com/rra013/PKDex/pull/39) | The remaining hard-coded colors |
-| [#40](https://github.com/rra013/PKDex/pull/40)–[#46](https://github.com/rra013/PKDex/pull/46) | Game data into JSON: regulation rules, Mega forms, Tera type, Battle Sim move tables, held items, setup moves, the type chart (and Poison resisting Bug) |
-| [#47](https://github.com/rra013/PKDex/pull/47) | PokéFinder's generator scripts and inputs left out of the bundle |
-| [#48](https://github.com/rra013/PKDex/pull/48) | The item picker shows the held item; mainline mode offers Choice items again |
-| [#49](https://github.com/rra013/PKDex/pull/49), [#50](https://github.com/rra013/PKDex/pull/50), [#53](https://github.com/rra013/PKDex/pull/53) | The Mac app: builds and runs, sidebar and Settings window, screen pass |
-| [#51](https://github.com/rra013/PKDex/pull/51) | A fresh detail page for each selection in split views |
-| [#52](https://github.com/rra013/PKDex/pull/52) | No build warnings |
+| [#36](https://github.com/rra013/PKReference/pull/36) | Matchup colors for Pokémon 1 and 2 (`MatchupColors`) |
+| [#37](https://github.com/rra013/PKReference/pull/37), [#38](https://github.com/rra013/PKReference/pull/38) | iPad layout fixes |
+| [#39](https://github.com/rra013/PKReference/pull/39) | The remaining hard-coded colors |
+| [#40](https://github.com/rra013/PKReference/pull/40)–[#46](https://github.com/rra013/PKReference/pull/46) | Game data into JSON: regulation rules, Mega forms, Tera type, Battle Sim move tables, held items, setup moves, the type chart (and Poison resisting Bug) |
+| [#47](https://github.com/rra013/PKReference/pull/47) | PokéFinder's generator scripts and inputs left out of the bundle |
+| [#48](https://github.com/rra013/PKReference/pull/48) | The item picker shows the held item; mainline mode offers Choice items again |
+| [#49](https://github.com/rra013/PKReference/pull/49), [#50](https://github.com/rra013/PKReference/pull/50), [#53](https://github.com/rra013/PKReference/pull/53) | The Mac app: builds and runs, sidebar and Settings window, screen pass |
+| [#51](https://github.com/rra013/PKReference/pull/51) | A fresh detail page for each selection in split views |
+| [#52](https://github.com/rra013/PKReference/pull/52) | No build warnings |
 
 Full suite at #53: 1083 tests, all passing.
 
@@ -268,7 +268,7 @@ xcodebuild build -project PKDex.xcodeproj -scheme PKDex -destination 'platform=m
   with launch arguments; settings passed the same way apply to that run only:
 
   ```bash
-  <path>/PKDex.app/Contents/MacOS/PKDex -debugSnapshot calc -debugSnapshotQuit YES \
+  "<path>/PK Reference.app/Contents/MacOS/PK Reference" -debugSnapshot calc -debugSnapshotQuit YES \
     -debugSnapshotStdout YES -defaultTab damageCalc -appAppearance light \
     -debugWindowSize 1280x820 > run.log
   ```
@@ -359,9 +359,14 @@ Roughly in order of value for effort.
       on GitHub, with the tagged source for the GPL. Optionally Sparkle for
       updates.
 3. **Siri, Spotlight and Shortcuts.** [`AppIntents-PLAN.md`](AppIntents-PLAN.md):
-   App Intents for iPhone, iPad and the Mac, in three phases, starting with
-   Pokémon lookup, the damage calc and Team Search. The questions in its §7
-   come first.
+   App Intents for iPhone, iPad and the Mac. Phase 1 is built: Look Up
+   Pokémon, Calculate Damage and Search Teams, answering in place with an
+   Open button (`AppIntents.swift`, `IntentEntities.swift`,
+   `IntentAnswers.swift`; `AppNavigator` opens the page). Next: Phase 2
+   (speed, legality, saved sets and teams as entities, Spotlight indexing).
+   Siri's phrases need trying on a device by the owner; `-debugSnippets YES`
+   renders the snippets on the Mac, and `-debugNavigate` makes an Open
+   button's request.
 4. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last
@@ -388,7 +393,7 @@ Roughly in order of value for effort.
 | [`PKDex/ShowdownPort-NOTES.md`](PKDex/ShowdownPort-NOTES.md) | Scope and wiring of the `@smogon/calc` port |
 | [`PKDex/AbilityReference.md`](PKDex/AbilityReference.md) | Which abilities the legacy damage engine models |
 | [`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md) | Plan for moving game data into JSON (done) |
-| [`AppIntents-PLAN.md`](AppIntents-PLAN.md) | Plan for Siri, Spotlight and Shortcuts actions (not started) |
+| [`AppIntents-PLAN.md`](AppIntents-PLAN.md) | Plan for Siri, Spotlight and Shortcuts actions (Phase 1 built) |
 | [`RNGRewrite-PLAN.md`](RNGRewrite-PLAN.md) | Plan for an independent RNG core (on hold) |
 | [`tools/README.md`](tools/README.md) | Scripts that regenerate the bundled data |
 

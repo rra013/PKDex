@@ -20,6 +20,12 @@ nonisolated enum TypeChart {
         var types: [String]
         /// Attacking type → defending type → multiplier. Missing pairs are 1.
         var effectiveness: [String: [String: Double]]
+
+        /// `attacking`'s multiplier against a Pokémon of the `defending`
+        /// types, by type alone: abilities such as Levitate aren't counted.
+        func multiplier(_ attacking: String, against defending: [String]) -> Double {
+            defending.reduce(1) { $0 * (effectiveness[attacking]?[$1] ?? 1) }
+        }
     }
 
     enum LoadError: Error, Equatable {

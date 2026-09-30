@@ -284,6 +284,31 @@ struct ContentView: View {
                 moreOpenTab = tab
             }
         }
+        .onChange(of: AppNavigator.shared.request, initial: true) {
+            guard let request = AppNavigator.shared.request else { return }
+            Task {
+                await Task.yield()
+                show(request.tab)
+            }
+        }
+    }
+
+    /// Shows `tab` for an App Intent's request: in the bar or sidebar, or
+    /// opened from the More list. The tab then takes the request; a request
+    /// for a hidden tab is dropped.
+    private func show(_ tab: AppTab) {
+        let split = Self.split(of: shownLayout, moreList: showsMoreList)
+        if split.bar.contains(tab) {
+            selectedTab = .tab(tab)
+        } else if split.more.contains(tab) {
+            selectedTab = .more
+            if moreOpenTab != tab {
+                morePath = NavigationPath([tab])
+                moreOpenTab = tab
+            }
+        } else {
+            AppNavigator.shared.request = nil
+        }
     }
 
     /// Brings the tab bar up to date with the stored arrangement and the
@@ -369,6 +394,9 @@ private struct PokedexTab: View {
     /// hang the selection haptic on — a destination-based link changes no
     /// state we can see.
     @State private var path: [PKMN] = []
+    /// A Pokémon an App Intent asked to open while this tab is under More,
+    /// whose navigation stack is the More list's.
+    @State private var requestedMon: PKMN?
 
     private var activeFilter: PokedexFilter {
         selectedFilter ?? PokedexFilter(rawValue: defaultGeneration) ?? .champions
@@ -382,28 +410,49 @@ private struct PokedexTab: View {
     }
 
     var body: some View {
-        // Wide layouts get a roster/detail split; compact (portrait) keeps the
-        // original single-column push navigation, unchanged.
-        if hSize == .regular {
-            wideBody
-        } else if isInMoreList {
-            // Opened from the More list: its stack does the pushing, so
-            // there's no path of ours to tick the haptic on.
-            compactColumn
-        } else {
-            NavigationStack(path: $path) {
+        Group {
+            // Wide layouts get a roster/detail split; compact (portrait) keeps the
+            // original single-column push navigation, unchanged.
+            if hSize == .regular {
+                wideBody
+            } else if isInMoreList {
+                // Opened from the More list: its stack does the pushing, so
+                // there's no path of ours to tick the haptic on.
                 compactColumn
+            } else {
+                NavigationStack(path: $path) {
+                    compactColumn
+                }
+                // The push animation reads as "something happened next" rather
+                // than "your tap landed". Ticking on the path change confirms the
+                // hit at the moment it registers.
+                .sensoryFeedback(.selection, trigger: path)
             }
-            // The push animation reads as "something happened next" rather
-            // than "your tap landed". Ticking on the path change confirms the
-            // hit at the moment it registers.
-            .sensoryFeedback(.selection, trigger: path)
+        }
+        .onChange(of: AppNavigator.shared.request, initial: true) { openRequestedPokemon() }
+    }
+
+    /// Opens the Pokémon an App Intent asked for, by National Dex number:
+    /// selected beside the list, or pushed.
+    private func openRequestedPokemon() {
+        guard case .pokemon(let speciesID) = AppNavigator.shared.request else { return }
+        AppNavigator.shared.request = nil
+        guard let mon = allPokemon.first(where: { $0.nationalPokedexNumber == speciesID }) else { return }
+        if hSize == .regular {
+            selectedMon = mon
+        } else if isInMoreList {
+            requestedMon = mon
+        } else {
+            path = [mon]
         }
     }
 
     private var compactColumn: some View {
         indexColumn(selection: nil)
             .navigationDestination(for: PKMN.self) { mon in
+                monIndexDestination(for: mon, filter: activeFilter)
+            }
+            .navigationDestination(item: $requestedMon) { mon in
                 monIndexDestination(for: mon, filter: activeFilter)
             }
     }

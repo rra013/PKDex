@@ -5,43 +5,19 @@
 //  Created by Rishi Anand on 4/13/26.
 //
 
+import AppIntents
 import SwiftUI
 import SwiftData
 
 @main
 struct PokedexApp: App {
-    let container: ModelContainer = {
-        let schema = Schema([PKMN.self, Gen8Pokemon.self, Gen9Pokemon.self, PKMNStats.self, MoveData.self, SavedSpread.self, SavedTeam.self])
-        let config = ModelConfiguration(schema: schema)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [config])
-        } catch {
-            // Schema changed and auto-migration failed -- delete the old store and retry.
-            print("Migration failed, deleting old store: \(error)")
-            let storeURL = config.url
-            let related = [
-                storeURL.appendingPathExtension("wal"),
-                storeURL.appendingPathExtension("shm"),
-            ]
-            for url in [storeURL] + related {
-                try? FileManager.default.removeItem(at: url)
-            }
-            // Clear sync flags so data re-downloads
-            UserDefaults.standard.removeObject(forKey: "hasCompletedInitialSync")
-            UserDefaults.standard.removeObject(forKey: "hasCompletedCalcSyncV3")
-            UserDefaults.standard.removeObject(forKey: "hasCompletedCalcSyncV4")
-
-            do {
-                return try ModelContainer(for: schema, configurations: [config])
-            } catch {
-                fatalError("Could not create ModelContainer even after store reset: \(error)")
-            }
-        }
-    }()
+    let container = AppModelContainer.shared
 
     init() {
         TabLayout.migrateLegacyStorage()
+        #if DEBUG
+        AppNavigator.shared.requestFromLaunchArguments()
+        #endif
     }
 
     var body: some Scene {
@@ -111,5 +87,9 @@ struct PokedexApp: App {
         await MainActor.run {
             BattleSimSeed.seedIfNeeded(modelContainer: container)
         }
+
+        // Siri's phrases that name a Pokémon ("What is Garchomp weak to in
+        // PK Reference") come from the roster, which is only there now.
+        PKReferenceShortcuts.updateAppShortcutParameters()
     }
 }

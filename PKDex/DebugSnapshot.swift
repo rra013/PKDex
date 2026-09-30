@@ -12,7 +12,7 @@
 //  - Launch arguments, for a scripted check. Settings can be passed the same
 //    way, for that run only (`-defaultTab damageCalc -appAppearance dark`):
 //
-//        open -g -n -W PKDex.app --args -debugSnapshot calc \
+//        open -g -n -W "PK Reference.app" --args -debugSnapshot calc \
 //            [-debugSnapshotDelay 4] [-debugWindowSize 1280x800] \
 //            [-debugOpenSettings YES] [-debugOpenFirst YES] [-debugOpenSheet load] \
 //            [-debugSnapshotStdout YES] [-debugSnapshotQuit YES]
@@ -51,6 +51,42 @@ enum DebugSnapshot {
         guard UserDefaults.standard.bool(forKey: "debugOpenFirst") else { return }
         try? await Task.sleep(for: .seconds(1))
         open()
+    }
+
+    /// With `-debugSnippets YES`, renders the App Intents' snippets, which
+    /// only Siri and Spotlight show, with the store's data: Garchomp's
+    /// lookup, its Earthquake on Heatran with no investment, and Team Search
+    /// for "Trick Room". Saved like the windows, as `<name>-snippet-lookup`
+    /// and so on.
+    static func renderSnippets(named name: String) async {
+        var snippets: [(String, AnyView)] = []
+        if let pokemon = try? IntentData.pokemonEntities(ids: [445]).first,
+           let answer = try? IntentData.lookup(445) {
+            snippets.append(("lookup", AnyView(PokemonSnippetView(answer: answer, pokemon: pokemon))))
+        }
+        if let attacker = try? IntentData.pokemonEntities(ids: [445]).first,
+           let defender = try? IntentData.pokemonEntities(ids: [485]).first,
+           let move = try? IntentData.moveEntities(ids: [89]).first {
+            let open = OpenCalcIntent(attacker: attacker, move: move, defender: defender,
+                                      attackerStats: .noInvestment, defenderStats: .noInvestment)
+            if let request = try? open.request, let answer = try? IntentData.damage(request) {
+                snippets.append(("damage", AnyView(DamageSnippetView(answer: answer, open: open))))
+            }
+        }
+        if let answer = try? await IntentData.teamSearch("Trick Room") {
+            snippets.append(("teams", AnyView(TeamSearchSnippetView(answer: answer))))
+        }
+        for (kind, view) in snippets {
+            let renderer = ImageRenderer(content: view.frame(width: 380).background(.background))
+            renderer.scale = 2
+            guard let image = renderer.nsImage, let tiff = image.tiffRepresentation,
+                  let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else {
+                print("[DebugSnapshot] couldn't render the \(kind) snippet")
+                continue
+            }
+            print("[DebugSnapshot png \(name)-snippet-\(kind)] \(png.base64EncodedString())")
+            fflush(stdout)
+        }
     }
 
     /// Prints the menu bar, one item a line with its shortcut, since a
@@ -170,6 +206,9 @@ enum DebugSnapshot {
                 saveAll(named: name)
                 if defaults.bool(forKey: "debugMenus") {
                     printMenus()
+                }
+                if defaults.bool(forKey: "debugSnippets") {
+                    await renderSnippets(named: name)
                 }
                 if defaults.bool(forKey: "debugSnapshotQuit") {
                     // Not NSApp.terminate: a sheet with a text field open

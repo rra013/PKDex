@@ -38,7 +38,7 @@ struct Acknowledgement: Identifiable {
     static let app = Acknowledgement(
         name: "PK Reference", credit: "© 2026 rra013",
         use: "Free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3 or (at your option) any later version. It comes with ABSOLUTELY NO WARRANTY. Tap for the license.",
-        url: URL(string: "https://github.com/rra013/PKDex")!,
+        url: URL(string: "https://github.com/rra013/PKReference")!,
         license: "GPL-3.0-or-later", licenseFiles: ["License-GPL-3.0.txt"])
 
     static let dataSources: [Acknowledgement] = [
