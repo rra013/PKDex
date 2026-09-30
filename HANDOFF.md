@@ -380,19 +380,35 @@ Roughly in order of value for effort.
    failed the same way). That's macOS, not the app: on the simulator the
    sets and teams are indexed and open from Spotlight. Recheck after a
    macOS update.
+   - **Known system bug, not the app's:** in the iOS Shortcuts app, PK
+     Reference's suggested tile can be titled with one Pokémon ("Hydrapple",
+     the last suggested) and run with another (Venusaur, the first). The
+     system's stored App Shortcut phrases (Biome's `App.Shortcut.Phrase`
+     set) share one reference per phrase template and don't record which
+     Pokémon each names, so the tile passes id 3. Siri resolves the same
+     phrases correctly (checked by the owner on the Mac, 2026-09-30). A
+     no-default options provider and `parameterPresentation` didn't change
+     the tile. Worth a Feedback report to Apple; don't chase it in the app.
    - **A new regulation** also needs a case in `RegulationChoice`
      (`IntentEntities.swift`); `AppIntentsTests` fails until it has one.
-4. **Team Search open risks.**
+4. **Problem Solver.** [`ProblemSolver-PLAN.md`](ProblemSolver-PLAN.md):
+   pick a set that's a problem, get the Pokémon, move and investment
+   combinations that OHKO it (guaranteed, Champions doubles), grouped by
+   whether they move first. Brute force through the calc engine, pruned by a
+   heuristic; timed at about 41 µs a calc, so the whole roster takes a
+   second or two. Planned, with every decision settled (its §8); next is
+   Phase 1, the solver.
+5. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last
      regulation's teams" option (keeping only teams legal now) was planned
      but not built.
    - Names Limitless writes that the alias table doesn't know still search,
      but saving a team reports them; a log of them would show the gaps.
-5. **Gen 9 in the Showdown port.** Only Champions is ported; other
+6. **Gen 9 in the Showdown port.** Only Champions is ported; other
    generations use the legacy engine, and `calculateShowdown` stops with a
    clear error for them. See [`PKReference/ShowdownPort-NOTES.md`](PKReference/ShowdownPort-NOTES.md).
-6. **App Store.** Blocked on the GPL until PokéFinder's authors give
+7. **App Store.** Blocked on the GPL until PokéFinder's authors give
    permission, or the RNG core is rewritten per
    [`RNGRewrite-PLAN.md`](RNGRewrite-PLAN.md) (on hold).
 
@@ -409,6 +425,7 @@ Roughly in order of value for effort.
 | [`PKReference/AbilityReference.md`](PKReference/AbilityReference.md) | Which abilities the legacy damage engine models |
 | [`PKReference/CompartmentalizationPlan.md`](PKReference/CompartmentalizationPlan.md) | Plan for moving game data into JSON (done) |
 | [`AppIntents-PLAN.md`](AppIntents-PLAN.md) | Plan for Siri, Spotlight and Shortcuts actions (Phases 1 and 2 built) |
+| [`ProblemSolver-PLAN.md`](ProblemSolver-PLAN.md) | Plan for the Problem Solver: counters that OHKO a chosen set |
 | [`RNGRewrite-PLAN.md`](RNGRewrite-PLAN.md) | Plan for an independent RNG core (on hold) |
 | [`tools/README.md`](tools/README.md) | Scripts that regenerate the bundled data |
 
