@@ -45,6 +45,8 @@ nonisolated enum ProblemSolver {
     /// level 50 on Champions rules, with no investment and no item (a Mega
     /// holds its stone). The solver chooses the rest.
     struct Candidate: Sendable {
+        /// `PKMNStats.id` of the Pokémon: its form, or for a Mega its species.
+        var pokemonID: Int
         var attacker: CalcSnapshot
         var move: MoveSnapshot
         /// Percent, or nil for a move that can't miss.
@@ -81,7 +83,9 @@ nonisolated enum ProblemSolver {
         case speedTie
     }
 
-    struct Counter: Identifiable, Equatable, Sendable {
+    struct Counter: Identifiable, Equatable, Hashable, Sendable {
+        /// `PKMNStats.id`, as the candidate's.
+        var pokemonID: Int
         /// As solved: nature, stat points, item, and any stages from the
         /// problem set's Intimidate.
         var attacker: CalcSnapshot
@@ -109,6 +113,9 @@ nonisolated enum ProblemSolver {
         var id: String {
             "\(name)|\(move.id)|\(attacker.heldItem.rawValue)|\(attacker.nature.id)|\(group)"
         }
+
+        static func == (a: Counter, b: Counter) -> Bool { a.id == b.id && a.abilities == b.abilities }
+        func hash(into hasher: inout Hasher) { hasher.combine(id) }
     }
 
     // MARK: - Solving
@@ -265,7 +272,8 @@ nonisolated enum ProblemSolver {
                 marks.insert(.speedTie)
             }
         }
-        return Counter(attacker: final, abilities: [], move: candidate.move, outcome: outcome,
+        return Counter(pokemonID: candidate.pokemonID, attacker: final, abilities: [], move: candidate.move,
+                       outcome: outcome,
                        attackStat: attackStat, attackPoints: attackPoints, speedPoints: speedPoints,
                        speed: speedOf(final), group: group, accuracy: candidate.accuracy, marks: marks)
     }
@@ -362,10 +370,11 @@ extension ProblemSolver {
         func add(_ side: CalcSide, abilities: [String?], moves: [MoveData]) {
             for ability in abilities {
                 side.selectedAbility = ability
-                guard let attacker = side.snapshot() else { continue }
+                guard let attacker = side.snapshot(), let pokemonID = side.pokemon?.id else { continue }
                 for move in moves {
-                    candidates.append(Candidate(attacker: attacker, move: move.snapshot(), accuracy: move.accuracy,
-                                                priority: move.priority, marks: marks(for: move.name)))
+                    candidates.append(Candidate(pokemonID: pokemonID, attacker: attacker, move: move.snapshot(),
+                                                accuracy: move.accuracy, priority: move.priority,
+                                                marks: marks(for: move.name)))
                 }
             }
         }

@@ -1,8 +1,9 @@
 # Problem Solver: implementation plan
 
-Status: **Phase 1 built** (2026-09-30): the solver, `ProblemSolver.swift`,
-with `ProblemSolverTests`. Phase 2, the screen, is next. The owner's decisions
-are in §8; what building it showed is in §9.
+Status: **Phases 1 and 2 built** (2026-09-30): the solver
+(`ProblemSolver.swift`) and the Problem Solver tab (`ProblemSolverView.swift`),
+with `ProblemSolverTests`. Phase 3's extras are next. The owner's decisions are
+in §8; what building it showed is in §9.
 
 The goal: a player picks a Pokémon set that's giving them trouble, and the
 app lists the Pokémon, move and investment combinations that knock it out in
@@ -286,3 +287,18 @@ All settled with the owner on 2026-09-30:
   share one scaling down, and are listed together on one answer.
 - **Speed and the budget.** Only two stats are ever solved, each at most 32,
   so they always fit in 66. The only limit that matters is 32 in Speed.
+- **The screen reuses the calc's editor.** The set to beat is a calc
+  `SideCard` without its moves, so loading, pasting, saving, Megas, stages
+  and side conditions (Reflect, Light Screen) all work as in the calc, and
+  the solver honours them. It's held to Champions rules.
+- **Opening an answer in the calc** uses `CalcSides`: both sides captured
+  whole as `SideSetup`s, with doubles on. On the iPhone, Empoleon's Surf
+  against Intimidate Incineroar opened at 218–258 (107.9–127.7%), exactly as
+  the solver had it.
+- **Running it:** `ProblemSolverModel` solves 0.4 s after the last edit, off
+  the main thread (`@concurrent`), cancelling the last run, with the
+  candidates cached per regulation. Results arrive together rather than
+  streaming, since the whole search is a second or two.
+- **`-debugNavigate problem:Incineroar,intimidate,bulky`** opens the tab on a
+  set, through `AppNavigator.Request.problemSolver`, which a Siri "what
+  beats X" action can use later.

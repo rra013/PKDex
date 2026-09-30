@@ -66,7 +66,7 @@ struct ListDetailSplit<ListColumn: View, Detail: View>: View {
 // MARK: - App Tab Definition
 
 enum AppTab: String, CaseIterable, Identifiable {
-    case monIndex, moveIndex, abilityIndex, damageCalc, sets, teams, speedTiers, battleSim, rngTools, tournaments, teamSearch, settings
+    case monIndex, moveIndex, abilityIndex, damageCalc, sets, teams, speedTiers, problemSolver, battleSim, rngTools, tournaments, teamSearch, settings
 
     var id: String { rawValue }
 
@@ -79,6 +79,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .sets:         return "Sets"
         case .teams:        return "Teams"
         case .speedTiers:   return "Speed Tiers"
+        case .problemSolver: return "Problem Solver"
         case .battleSim:    return "Battle Sim"
         case .rngTools:     return "RNG Tools"
         case .tournaments:  return "Tournaments"
@@ -96,6 +97,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .sets:         return "square.and.pencil"
         case .teams:        return "person.3"
         case .speedTiers:   return "hare"
+        case .problemSolver: return "scope"
         case .battleSim:    return "gamecontroller.fill"
         case .rngTools:     return "dice"
         case .tournaments:  return "trophy"
@@ -104,7 +106,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         }
     }
 
-    static let allUserTabs: [AppTab] = [.monIndex, .moveIndex, .abilityIndex, .damageCalc, .sets, .teams, .speedTiers, .battleSim, .rngTools, .tournaments, .teamSearch]
+    static let allUserTabs: [AppTab] = [.monIndex, .moveIndex, .abilityIndex, .damageCalc, .sets, .teams, .speedTiers, .problemSolver, .battleSim, .rngTools, .tournaments, .teamSearch]
 }
 
 // MARK: - Accent Color
@@ -368,6 +370,7 @@ struct ContentView: View {
         case .sets:         SetListView()
         case .teams:        TeamListView()
         case .speedTiers:   SpeedTierView()
+        case .problemSolver: ProblemSolverView()
         case .battleSim:    BattleSimulatorView()
         case .rngTools:     RNGToolsView()
         case .tournaments:  TournamentsTab()

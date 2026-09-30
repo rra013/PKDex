@@ -39,6 +39,11 @@ final class AppNavigator {
         case savedTeam(PersistentIdentifier)
         /// The calc, with a saved set as the attacker and the defender kept.
         case calcSet(PersistentIdentifier)
+        /// The calc with both sides set up exactly, as a Problem Solver
+        /// answer is.
+        case calcSides(CalcSides)
+        /// The Problem Solver, with this set to beat.
+        case problemSolver(SideSetup)
         /// An index, with its search field filled in: the Mon, Move or
         /// Ability Index.
         case indexSearch(AppTab, String)
@@ -46,12 +51,13 @@ final class AppNavigator {
         var tab: AppTab {
             switch self {
             case .pokemon: .monIndex
-            case .calc, .calcSet: .damageCalc
+            case .calc, .calcSet, .calcSides: .damageCalc
             case .teamSearch: .teamSearch
             case .speed: .speedTiers
             case .savedSet: .sets
             case .savedTeam: .teams
             case .indexSearch(let tab, _): tab
+            case .problemSolver: .problemSolver
             }
         }
     }
@@ -64,9 +70,10 @@ final class AppNavigator {
     /// defender and move ids, both with no investment), `-debugNavigate
     /// speed:887,785` (the first with full investment and a Speed nature,
     /// the second with full investment), `set:`, `team:` or `calcSet:` and
-    /// a saved set's or team's name, or `search:` and words, as in-app search
-    /// gets them, makes the same request an intent's Open button would, so
-    /// opening the app can be checked without Siri.
+    /// a saved set's or team's name, `search:` and words, as in-app search
+    /// gets them, or `problem:` and a Pokémon for the Problem Solver, makes
+    /// the same request an intent's Open button would, so opening the app
+    /// can be checked without Siri.
     func requestFromLaunchArguments() {
         guard let argument = UserDefaults.standard.string(forKey: "debugNavigate"),
               let colon = argument.firstIndex(of: ":") else { return }
@@ -97,6 +104,19 @@ final class AppNavigator {
             }
         case "search":
             request = IntentData.searchRequest(for: value)
+        case "problem":
+            // `problem:Incineroar` or `problem:Incineroar,intimidate`: the
+            // Pokémon, uninvested, with full HP and Defense when "bulky".
+            let parts = value.split(separator: ",").map(String.init)
+            let context = AppModelContainer.shared.mainContext
+            let all = (try? context.fetch(FetchDescriptor<PKMNStats>())) ?? []
+            if let name = parts.first, let row = all.first(where: { $0.name == name && !$0.isForm }) {
+                let side = CalcSide()
+                side.loadUninvested(row, championsMode: true, allPokemon: all)
+                if parts.contains("intimidate") { side.selectedAbility = "intimidate" }
+                if parts.contains("bulky") { side.evHP = 32; side.evDef = 32 }
+                if let setup = SideSetup(side) { request = .problemSolver(setup) }
+            }
         case "team":
             let context = AppModelContainer.shared.mainContext
             let team = try? context.fetch(FetchDescriptor<SavedTeam>(predicate: #Predicate { $0.name == value })).first

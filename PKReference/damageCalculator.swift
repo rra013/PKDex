@@ -629,7 +629,8 @@ struct DamageCalculatorView: View {
     /// Loads the calc an App Intent asked for into a new view model, so no
     /// field condition or stat stage left on screen changes its answer; or
     /// loads a saved set as the attacker, as the Load button does, keeping
-    /// the defender.
+    /// the defender; or both sides exactly, as the Problem Solver solved
+    /// them.
     private func openRequestedCalc() {
         switch AppNavigator.shared.request {
         case .calc(let request):
@@ -643,6 +644,14 @@ struct DamageCalculatorView: View {
             let descriptor = FetchDescriptor<SavedSpread>(predicate: #Predicate { $0.persistentModelID == id })
             guard let spread = try? modelContext.fetch(descriptor).first else { return }
             vm.side1.loadSpread(spread, allPokemon: allPokemon, allMoves: allMoves)
+        case .calcSides(let sides):
+            AppNavigator.shared.request = nil
+            let requested = DamageCalcVM()
+            guard sides.attacker.apply(to: requested.side1, allPokemon: allPokemon, allMoves: allMoves),
+                  sides.defender.apply(to: requested.side2, allPokemon: allPokemon, allMoves: allMoves)
+            else { return }
+            requested.multi = sides.doubles
+            vm = requested
         default:
             break
         }
@@ -945,7 +954,10 @@ private struct PercentageBar: View {
 
 // MARK: - Pokemon Side Card
 
-private struct SideCard: View {
+/// One side's editor: the Pokémon, its set, investment, stages and
+/// conditions. The Problem Solver uses it for the set to beat, without the
+/// moves.
+struct SideCard: View {
     let title: String
     /// `.side1` or `.side2`; the header's numbered marker is the key for
     /// the markers in Results.
@@ -953,7 +965,10 @@ private struct SideCard: View {
     @Bindable var side: CalcSide
     let allPokemon: [PKMNStats]
     let allMoves: [MoveData]
-    var vm: DamageCalcVM
+    /// The calc, for the move slots; nil hides them.
+    var vm: DamageCalcVM?
+    /// The header's symbol, in place of the side's numbered marker.
+    var icon: String?
 
     @Query(sort: \SavedSpread.createdAt, order: .reverse) private var savedSpreads: [SavedSpread]
     @Environment(\.modelContext) private var modelContext
@@ -1020,7 +1035,7 @@ private struct SideCard: View {
     }
 
     var body: some View {
-        SectionCard(title: title, icon: role.symbol,
+        SectionCard(title: title, icon: icon ?? role.symbol,
                     iconColor: matchupColors.color(for: role), types: side.effectiveTypes) {
             // Pokemon Picker
             VStack(alignment: .leading, spacing: 8) {
@@ -1137,7 +1152,7 @@ private struct SideCard: View {
             }
 
             // Moves section
-            if side.pokemon != nil {
+            if side.pokemon != nil, let vm {
                 Divider()
                 MoveSlotsSection(side: side, allMoves: allMoves, allPokemon: allPokemon, vm: vm)
             }
