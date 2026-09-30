@@ -38,35 +38,25 @@ struct SetListView: View {
     }
 
     private var wideBody: some View {
-        NavigationSplitView {
+        ListDetailSplit {
             listColumn(selection: $selectedSpread)
-                .listColumnWidth()
         } detail: {
-            NavigationStack {
-                if let selectedSpread {
-                    // A new editor for each set: the editor loads its fields
-                    // once, so a reused one kept showing the first set, and
-                    // Save wrote those fields into the newly selected one.
-                    SetEditorView(spread: selectedSpread, allPokemon: allPokemon, allMoves: allMoves)
-                        .id(selectedSpread.persistentModelID)
-                } else {
-                    ContentUnavailableView {
-                        Label("Select a Set", systemImage: "sidebar.left")
-                    } description: {
-                        Text("Choose a set from the list to edit it.")
-                    }
+            if let selectedSpread {
+                // A new editor for each set: the editor loads its fields
+                // once, so a reused one kept showing the first set, and
+                // Save wrote those fields into the newly selected one.
+                SetEditorView(spread: selectedSpread, allPokemon: allPokemon, allMoves: allMoves)
+                    .id(selectedSpread.persistentModelID)
+            } else {
+                ContentUnavailableView {
+                    Label("Select a Set", systemImage: "sidebar.left")
+                } description: {
+                    Text("Choose a set from the list to edit it.")
                 }
             }
         }
         #if DEBUG && os(macOS)
-        .task {
-            // Selecting before the split view has appeared lays it out
-            // billions of points wide, and the window saves that as its
-            // divider position, so wait as a click would.
-            guard DebugSnapshot.opensFirstItem else { return }
-            try? await Task.sleep(for: .seconds(1))
-            selectedSpread = savedSpreads.first
-        }
+        .task { await DebugSnapshot.openFirstItem { selectedSpread = savedSpreads.first } }
         #endif
     }
 
@@ -91,6 +81,11 @@ struct SetListView: View {
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 deleteButton(for: spread)
                             }
+                            #if os(macOS)
+                            // Swiping needs a trackpad on the Mac. The same
+                            // button, so it asks first too.
+                            .contextMenu { deleteButton(for: spread) }
+                            #endif
                     }
                 }
             } else {
@@ -119,7 +114,11 @@ struct SetListView: View {
         }
         .sheet(isPresented: $showNewSetSheet) {
             NewSetSheet(allPokemon: allPokemon, allMoves: allMoves)
+            .sheetSize()
         }
+        #if DEBUG && os(macOS)
+        .task { await DebugSnapshot.openSheet("newSet") { showNewSetSheet = true } }
+        #endif
         .alert("Delete \(pendingDeletion?.name ?? "set")?",
                isPresented: Binding(
                 get: { pendingDeletion != nil },
@@ -243,6 +242,17 @@ struct NewSetSheet: View {
         side.pokemon != nil || !name.isEmpty
     }
 
+    /// Predict Set's place: the middle of the top bar on iOS. A Mac sheet
+    /// shows its toolbar only along the bottom, which has no middle spot,
+    /// so there it sits with Cancel and Save.
+    private static var predictButtonPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .principal
+        #else
+        .automatic
+        #endif
+    }
+
     var body: some View {
         NavigationStack {
             SetFormContent(name: $name, side: side, allPokemon: allPokemon, allMoves: allMoves)
@@ -251,7 +261,7 @@ struct NewSetSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
                 .toolbar {
-                    ToolbarItem(placement: .principal) {
+                    ToolbarItem(placement: Self.predictButtonPlacement) {
                         SetPredictorButton(initialSpecies: side.pokemon?.name) { generated in
                             applyGeneratedSet(generated)
                         }
@@ -499,7 +509,11 @@ private struct SetFormContent: View {
         Form {
             // Set Name
             Section("Set Name") {
-                TextField("e.g. Physical Sweeper", text: $name)
+                // Titled, with the example as its prompt: a Mac form shows a
+                // field's title as a label beside it, and the section header
+                // already says what this is.
+                TextField("Set Name", text: $name, prompt: Text("e.g. Physical Sweeper"))
+                    .labelsHidden()
             }
 
             // Pokemon
@@ -534,7 +548,8 @@ private struct SetFormContent: View {
                     }
                     .font(.caption2)
                 } else {
-                    TextField("Search Mons...", text: $side.searchText)
+                    TextField("Search Mons", text: $side.searchText, prompt: Text("Search Mons..."))
+                        .labelsHidden()
                     ForEach(filteredPokemon) { p in
                         Button {
                             side.pokemon = p
@@ -608,7 +623,8 @@ private struct SetFormContent: View {
                     HStack {
                         Text("Level")
                         Spacer()
-                        TextField("Lv", value: $side.level, format: .number)
+                        TextField("Level", value: $side.level, format: .number, prompt: Text("Lv"))
+                            .labelsHidden()
                             .scaledWidth(60)
                             .textFieldStyle(.roundedBorder)
                             .multilineTextAlignment(.trailing)
@@ -711,10 +727,11 @@ private struct SetMoveSlot: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 4) {
-                TextField("Move \(index + 1)...", text: Binding(
+                TextField("Move \(index + 1)", text: Binding(
                     get: { side.moveSearchTexts[index] },
                     set: { side.moveSearchTexts[index] = $0 }
-                ))
+                ), prompt: Text("Move \(index + 1)..."))
+                .labelsHidden()
                 .font(.subheadline)
 
                 ForEach(filteredMoves) { move in

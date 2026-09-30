@@ -2678,6 +2678,7 @@ struct RNGTimerView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
                 .disabled(engine.isRunning)
 
                 // Console picker
@@ -3437,6 +3438,7 @@ struct FinderRootView: View {
                     ForEach(FinderGeneration.allCases) { g in Text(g.rawValue).tag(g) }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
                 .onChange(of: generation) {
                     let games = FinderGameVersion.games(for: generation)
                     if !games.contains(selectedGame) { selectedGame = games[0] }
@@ -3452,6 +3454,7 @@ struct FinderRootView: View {
                         ForEach(FinderMode.allCases) { m in Text(m.rawValue).tag(m) }
                     }
                     .pickerStyle(.segmented)
+                    .labelsHidden()
                 }
 
                 // Encounter
@@ -3481,6 +3484,7 @@ struct FinderRootView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .labelsHidden()
                     .onChange(of: encounterMode) { autoSelectMethod() }
                     .onChange(of: generation) {
                         let modes = EncounterMode.modes(for: generation, game: selectedGame)
@@ -4089,10 +4093,10 @@ struct FinderRootView: View {
             }
             Picker("Ability", selection: $gen8ParentAAbility) {
                 Text("1").tag(UInt8(0)); Text("2").tag(UInt8(1)); Text("H").tag(UInt8(2))
-            }.pickerStyle(.segmented)
+            }.pickerStyle(.segmented).labelsHidden()
             Picker("Gender", selection: $gen8ParentAGender) {
                 Text("Male").tag(UInt8(0)); Text("Female").tag(UInt8(1))
-            }.pickerStyle(.segmented)
+            }.pickerStyle(.segmented).labelsHidden()
             Picker("Item", selection: $gen8ParentAItem) {
                 Text("None").tag(UInt8(0)); Text("Everstone").tag(UInt8(1))
                 Text("Destiny Knot").tag(UInt8(2)); Text("Power Weight").tag(UInt8(3))
@@ -4115,10 +4119,10 @@ struct FinderRootView: View {
             }
             Picker("Ability", selection: $gen8ParentBAbility) {
                 Text("1").tag(UInt8(0)); Text("2").tag(UInt8(1)); Text("H").tag(UInt8(2))
-            }.pickerStyle(.segmented)
+            }.pickerStyle(.segmented).labelsHidden()
             Picker("Gender", selection: $gen8ParentBGender) {
                 Text("Male").tag(UInt8(0)); Text("Female").tag(UInt8(1))
-            }.pickerStyle(.segmented)
+            }.pickerStyle(.segmented).labelsHidden()
             Picker("Item", selection: $gen8ParentBItem) {
                 Text("None").tag(UInt8(0)); Text("Everstone").tag(UInt8(1))
                 Text("Destiny Knot").tag(UInt8(2)); Text("Power Weight").tag(UInt8(3))
@@ -4153,7 +4157,7 @@ struct FinderRootView: View {
             Picker("Rarity", selection: $gen8RaidRarity) {
                 Text("Normal").tag(UInt8(0))
                 Text("Rare").tag(UInt8(1))
-            }.pickerStyle(.segmented)
+            }.pickerStyle(.segmented).labelsHidden()
             HStack {
                 Text("Raid Index")
                 Spacer()

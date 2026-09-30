@@ -103,11 +103,13 @@ struct ChampionsPokemonDetailView: View {
             NewSetSheet(allPokemon: allPokemonStats,
                         allMoves: allMoves,
                         initialPokemon: basePKMNStats)
+            .sheetSize()
         }
         .sheet(isPresented: $showCompare) {
             ChampionsComparisonSheet(originName: pokemon.name,
                                      originForm: selectedForm,
                                      allMoves: allMoves)
+            .sheetSize()
         }
     }
 

@@ -41,6 +41,7 @@ struct EncounterBrowserView: View {
                     ForEach(EncBrowserGen.allCases) { g in Text(g.rawValue).tag(g) }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
                 .onChange(of: generation) {
                     let games = availableGames
                     if !games.contains(selectedGame) { selectedGame = games[0] }
@@ -227,6 +228,7 @@ struct StaticEncounterBrowserView: View {
                     ForEach(StaticBrowserGen.allCases) { g in Text(g.rawValue).tag(g) }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
                 .onChange(of: generation) {
                     let cats = categoryNames
                     if !cats.contains(where: { $0.0 == category }) {

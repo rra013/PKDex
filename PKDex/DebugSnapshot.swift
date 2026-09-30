@@ -14,17 +14,23 @@
 //
 //        open -g -n -W PKDex.app --args -debugSnapshot calc \
 //            [-debugSnapshotDelay 4] [-debugWindowSize 1280x800] \
-//            [-debugOpenSettings YES] [-debugOpenFirst YES] [-debugSnapshotQuit YES]
+//            [-debugOpenSettings YES] [-debugOpenFirst YES] [-debugOpenSheet load] \
+//            [-debugSnapshotStdout YES] [-debugSnapshotQuit YES]
 //
-//  `-debugOpenFirst YES` opens the first item of a list/detail tab (Sets),
-//  so its detail screen can be checked.
+//  `-debugOpenFirst YES` opens the first item of a list/detail tab (Mon
+//  Index, Sets, Teams, Team Search), so its detail screen can be checked,
+//  and `-debugOpenSheet` opens a sheet by the name its presenter gives.
 //
 //  Pictures go to Library/Caches/Snapshots in the app's container
 //  (~/Library/Containers/yukisoft.PKReference/Data/), named for the
 //  argument or the time. A launch-argument snapshot saves every open
 //  window: the main one as `calc.png`, others with their title added
-//  (`calc-Settings.png`). Glass, such as the sidebar and search fields,
-//  comes out blank, and so do web views, which draw in another process.
+//  (`calc-Settings.png`, or `calc-sheet.png` for an untitled sheet).
+//  macOS asks before another app reads the container, so with
+//  `-debugSnapshotStdout YES` each picture is also printed, as a
+//  `[DebugSnapshot png <name>] <base64>` line, for whoever launched the
+//  app to decode. Glass, such as the sidebar and search fields, comes out
+//  blank, and so do web views, which draw in another process.
 //
 
 #if DEBUG && os(macOS)
@@ -36,8 +42,47 @@ enum DebugSnapshot {
         URL.cachesDirectory.appending(path: "Snapshots", directoryHint: .isDirectory)
     }
 
-    /// Set by `-debugOpenFirst YES`: list/detail tabs open their first item.
-    static var opensFirstItem: Bool { UserDefaults.standard.bool(forKey: "debugOpenFirst") }
+    /// With `-debugOpenFirst YES`, a list/detail tab calls this from a task
+    /// on its split view, and it runs `open` a second later. Selecting
+    /// before the split view has appeared lays it out billions of points
+    /// wide, and the window saves that as its divider position, so it waits
+    /// as a click would.
+    static func openFirstItem(_ open: () -> Void) async {
+        guard UserDefaults.standard.bool(forKey: "debugOpenFirst") else { return }
+        try? await Task.sleep(for: .seconds(1))
+        open()
+    }
+
+    /// Prints the menu bar, one item a line with its shortcut, since a
+    /// snapshot can't show menus: `-debugMenus YES`.
+    static func printMenus() {
+        func describe(_ item: NSMenuItem) -> String {
+            guard !item.isSeparatorItem else { return "—" }
+            var line = item.title
+            if !item.keyEquivalent.isEmpty {
+                let mods = item.keyEquivalentModifierMask
+                let symbols = [(NSEvent.ModifierFlags.control, "⌃"), (.option, "⌥"), (.shift, "⇧"), (.command, "⌘")]
+                line += "  " + symbols.filter { mods.contains($0.0) }.map(\.1).joined() + item.keyEquivalent.uppercased()
+            }
+            return line + (item.isEnabled ? "" : "  (disabled)")
+        }
+        func walk(_ menu: NSMenu, _ depth: Int) {
+            for item in menu.items {
+                print("[menu] " + String(repeating: "  ", count: depth) + describe(item))
+                if let submenu = item.submenu, depth < 2 { walk(submenu, depth + 1) }
+            }
+        }
+        if let main = NSApp.mainMenu { walk(main, 0) }
+        fflush(stdout)
+    }
+
+    /// With `-debugOpenSheet <name>`, a view that presents the sheet
+    /// `name` calls this from a task, and it runs `open` a second later.
+    static func openSheet(_ name: String, _ open: () -> Void) async {
+        guard UserDefaults.standard.string(forKey: "debugOpenSheet") == name else { return }
+        try? await Task.sleep(for: .seconds(1))
+        open()
+    }
 
     private static var mainWindow: NSWindow? {
         NSApp.mainWindow ?? NSApp.windows.first { $0.isVisible && $0.canBecomeMain }
@@ -65,11 +110,12 @@ enum DebugSnapshot {
     }
 
     /// Saves every open window: the main one as `name`, others with their
-    /// title added.
+    /// title added, or "sheet" for an untitled sheet.
     static func saveAll(named name: String) {
         let main = mainWindow
         for window in NSApp.windows where window.isVisible && window.canBecomeKey {
-            save(window, named: window === main ? name : "\(name)-\(window.title)")
+            let title = window.title.isEmpty ? (window.isSheet ? "sheet" : "window") : window.title
+            save(window, named: window === main ? name : "\(name)-\(title)")
         }
     }
 
@@ -86,6 +132,10 @@ enum DebugSnapshot {
         do {
             guard let png = rep.representation(using: .png, properties: [:]) else {
                 throw CocoaError(.fileWriteUnknown)
+            }
+            if UserDefaults.standard.bool(forKey: "debugSnapshotStdout") {
+                print("[DebugSnapshot png \(name)] \(png.base64EncodedString())")
+                fflush(stdout)
             }
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let url = folder.appending(path: name + ".png")
@@ -118,8 +168,13 @@ enum DebugSnapshot {
                 let delay = defaults.double(forKey: "debugSnapshotDelay")
                 try? await Task.sleep(for: .seconds(delay > 0 ? delay : 4))
                 saveAll(named: name)
+                if defaults.bool(forKey: "debugMenus") {
+                    printMenus()
+                }
                 if defaults.bool(forKey: "debugSnapshotQuit") {
-                    NSApp.terminate(nil)
+                    // Not NSApp.terminate: a sheet with a text field open
+                    // held that off, and the run never ended.
+                    exit(0)
                 }
             }
         }

@@ -98,12 +98,14 @@ struct GameCubeRNGView: View {
                     ForEach(GameCubeGame.allCases) { g in Text(g.rawValue).tag(g) }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
                 .onChange(of: selectedGame) { loadTemplates() }
 
                 Picker("Mode", selection: $mode) {
                     ForEach(availableModes) { m in Text(m.rawValue).tag(m) }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
                 .onChange(of: mode) { loadTemplates() }
 
                 if mode != .pokeSpot {
@@ -111,6 +113,7 @@ struct GameCubeRNGView: View {
                         ForEach(GameCubeSearchMode.allCases) { m in Text(m.rawValue).tag(m) }
                     }
                     .pickerStyle(.segmented)
+                    .labelsHidden()
                 }
 
                 // Profile
@@ -206,6 +209,7 @@ struct GameCubeRNGView: View {
                         }
                     }
             }
+            .sheetSize()
         }
         .sheet(isPresented: $showJirachiPattern) {
             NavigationStack {
@@ -217,6 +221,7 @@ struct GameCubeRNGView: View {
                         }
                     }
             }
+            .sheetSize()
         }
     }
 
@@ -664,6 +669,7 @@ struct SeedSearcherView: View {
                     ForEach(availableTypes) { t in Text(t.rawValue).tag(t) }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
 
                 switch searchType {
                 case .colo:

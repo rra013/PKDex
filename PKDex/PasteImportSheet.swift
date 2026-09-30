@@ -136,6 +136,7 @@ struct PasteImportSheet: View {
                     Text("Champions (0–\(championsMaxEVPerStat))").tag(StatScale.champions)
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
             } footer: {
                 Text("These numbers fit both scales, so this defaults to the calc's current scale. Change it if the paste was written in the other one.")
             }

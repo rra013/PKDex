@@ -227,6 +227,7 @@ struct SpeedTierView: View {
                         filterChampions = true
                     }
                 }
+                .sheetSize()
             }
             .onAppear {
                 if defaultGeneration == PokedexFilter.champions.rawValue {

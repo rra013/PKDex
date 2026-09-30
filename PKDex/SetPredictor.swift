@@ -279,6 +279,7 @@ struct SetPredictorButton: View {
                 onCompletion(set)
                 showingSheet = false
             }
+            .sheetSize()
         }
     }
 }
@@ -320,7 +321,8 @@ struct SetPredictorSheet: View {
                             }
                         }
                     } else {
-                        TextField("Search…", text: $query)
+                        TextField("Search", text: $query, prompt: Text("Search…"))
+                            .labelsHidden()
                             #if os(iOS)
                             .textInputAutocapitalization(.words)
                             #endif
