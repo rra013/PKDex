@@ -359,6 +359,12 @@ enum BattleMoveEffects {
     /// Setup moves (stat boosts and the like). The Champions validator flags
     /// one on a set holding a Choice item.
     static let setupMoves: Set<String> = data.setupMoves
+    /// Moves the user must recharge after, moves that faint the user, and
+    /// moves that fail if the user is hit first. The sim doesn't model these
+    /// yet; the Problem Solver marks them.
+    static let rechargeMoves: Set<String> = data.rechargeMoves
+    static let selfKOMoves: Set<String> = data.selfKOMoves
+    static let failsIfHitMoves: Set<String> = data.failsIfHitMoves
 }
 
 /// Encoded secondary effect for a damaging move. `chance` is the printed percent;

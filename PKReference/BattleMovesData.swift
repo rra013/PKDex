@@ -39,6 +39,9 @@ struct BattleMovesData {
     var secondaryEffects: [String: SecondaryEffect] = [:]
     var selfStatChangesOnHit: [String: [(Nature.StatKey, Int)]] = [:]
     var setupMoves: Set<String> = []
+    var rechargeMoves: Set<String> = []
+    var selfKOMoves: Set<String> = []
+    var failsIfHitMoves: Set<String> = []
 
     enum LoadError: Error, Equatable {
         /// A value in `table` (at `key`) isn't one of the engine's names.
@@ -129,6 +132,9 @@ struct BattleMovesData {
             try Self.stages(stages, table: "self_stat_changes_on_hit", key: key)
         }
         out.setupMoves = Set(file.setupMoves)
+        out.rechargeMoves = Set(file.rechargeMoves)
+        out.selfKOMoves = Set(file.selfKoMoves)
+        out.failsIfHitMoves = Set(file.failsIfHitMoves)
         return out
     }
 
@@ -209,6 +215,9 @@ nonisolated private struct BattleMovesFile: Decodable, Sendable {
     let secondaryEffects: [String: Secondary]
     let selfStatChangesOnHit: [String: [[StatOrStages]]]
     let setupMoves: [String]
+    let rechargeMoves: [String]
+    let selfKoMoves: [String]
+    let failsIfHitMoves: [String]
 
     struct StatChange: Decodable, Sendable {
         let target: String

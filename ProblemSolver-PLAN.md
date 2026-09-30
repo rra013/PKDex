@@ -1,7 +1,8 @@
 # Problem Solver: implementation plan
 
-Status: **Planned** (2026-09-30). Nothing is built yet. The owner's decisions
-are in §8.
+Status: **Phase 1 built** (2026-09-30): the solver, `ProblemSolver.swift`,
+with `ProblemSolverTests`. Phase 2, the screen, is next. The owner's decisions
+are in §8; what building it showed is in §9.
 
 The goal: a player picks a Pokémon set that's giving them trouble, and the
 app lists the Pokémon, move and investment combinations that knock it out in
@@ -261,3 +262,27 @@ All settled with the owner on 2026-09-30:
    fewer points in all is kept.
 7. **Where the tab lives:** in More on the iPhone, in the bar on iPad and
    the Mac.
+
+---
+
+## 9. What building Phase 1 showed
+
+- **Speed:** 25,922 candidates (all 231 M-C species, their forms and
+  Megas, each ability and legal damaging move) are built in 0.2 s and
+  solved in 1.9 s, against full HP and Defense Incineroar, in a debug build
+  on the simulator. The pruning bound (§3.2) isn't needed, so it isn't
+  built.
+- **Negative priority.** Focus Punch (−3) came out as outspeeding at first.
+  A move with negative priority goes last whatever the Speeds, so it's
+  "slower" and marked as moving last. Focus Punch is also marked as failing
+  if the user is hit (`fails_if_hit_moves` in `battle_moves.json`, beside
+  the new `recharge_moves` and `self_ko_moves`).
+- **Intimidate cuts both ways.** Against Intimidate Incineroar, Competitive
+  Empoleon and Defiant Falinks are among the best answers, because
+  Intimidate powers them up. `ProblemSolver.intimidated(ability:)` covers
+  the blocking abilities (Clear Body, Inner Focus and the like), Defiant,
+  Competitive, Contrary, Guard Dog, Simple and Rattled.
+- **Sharing work.** Abilities that give the same damage at full investment
+  share one scaling down, and are listed together on one answer.
+- **Speed and the budget.** Only two stats are ever solved, each at most 32,
+  so they always fit in 66. The only limit that matters is 32 in Speed.

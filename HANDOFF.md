@@ -38,7 +38,7 @@ and what was checked.
 | [#55](https://github.com/rra013/PKReference/pull/55) | Siri, Spotlight and Shortcuts, Phase 1; the app is named PK Reference |
 | [#56](https://github.com/rra013/PKReference/pull/56) | The Xcode project, targets, module and folders renamed to PKReference |
 
-Full suite with in-app search, forms and read searches: 1122 tests, all passing.
+Full suite with the Problem Solver's solver: 1133 tests, all passing.
 
 ---
 
@@ -395,9 +395,9 @@ Roughly in order of value for effort.
    pick a set that's a problem, get the Pokémon, move and investment
    combinations that OHKO it (guaranteed, Champions doubles), grouped by
    whether they move first. Brute force through the calc engine, pruned by a
-   heuristic; timed at about 41 µs a calc, so the whole roster takes a
-   second or two. Planned, with every decision settled (its §8); next is
-   Phase 1, the solver.
+   heuristic. Phase 1, the solver, is built (`ProblemSolver.swift`,
+   `ProblemSolverTests`): the whole of M-C, 25,922 candidates, solves in
+   about 2 s in a debug build. Next is Phase 2, the screen.
 5. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last
