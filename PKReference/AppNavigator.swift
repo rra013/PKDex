@@ -9,6 +9,7 @@
 
 import Foundation
 import Observation
+import SwiftData
 
 @Observable
 final class AppNavigator {
@@ -21,12 +22,24 @@ final class AppNavigator {
         case calc(CalcRequest)
         /// Team Search, with this query.
         case teamSearch(query: String)
+        /// Speed Tiers, with the first Pokémon as yours and the second's
+        /// investment as the benchmark.
+        case speed(SpeedRequest)
+        /// A saved set, open in Sets.
+        case savedSet(PersistentIdentifier)
+        /// A saved team, open in Teams.
+        case savedTeam(PersistentIdentifier)
+        /// The calc, with a saved set as the attacker and the defender kept.
+        case calcSet(PersistentIdentifier)
 
         var tab: AppTab {
             switch self {
             case .pokemon: .monIndex
-            case .calc: .damageCalc
+            case .calc, .calcSet: .damageCalc
             case .teamSearch: .teamSearch
+            case .speed: .speedTiers
+            case .savedSet: .sets
+            case .savedTeam: .teams
             }
         }
     }
@@ -35,10 +48,12 @@ final class AppNavigator {
 
     #if DEBUG
     /// Debug builds: `-debugNavigate pokemon:445`, `-debugNavigate
-    /// "teamSearch:Trick Room"` or `-debugNavigate calc:445,485,89`
-    /// (attacker, defender and move ids, both with no investment) makes the
-    /// same request an intent's Open button would, so opening the app can be
-    /// checked without Siri.
+    /// "teamSearch:Trick Room"`, `-debugNavigate calc:445,485,89` (attacker,
+    /// defender and move ids, both with no investment), `-debugNavigate
+    /// speed:887,785` (the first with full investment and a Speed nature,
+    /// the second with full investment), or `set:`, `team:` or `calcSet:`
+    /// and a saved set's or team's name makes the same request an intent's
+    /// Open button would, so opening the app can be checked without Siri.
     func requestFromLaunchArguments() {
         guard let argument = UserDefaults.standard.string(forKey: "debugNavigate"),
               let colon = argument.firstIndex(of: ":") else { return }
@@ -55,6 +70,22 @@ final class AppNavigator {
                                             defenderID: ids[1], defenderStats: .noInvestment,
                                             moveID: ids[2]))
             }
+        case "speed":
+            let ids = value.split(separator: ",").compactMap { Int($0) }
+            if ids.count == 2 {
+                request = .speed(SpeedRequest(firstID: ids[0], firstStats: .fullInvestmentSpeedNature,
+                                              secondID: ids[1], secondStats: .fullInvestment))
+            }
+        case "set", "calcSet":
+            let context = AppModelContainer.shared.mainContext
+            let spread = try? context.fetch(FetchDescriptor<SavedSpread>(predicate: #Predicate { $0.name == value })).first
+            if let id = spread?.persistentModelID {
+                request = argument.hasPrefix("set:") ? .savedSet(id) : .calcSet(id)
+            }
+        case "team":
+            let context = AppModelContainer.shared.mainContext
+            let team = try? context.fetch(FetchDescriptor<SavedTeam>(predicate: #Predicate { $0.name == value })).first
+            if let id = team?.persistentModelID { request = .savedTeam(id) }
         default:
             break
         }

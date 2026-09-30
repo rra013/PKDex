@@ -321,20 +321,33 @@ Champions-specific mechanics that are modelled include:
 
 ## Siri, Spotlight and Shortcuts
 
-Three actions work from Siri, Spotlight (including running them straight
-from Spotlight on the Mac) and the Shortcuts app, and answer in place, with
-an **Open in PK Reference** button:
+These actions work from Siri, Spotlight (including running them straight
+from Spotlight on the Mac) and the Shortcuts app. Each answers in place,
+with a button that opens the page in the app:
 
 - **Look Up Pokémon**: its types, what it's weak to and resists by type, and
   its base stat total. "What is Garchomp weak to in PK Reference?"
 - **Calculate Damage**: one Pokémon's move against another, as the calc
   would run it. Each side's stats are asked for (no investment, full
-  investment, or a saved set of that Pokémon), never assumed.
-  "Calculate damage in PK Reference."
+  investment, full investment and a boosting nature, or a saved set of that
+  Pokémon), never assumed; "max def" and the like are understood.
+  "PK Reference, how much will Incineroar do?"
 - **Search Teams**: the top tournament compositions for a description, as
   in Team Search. "Search teams in PK Reference."
+- **Compare Speed**: which of two Pokémon is faster, with each one's Speed.
+  Each one's investment is asked for, as in the calc; a saved set brings its
+  Choice Scarf and its Mega. "PK Reference, how fast is Dragapult?"
+- **Check Legality**: whether a Pokémon, form or Mega is allowed in a
+  Champions regulation (the one in Settings unless another is named), and
+  why not when it isn't. "PK Reference, is Incineroar legal?"
+- **Show Saved Set** and **Show Saved Team**: a set's Pokémon, ability,
+  item, nature and moves; a team's Pokémon and, for a Champions team, the
+  Battle Sim's legality check. "PK Reference, show my team Sand Offense."
+- **Load Set into Damage Calc**: opens the calc with a saved set as the
+  attacker. "PK Reference, load Scarf Koko into the calc."
 
-See [`AppIntents-PLAN.md`](AppIntents-PLAN.md) for what's next.
+Saved sets and teams also show up in Spotlight by name; choosing one opens
+it in the app.
 
 ## On-device machine learning
 
@@ -411,7 +424,7 @@ project has no Swift package dependencies.
    later launches work offline, except for Tournaments. The Mac app is
    sandboxed, with outgoing network access.
 
-**Tests:** 1,092 tests written with Swift Testing. They cover the damage engines
+**Tests:** 1,115 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
 tools, ML parity, the tournament import and data store, Team Search's parser,

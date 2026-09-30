@@ -24,16 +24,37 @@ struct SetListView: View {
     @State private var pendingDeletion: SavedSpread?
     @Environment(\.horizontalSizeClass) private var hSize
     @State private var selectedSpread: SavedSpread?
+    /// A set an App Intent asked to open in the compact layout.
+    @State private var requestedSpread: SavedSpread?
 
     var body: some View {
-        // Wide layouts get a list/editor split; compact (portrait) keeps the
-        // original push navigation, unchanged.
-        if hSize == .regular {
-            wideBody
-        } else {
-            TabNavigationStack {
-                listColumn(selection: nil)
+        Group {
+            // Wide layouts get a list/editor split; compact (portrait) keeps the
+            // original push navigation, unchanged.
+            if hSize == .regular {
+                wideBody
+            } else {
+                TabNavigationStack {
+                    listColumn(selection: nil)
+                        .navigationDestination(item: $requestedSpread) { spread in
+                            SetEditorView(spread: spread, allPokemon: allPokemon, allMoves: allMoves)
+                        }
+                }
             }
+        }
+        .onChange(of: AppNavigator.shared.request, initial: true) { openRequestedSet() }
+    }
+
+    /// Opens the set an App Intent asked for: selected beside the list, or
+    /// pushed.
+    private func openRequestedSet() {
+        guard case .savedSet(let id) = AppNavigator.shared.request else { return }
+        AppNavigator.shared.request = nil
+        guard let spread = savedSpreads.first(where: { $0.persistentModelID == id }) else { return }
+        if hSize == .regular {
+            selectedSpread = spread
+        } else {
+            requestedSpread = spread
         }
     }
 

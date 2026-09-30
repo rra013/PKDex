@@ -158,6 +158,7 @@ struct SpeedTierView: View {
     @Query(sort: \SavedSpread.createdAt, order: .reverse) private var savedSpreads: [SavedSpread]
     @Query(sort: \MoveData.name) private var allMoves: [MoveData]
     @AppStorage(AppSettings.defaultGeneration) private var defaultGeneration: String
+    @Environment(\.modelContext) private var modelContext
 
     @State private var side = CalcSide()
     @State private var showLoadSpread = false
@@ -236,9 +237,49 @@ struct SpeedTierView: View {
                         side.setChampionsMode(true)
                     }
                 }
+                // After the setup above, so a saved set keeps its own mode.
+                openRequestedSpeed()
             }
+            .onChange(of: AppNavigator.shared.request) { openRequestedSpeed() }
         }
         .leaveWarning(side.pokemon != nil ? "The Pokémon you entered will be cleared." : nil)
+    }
+
+    /// Shows the comparison an App Intent asked for: the first Pokémon as
+    /// yours, loaded as the intent loaded it, with the list narrowed to the
+    /// second and, when its investment is one of the benchmarks, that
+    /// benchmark.
+    private func openRequestedSpeed() {
+        guard case .speed(let request) = AppNavigator.shared.request else { return }
+        AppNavigator.shared.request = nil
+        let requested = CalcSide()
+        guard requested.load(pokemonID: request.firstID, speed: request.firstStats,
+                             championsMode: defaultGeneration == PokedexFilter.champions.rawValue,
+                             allPokemon: Array(allPokemon), allMoves: Array(allMoves), context: modelContext)
+        else { return }
+        side = requested
+        userItemMod = requested.holdsChoiceScarf ? .choiceScarf : .none
+        userAbilityMod = .none
+        fieldItemMod = .none
+        fieldAbilityMod = .none
+        switch request.secondStats {
+        case .noInvestment: fieldBenchmark = .uninvNeutral
+        case .fullInvestment: fieldBenchmark = .maxNeutral
+        case .fullInvestmentSpeedNature: fieldBenchmark = .maxBoosted
+        case .savedSet: break
+        }
+        // The list names Megas as they're said and other Pokémon by their
+        // Pokédex row; other forms aren't listed, so show their species. The
+        // roster filter stays off when it would hide the second Pokémon.
+        guard let second = allPokemon.first(where: { $0.id == request.secondID }) else { return }
+        let species = allPokemon.first { $0.speciesID == second.speciesID && !$0.isForm } ?? second
+        filterChampions = requested.championsMode && championsRoster.contains(species.name)
+        let form = second.formName?.lowercased() ?? ""
+        if form == "mega" || form.hasPrefix("mega-") {
+            searchText = IntentNames.spoken(name: second.name, formName: second.formName)
+        } else {
+            searchText = species.name
+        }
     }
 
     // MARK: - User Pokemon Section

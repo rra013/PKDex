@@ -1,7 +1,9 @@
 # Siri, Spotlight and Shortcuts: implementation plan
 
-Status: **Phase 1 built** (2026-09-30): the foundation and the three actions, with
-their tests. Phases 2 and 3 are next. The decisions are in §7.
+Status: **Phases 1 and 2 built** (2026-09-30): the foundation, eight actions and
+Spotlight indexing, with their tests. Phase 3's snippets and parameter prompts
+came with Phase 1; what's left of it needs the conversational Siri on the
+owner's devices. The decisions are in §7.
 
 The goal: people can ask Siri to look things up, run the calc or search
 teams without opening the app, on iPhone, iPad and the Mac. The same actions
@@ -98,27 +100,32 @@ What's missing:
 The answers are built by plain functions (for example, weaknesses as a
 sentence), separate from the intents, so they can be tested directly.
 
-## 4. Phase 2: more actions (one or two PRs)
+## 4. Phase 2: more actions (built)
 
 - **Compare Speed**: "Is Dragapult faster than Tapu Koko?", with each
-  one's final speed.
+  one's final speed. Each Pokémon's investment is asked for, as in the calc
+  (§7.4).
 - **Check Legality**: "Is Incineroar legal in Regulation M-C?", from the
-  validator, with the reason when it isn't.
+  regulation's files, with the reason when it isn't (§7.5).
 - **Saved sets and teams as entities**, from SwiftData by persistent id:
   "Load my Screenshot Test set into the calc" (opens the calc), "Show my
-  Sand Offense team".
+  Sand Offense team" (with the Battle Sim's legality check for a Champions
+  team), and "Show my set …".
 - **Spotlight indexing** of saved sets and teams (`IndexedEntity`), so they
-  show up in Spotlight search by name.
+  show up in Spotlight search by name; choosing one opens it. The index,
+  and Siri's list of set and team names for phrases, are refreshed at
+  launch and a second after any save that touches a set or team
+  (`IntentIndex`, in `SavedIntents.swift`).
 
 ## 5. Phase 3: richer answers
 
-- **Snippet views** (iOS and macOS 26) for answers that read better than
-  they sound: the damage range bar, weaknesses as type badges. Small
-  SwiftUI views reusing `TypeBadge` and the calc's colors.
-- **Parameter prompts and follow-ups**, such as asking for the move when
-  only two Pokémon were named.
-- Revisit once the conversational Siri is on the owner's devices: which
-  requests it maps to these intents, and which descriptions need work.
+- **Snippet views** (iOS and macOS 26): built with each action, in
+  `IntentSnippets.swift`.
+- **Parameter prompts and follow-ups**: built; every required parameter
+  has a question Siri asks when it's missing.
+- **Left:** revisit once the conversational Siri is on the owner's devices:
+  which requests it maps to these intents, and which descriptions need
+  work.
 
 ---
 
@@ -153,3 +160,32 @@ Settled with the owner on 2026-09-30:
    Team Search with the query. Team Search answers with its top
    compositions.
 3. **Phase 1's three actions come first.**
+
+Made while building Phase 2 (2026-09-30), following those:
+
+4. **Compare Speed asks too.** Each Pokémon's Speed is a required choice:
+   no investment, full investment, full investment and a Speed nature
+   (Jolly), or a saved set of that Pokémon. A saved set brings its Choice
+   Scarf, and its Mega when it holds the stone, and the answer says so. A
+   Siri phrase can hold only one parameter, so the phrases name the first
+   Pokémon ("how fast is Dragapult") and Siri asks for the second.
+5. **Check Legality's regulation is optional.** Left out, it's the one
+   chosen in Settings, and the answer always names it. Legality is read
+   from the regulation's files: its species list, and each species' Megas
+   and other forms. So Rotom (Wash) is "not as that form" in M-C, whose
+   files list Rotom without its appliance forms.
+6. **Show Saved Team checks a Champions team** against the regulation in
+   Settings, with the Battle Sim's check, and says the first problem. A
+   mainline team isn't checked.
+7. **Load Set into Damage Calc keeps the defender**, as the calc's Load
+   button does, and opens the app; it's the one action that doesn't answer
+   in place, because opening the calc is what it's for.
+8. **Phrases follow how the owner asks.** Asked "PK Reference, how much
+   will Incineroar Lariat do to max def Farigiraf", Siri answered from its
+   own knowledge: no phrase matched. The calc now has phrases like "how
+   much will \(attacker) do" and "how much damage does \(defender) take",
+   a description that gives that kind of question as its example, and
+   search keywords. Each side's stats gained "full investment and a
+   boosting nature" (Adamant or Modest attacking, Bold or Calm defending),
+   and every investment choice has the words players use ("max def", "max
+   plus", "uninvested") as synonyms, and is matched from them.

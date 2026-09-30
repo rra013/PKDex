@@ -3,10 +3,11 @@
 //  PKReference
 //
 //  The things App Intents act on, and how Siri, Spotlight and Shortcuts
-//  find them: Pokémon and moves by name, and a side's stats for the damage
-//  calc from a short list (no investment, full investment, or a saved set
-//  of that Pokémon). The store is read on the main actor, through
-//  `IntentData`.
+//  find them: Pokémon and moves by name; a side's stats for the damage calc
+//  and a Pokémon's Speed for Compare Speed, each from a short list (no
+//  investment, full investment, or a saved set of that Pokémon); and
+//  Champions regulations. Saved sets and teams are in `SavedIntents.swift`.
+//  The store is read on the main actor, through `IntentData`.
 //
 
 import AppIntents
@@ -104,43 +105,58 @@ nonisolated struct StatsEntity: AppEntity {
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Stats"
     static let defaultQuery = StatsQuery()
 
-    /// "none", "full", or "set:" and the saved set's encoded identifier.
+    /// "none", "full", "boosted", or "set:" and the saved set's encoded
+    /// identifier.
     let id: String
     let title: String
     let subtitle: String
+    /// Other ways to say it, for answering Siri's question: "max def".
+    var synonyms: [String] = []
 
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(title)", subtitle: "\(subtitle)")
+        DisplayRepresentation(title: "\(title)", subtitle: "\(subtitle)", image: nil,
+                              synonyms: synonyms.map { "\($0)" })
     }
 
     static let noInvestment = StatsEntity(
         id: "none", title: "No investment",
-        subtitle: "No EVs or stat points, a neutral nature, level 50")
+        subtitle: "No EVs or stat points, a neutral nature, level 50",
+        synonyms: ["Uninvested", "No EVs", "No stat points"])
     static let fullInvestment = StatsEntity(
         id: "full", title: "Full investment",
-        subtitle: "Full EVs or stat points in the attacking stat, or HP and the matching defense; a neutral nature, level 50")
+        subtitle: "Full EVs or stat points in the attacking stat, or HP and the matching defense; a neutral nature, level 50",
+        synonyms: ["Max", "Maxed", "Max attack", "Max special attack", "Max defense", "Max def",
+                   "Max special defense", "Max bulk", "Fully invested"])
+    static let fullInvestmentBoostingNature = StatsEntity(
+        id: "boosted", title: "Full investment and a boosting nature",
+        subtitle: "As full investment, with a nature that raises that stat: Adamant or Modest attacking, Bold or Calm defending; level 50",
+        synonyms: ["Max with a plus nature", "Max plus", "Max with nature", "Max boosted",
+                   "Adamant", "Modest", "Bold", "Calm"])
+
+    static let fixed = [noInvestment, fullInvestment, fullInvestmentBoostingNature]
 
     var choice: StatChoice? {
         switch id {
         case "none": return .noInvestment
         case "full": return .fullInvestment
-        default:
-            guard id.hasPrefix("set:"),
-                  let data = Data(base64Encoded: String(id.dropFirst("set:".count))),
-                  let identifier = try? JSONDecoder().decode(PersistentIdentifier.self, from: data)
-            else { return nil }
-            return .savedSet(identifier)
+        case "boosted": return .fullInvestmentBoostingNature
+        default: return StoredID.set(from: id).map { .savedSet($0) }
         }
     }
 
     static func setID(_ identifier: PersistentIdentifier) -> String? {
-        (try? JSONEncoder().encode(identifier)).map { "set:" + $0.base64EncodedString() }
+        StoredID.text(identifier).map { "set:" + $0 }
     }
 }
 
-nonisolated struct StatsQuery: EntityQuery {
+nonisolated struct StatsQuery: EntityStringQuery {
     func entities(for identifiers: [String]) async throws -> [StatsEntity] {
         try await IntentData.statsEntities(ids: identifiers)
+    }
+
+    /// "max def" is full investment; a saved set by its name.
+    func entities(matching string: String) async throws -> [StatsEntity] {
+        await IntentData.statsEntities(matching: string)
     }
 }
 
@@ -158,6 +174,116 @@ nonisolated struct DefenderStatsOptions: DynamicOptionsProvider {
     func results() async throws -> [StatsEntity] {
         try await IntentData.statsChoices(for: calc?.defender.id)
     }
+}
+
+/// A saved set's or team's identifier as text, for an entity's id.
+nonisolated enum StoredID {
+    static func text(_ identifier: PersistentIdentifier) -> String? {
+        // Sorted keys, so the same set always gets the same text.
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return (try? encoder.encode(identifier))?.base64EncodedString()
+    }
+
+    static func identifier(_ text: String) -> PersistentIdentifier? {
+        Data(base64Encoded: text).flatMap { try? JSONDecoder().decode(PersistentIdentifier.self, from: $0) }
+    }
+
+    /// A saved set among a side's stat choices: "set:" and its identifier.
+    static func set(from choiceID: String) -> PersistentIdentifier? {
+        guard choiceID.hasPrefix("set:") else { return nil }
+        return identifier(String(choiceID.dropFirst("set:".count)))
+    }
+}
+
+// MARK: - Speed
+
+/// A Pokémon's Speed in Compare Speed. As in the calc, Siri asks for each
+/// Pokémon's and offers these.
+nonisolated struct SpeedStatsEntity: AppEntity {
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Speed"
+    static let defaultQuery = SpeedStatsQuery()
+
+    /// "none", "full", "fast", or "set:" and the saved set's encoded
+    /// identifier.
+    let id: String
+    let title: String
+    let subtitle: String
+    /// Other ways to say it, for answering Siri's question: "max Speed".
+    var synonyms: [String] = []
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "\(title)", subtitle: "\(subtitle)", image: nil,
+                              synonyms: synonyms.map { "\($0)" })
+    }
+
+    static let noInvestment = SpeedStatsEntity(
+        id: "none", title: "No investment",
+        subtitle: "No Speed EVs or stat points, a neutral nature, level 50",
+        synonyms: ["Uninvested", "No Speed EVs", "No stat points"])
+    static let fullInvestment = SpeedStatsEntity(
+        id: "full", title: "Full investment",
+        subtitle: "Full Speed EVs or stat points, a neutral nature, level 50",
+        synonyms: ["Max", "Max Speed", "Maxed", "Fully invested"])
+    static let fullInvestmentSpeedNature = SpeedStatsEntity(
+        id: "fast", title: "Full investment and a Speed nature",
+        subtitle: "Full Speed EVs or stat points and a nature that raises Speed, level 50",
+        synonyms: ["Max Speed with a plus nature", "Max plus", "Max with nature", "Jolly", "Timid", "Fastest"])
+
+    static let fixed = [noInvestment, fullInvestment, fullInvestmentSpeedNature]
+
+    var choice: SpeedChoice? {
+        switch id {
+        case "none": return .noInvestment
+        case "full": return .fullInvestment
+        case "fast": return .fullInvestmentSpeedNature
+        default: return StoredID.set(from: id).map { .savedSet($0) }
+        }
+    }
+}
+
+nonisolated struct SpeedStatsQuery: EntityStringQuery {
+    func entities(for identifiers: [String]) async throws -> [SpeedStatsEntity] {
+        await IntentData.speedStatsEntities(ids: identifiers)
+    }
+
+    /// "max Speed" is full investment; a saved set by its name.
+    func entities(matching string: String) async throws -> [SpeedStatsEntity] {
+        await IntentData.speedStatsEntities(matching: string)
+    }
+}
+
+nonisolated struct FirstSpeedOptions: DynamicOptionsProvider {
+    @IntentParameterDependency<CompareSpeedIntent>(\.$first) var comparison
+
+    func results() async throws -> [SpeedStatsEntity] {
+        await IntentData.speedChoices(for: comparison?.first.id)
+    }
+}
+
+nonisolated struct SecondSpeedOptions: DynamicOptionsProvider {
+    @IntentParameterDependency<CompareSpeedIntent>(\.$second) var comparison
+
+    func results() async throws -> [SpeedStatsEntity] {
+        await IntentData.speedChoices(for: comparison?.second.id)
+    }
+}
+
+// MARK: - Regulations
+
+/// A Pokémon Champions regulation, for Check Legality. Every
+/// `ChampionsRegulation` needs a case here too; `AppIntentsTests` checks.
+nonisolated enum RegulationChoice: String, AppEnum {
+    case mA = "m-a"
+    case mB = "m-b"
+    case mC = "m-c"
+
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Regulation"
+    static let caseDisplayRepresentations: [RegulationChoice: DisplayRepresentation] = [
+        .mA: "Regulation M-A",
+        .mB: "Regulation M-B",
+        .mC: "Regulation M-C",
+    ]
 }
 
 // MARK: - Reading the store
@@ -260,26 +386,86 @@ enum IntentData {
         return (try? context.fetch(descriptor)) ?? []
     }
 
-    /// No investment, full investment, then the Pokémon's saved sets,
-    /// newest first.
+    /// No investment, full investment, full investment and a boosting
+    /// nature, then the Pokémon's saved sets, newest first.
     static func statsChoices(for pokemonID: Int?, in store: ModelContext? = nil) throws -> [StatsEntity] {
         let context = store ?? storeContext
         let sets = pokemonID.map { sets(for: $0, in: context) } ?? []
-        return [.noInvestment, .fullInvestment] + sets.compactMap(statsEntity)
+        return StatsEntity.fixed + sets.compactMap(statsEntity)
     }
 
     static func statsEntities(ids: [String]) throws -> [StatsEntity] {
         ids.compactMap { id in
-            switch id {
-            case StatsEntity.noInvestment.id: return .noInvestment
-            case StatsEntity.fullInvestment.id: return .fullInvestment
-            default:
-                guard case .savedSet(let identifier) = StatsEntity(id: id, title: "", subtitle: "").choice,
-                      let spread = try? storeContext.fetch(FetchDescriptor<SavedSpread>(
-                          predicate: #Predicate { $0.persistentModelID == identifier })).first
-                else { return nil }
-                return statsEntity(spread)
-            }
+            if let fixed = StatsEntity.fixed.first(where: { $0.id == id }) { return fixed }
+            guard let identifier = StoredID.set(from: id), let spread = savedSpread(identifier) else { return nil }
+            return statsEntity(spread)
+        }
+    }
+
+    /// The investment `text` says, if it says one, then the saved sets its
+    /// words name. A set may be another Pokémon's; the calc then says it
+    /// couldn't use it.
+    static func statsEntities(matching text: String, in store: ModelContext? = nil) -> [StatsEntity] {
+        let fixed: StatsEntity? = switch IntentNames.investment(said: text) {
+        case .uninvested: .noInvestment
+        case .full: .fullInvestment
+        case .fullWithNature: .fullInvestmentBoostingNature
+        case nil: nil
+        }
+        return [fixed].compactMap { $0 } + setsNamed(text, in: store).compactMap(statsEntity)
+    }
+
+    /// Saved sets whose names match `text`, best first.
+    private static func setsNamed(_ text: String, in store: ModelContext?) -> [SavedSpread] {
+        let context = store ?? storeContext
+        let all = (try? context.fetch(FetchDescriptor<SavedSpread>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))) ?? []
+        let candidates = all.enumerated().map {
+            IntentNames.Candidate(id: $0.offset, keys: [IntentNames.key($0.element.name)], length: $0.element.name.count)
+        }
+        return IntentNames.matches(text, in: candidates).map { all[$0] }
+    }
+
+    static func savedSpread(_ identifier: PersistentIdentifier, in store: ModelContext? = nil) -> SavedSpread? {
+        let context = store ?? storeContext
+        return try? context.fetch(FetchDescriptor<SavedSpread>(
+            predicate: #Predicate { $0.persistentModelID == identifier })).first
+    }
+
+    // Speed
+
+    static func speedStatsEntity(_ spread: SavedSpread) -> SpeedStatsEntity? {
+        guard let id = StatsEntity.setID(spread.persistentModelID) else { return nil }
+        var parts = ["Saved set"]
+        if let nature = allNatures.first(where: { $0.id == spread.natureID }) { parts.append(nature.name) }
+        parts.append(spread.championsMode ? "\(spread.evSpeed) Speed stat points" : "\(spread.evSpeed) Speed EVs")
+        if spread.itemRawValue == HeldItem.choiceScarf.rawValue { parts.append("Choice Scarf") }
+        return SpeedStatsEntity(id: id, title: spread.name, subtitle: parts.joined(separator: " · "))
+    }
+
+    /// No investment, full investment, full investment and a Speed nature,
+    /// then the Pokémon's saved sets, newest first.
+    static func speedChoices(for pokemonID: Int?, in store: ModelContext? = nil) -> [SpeedStatsEntity] {
+        let context = store ?? storeContext
+        let sets = pokemonID.map { sets(for: $0, in: context) } ?? []
+        return SpeedStatsEntity.fixed + sets.compactMap(speedStatsEntity)
+    }
+
+    /// As `statsEntities(matching:)`, for Speed.
+    static func speedStatsEntities(matching text: String, in store: ModelContext? = nil) -> [SpeedStatsEntity] {
+        let fixed: SpeedStatsEntity? = switch IntentNames.investment(said: text) {
+        case .uninvested: .noInvestment
+        case .full: .fullInvestment
+        case .fullWithNature: .fullInvestmentSpeedNature
+        case nil: nil
+        }
+        return [fixed].compactMap { $0 } + setsNamed(text, in: store).compactMap(speedStatsEntity)
+    }
+
+    static func speedStatsEntities(ids: [String]) -> [SpeedStatsEntity] {
+        ids.compactMap { id in
+            if let fixed = SpeedStatsEntity.fixed.first(where: { $0.id == id }) { return fixed }
+            guard let identifier = StoredID.set(from: id), let spread = savedSpread(identifier) else { return nil }
+            return speedStatsEntity(spread)
         }
     }
 }

@@ -4,8 +4,9 @@
 //
 //  What the App Intents say, built apart from the intents so tests can
 //  check it: how a Pokémon is named aloud and matched from what someone
-//  said, a Pokémon's type matchups, and the damage calc's and Team
-//  Search's answers.
+//  said, a Pokémon's type matchups, the damage calc's and Team Search's
+//  answers, speed comparisons, whether a Pokémon is legal in a regulation,
+//  and saved sets and teams.
 //
 
 import Foundation
@@ -59,6 +60,27 @@ nonisolated enum IntentNames {
             result.insert(key(form + base))
         }
         return result
+    }
+
+    /// The investments Siri offers, as players say them.
+    enum Investment: Equatable, Sendable {
+        case uninvested, full, fullWithNature
+    }
+
+    /// The investment in what someone said: "uninvested" or "no EVs";
+    /// "max", "max def" or "252 Atk"; or one of those with a nature, "max
+    /// Adamant" or "max plus nature". Nil when it's none of these, such as
+    /// a saved set's name.
+    static func investment(said text: String) -> Investment? {
+        let said = key(text)
+        guard !said.isEmpty else { return nil }
+        if ["noinvest", "uninvest", "noev", "nostat", "zero"].contains(where: said.contains) || said == "none" {
+            return .uninvested
+        }
+        guard ["max", "full", "252", "32"].contains(where: said.contains) else { return nil }
+        let natures = ["nature", "plus", "positive", "boost",
+                       "adamant", "modest", "bold", "calm", "jolly", "timid"]
+        return natures.contains(where: said.contains) ? .fullWithNature : .full
     }
 
     struct Candidate: Sendable {
@@ -229,5 +251,239 @@ nonisolated struct TeamSearchAnswer: Sendable {
         let names = ListFormatter.localizedString(byJoining: best.species)
         return "\(compositions.formatted()) \(plural), from \(teams.formatted()) teams, match \"\(query)\". "
             + "The top one, from \(best.teams.formatted()) teams: \(names)."
+    }
+}
+
+// MARK: - Speed
+
+nonisolated struct SpeedAnswer: Sendable {
+    struct Side: Sendable {
+        /// As it's said, and as its Mega when a saved set Mega Evolves.
+        let name: String
+        let speed: Int
+        /// "full investment and a Speed nature", or "your set Scarf Koko,
+        /// with Choice Scarf".
+        let setup: String
+        let championsRules: Bool
+    }
+
+    let first: Side
+    let second: Side
+
+    /// "Dragapult is faster: 213 Speed to Tapu Koko's 200." A tie says
+    /// either could move first.
+    var spoken: String {
+        if first.speed == second.speed {
+            return "\(first.name) and \(second.name) tie at \(first.speed) Speed, so either could move first."
+        }
+        let (faster, slower) = first.speed > second.speed ? (first, second) : (second, first)
+        return "\(faster.name) is faster: \(faster.speed) Speed to \(slower.name)'s \(slower.speed)."
+    }
+
+    /// "Dragapult: full investment and a Speed nature. Tapu Koko: no
+    /// investment. Champions rules, no field effects."
+    var details: String {
+        let rules: String
+        switch (first.championsRules, second.championsRules) {
+        case (true, true): rules = "Champions rules"
+        case (false, false): rules = "Mainline rules"
+        default:
+            rules = "\(first.name) on \(first.championsRules ? "Champions" : "mainline") rules, "
+                + "\(second.name) on \(second.championsRules ? "Champions" : "mainline") rules"
+        }
+        return "\(first.name): \(first.setup). \(second.name): \(second.setup). \(rules), no field effects."
+    }
+}
+
+// MARK: - Legality
+
+nonisolated struct LegalityAnswer: Sendable {
+    enum Verdict: Equatable, Sendable {
+        case legal
+        /// Its species isn't in the regulation.
+        case notInRegulation
+        /// The regulation doesn't allow this kind of Mega: "Mega Evolution"
+        /// or "Mega Rayquaza".
+        case megaNotAllowed(String)
+        /// Its species is in the regulation, but not this form or Mega.
+        case formNotInRegulation(species: String)
+    }
+
+    /// As it's said: "Alolan Ninetales".
+    let name: String
+    /// "Regulation M-C".
+    let regulation: String
+    let verdict: Verdict
+    /// "Regulation M-C runs from September 9, 2026 to December 2, 2026.",
+    /// when its file has both dates.
+    let schedule: String?
+
+    var isLegal: Bool { verdict == .legal }
+
+    /// "Yes, Incineroar is legal in Regulation M-C.", or no, and why.
+    var spoken: String {
+        switch verdict {
+        case .legal:
+            "Yes, \(name) is legal in \(regulation)."
+        case .notInRegulation:
+            "No, \(name) isn't in \(regulation)."
+        case .megaNotAllowed(let what):
+            "No, \(regulation) doesn't allow \(what)."
+        case .formNotInRegulation(let species):
+            "No, \(species) is in \(regulation), but not as \(name)."
+        }
+    }
+
+    /// When a regulation runs, in the right tense for `now`. Its dates are
+    /// days, stored as midnight UTC, so they're shown in UTC too.
+    static func schedule(regulation: String, from: Date?, until: Date?, now: Date = .now) -> String? {
+        guard let from, let until else { return nil }
+        var style = Date.FormatStyle(date: .long, time: .omitted)
+        style.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        let start = from.formatted(style), end = until.formatted(style)
+        if now < from { return "\(regulation) starts on \(start) and runs until \(end)." }
+        // Its last day counts until that day is over.
+        if now >= until.addingTimeInterval(24 * 60 * 60) { return "\(regulation) ran from \(start) to \(end)." }
+        return "\(regulation) runs from \(start) to \(end)."
+    }
+}
+
+/// Whether a Pokémon, or one of its forms, is in a regulation, from the
+/// regulation's files: its list of species, and each species' Megas and
+/// other forms.
+nonisolated enum PokemonLegality {
+    /// What a regulation lists for one species.
+    struct Listing: Sendable {
+        /// The Megas it allows, by name: "Mega Charizard X".
+        let megas: [String]
+        /// Its other forms, as the files name them: "Alola Form", "Hisuian
+        /// Form", "White/Blue Plumage".
+        let forms: [String]
+    }
+
+    /// - Parameters:
+    ///   - formName: the Pokédex's form ("mega-x", "alola",
+    ///     "paldea-combat-breed"), nil for the species itself.
+    ///   - spokenName: the Pokémon as it's said, which is how Megas are
+    ///     listed.
+    ///   - listedSpecies: its species as the regulation lists it, or nil
+    ///     when the regulation doesn't.
+    ///   - speciesName: its species as it's said, for the answer.
+    static func verdict(formName: String?, spokenName: String, listedSpecies: String?,
+                        speciesName: String, rules: ChampionsRules, listing: Listing?) -> LegalityAnswer.Verdict {
+        guard let listedSpecies else { return .notInRegulation }
+        guard let form = formName?.lowercased(), !form.isEmpty else { return .legal }
+        if form == "mega" || form.hasPrefix("mega-") {
+            guard rules.megaEvolutionsAllowed else { return .megaNotAllowed("Mega Evolution") }
+            if IntentNames.key(listedSpecies) == "rayquaza" && !rules.megaRayquazaAllowed {
+                return .megaNotAllowed("Mega Rayquaza")
+            }
+            let megas = Set((listing?.megas ?? []).map(IntentNames.key))
+            return megas.contains(IntentNames.key(spokenName)) ? .legal : .formNotInRegulation(species: speciesName)
+        }
+        let wanted = IntentNames.key(form)
+        let listed = (listing?.forms ?? []).flatMap(formKeys)
+        return listed.contains { wanted.hasPrefix($0) } ? .legal : .formNotInRegulation(species: speciesName)
+    }
+
+    /// The regional adjectives the files use, as the Pokédex's form names
+    /// start.
+    private static let regions = ["alolan": "alola", "galarian": "galar", "hisuian": "hisui", "paldean": "paldea"]
+
+    /// A listed form as the start of the Pokédex's form names: "Hisuian
+    /// Form" is "hisui", "Low Key Form" is "lowkey", and "White/Blue
+    /// Plumage" is both "whiteplumage" and "blueplumage".
+    static func formKeys(_ listed: String) -> [String] {
+        var words = listed.split(separator: " ").map(String.init)
+        if words.last?.lowercased() == "form" { words.removeLast() }
+        guard let first = words.first else { return [] }
+        let rest = words.dropFirst().joined()
+        return first.split(separator: "/").map { alternative in
+            let key = IntentNames.key(String(alternative) + rest)
+            return regions[key] ?? key
+        }
+    }
+}
+
+// MARK: - Saved sets and teams
+
+nonisolated struct SetAnswer: Sendable {
+    let name: String
+    /// As it's said.
+    let pokemon: String
+    let types: [String]
+    let ability: String?
+    let item: String?
+    let nature: String?
+    let level: Int
+    let championsMode: Bool
+    /// The stats it invests in, most first: "32 Atk", or "252 Atk".
+    let investment: [String]
+    let moves: [String]
+
+    /// "Sample: Garchomp is Garchomp with Rough Skin and Choice Scarf, and a
+    /// Jolly nature. Its moves are Earthquake, Dragon Claw, Rock Slide, and
+    /// Protect."
+    var spoken: String {
+        var text = "\(name) is \(pokemon)"
+        let held = [ability, item].compactMap { $0 }
+        if !held.isEmpty { text += " with " + ListFormatter.localizedString(byJoining: held) }
+        if let nature { text += (held.isEmpty ? " with" : ", and") + " a \(nature) nature" }
+        text += "."
+        text += moves.isEmpty ? " It has no moves yet."
+            : " Its moves are \(ListFormatter.localizedString(byJoining: moves))."
+        return text
+    }
+
+    /// "Level 50 · Champions · 32 Atk / 32 Spe / 2 HP".
+    var details: String {
+        var parts = ["Level \(level)", championsMode ? "Champions" : "Mainline"]
+        parts.append(investment.isEmpty ? (championsMode ? "No stat points" : "No EVs")
+                                        : investment.joined(separator: " / "))
+        return parts.joined(separator: " · ")
+    }
+
+    /// Each stat with any EVs or stat points, most first, as "32 Atk".
+    static func investment(hp: Int, atk: Int, def: Int, spAtk: Int, spDef: Int, speed: Int) -> [String] {
+        let stats = [("HP", hp), ("Atk", atk), ("Def", def), ("SpA", spAtk), ("SpD", spDef), ("Spe", speed)]
+        return stats.enumerated()
+            .filter { $0.element.1 > 0 }
+            .sorted { ($0.element.1, -$0.offset) > ($1.element.1, -$1.offset) }
+            .map { "\($0.element.1) \($0.element.0)" }
+    }
+}
+
+nonisolated struct TeamAnswer: Sendable {
+    struct Member: Sendable {
+        let name: String
+        let types: [String]
+        let item: String?
+    }
+
+    let name: String
+    let members: [Member]
+    /// "Regulation M-C" for a Champions team, which is checked against it;
+    /// nil for a mainline team, which isn't.
+    let regulation: String?
+    /// What makes it illegal there, empty when it's legal.
+    let problems: [String]
+    /// What's legal but contradictory, such as a nature that lowers a stat
+    /// its moves use.
+    let warnings: [String]
+
+    /// "Sand Offense: Tyranitar, Excadrill and Garchomp. It's legal in
+    /// Regulation M-C."
+    var spoken: String {
+        guard !members.isEmpty else { return "\(name) has no Pokémon yet." }
+        var text = "\(name): \(ListFormatter.localizedString(byJoining: members.map(\.name)))."
+        guard let regulation else { return text }
+        if let first = problems.first {
+            text += " It isn't legal in \(regulation): \(first)"
+            let more = problems.count - 1
+            text += more == 0 ? "." : ", and \(more) more \(more == 1 ? "problem" : "problems")."
+        } else {
+            text += " It's legal in \(regulation)."
+        }
+        return text
     }
 }

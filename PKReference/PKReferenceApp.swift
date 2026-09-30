@@ -15,6 +15,7 @@ struct PokedexApp: App {
 
     init() {
         TabLayout.migrateLegacyStorage()
+        IntentIndex.watchSaves()
         #if DEBUG
         AppNavigator.shared.requestFromLaunchArguments()
         #endif
@@ -89,7 +90,9 @@ struct PokedexApp: App {
         }
 
         // Siri's phrases that name a Pokémon ("What is Garchomp weak to in
-        // PK Reference") come from the roster, which is only there now.
-        PKReferenceShortcuts.updateAppShortcutParameters()
+        // PK Reference") come from the roster, which is only there now; the
+        // ones naming a set or team, and Spotlight's index of them, from
+        // what's saved.
+        await IntentIndex.refresh()
     }
 }

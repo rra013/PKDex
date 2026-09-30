@@ -19,6 +19,10 @@ enum StatChoice: Hashable, Codable, Sendable {
     /// stat for the attacker; HP and the matching defense for the
     /// defender), a neutral nature, level 50.
     case fullInvestment
+    /// Full investment, as above, and a nature that raises the stat the
+    /// move uses: Adamant or Modest for the attacker, Bold or Calm for the
+    /// defender.
+    case fullInvestmentBoostingNature
     /// A saved set, as saved: its stats, nature, level, ability, item and
     /// mode.
     case savedSet(PersistentIdentifier)
@@ -66,20 +70,12 @@ extension CalcSide {
             guard let spread = try? context.fetch(descriptor).first else { return false }
             loadSpread(spread, allPokemon: allPokemon, allMoves: allMoves)
             guard pokemon?.id == pokemonID else { return false }
-        case .noInvestment, .fullInvestment:
+        case .noInvestment, .fullInvestment, .fullInvestmentBoostingNature:
             guard let match = allPokemon.first(where: { $0.id == pokemonID }) else { return false }
-            pokemon = match
-            selectedAbility = match.ability1
-            heldItem = .none
-            teraType = nil
-            loadedSpreadName = nil
-            setChampionsMode(championsMode)
-            nature = allNatures.first { $0.id == "serious" } ?? allNatures[0]
-            level = 50
-            evHP = 0; evAtk = 0; evDef = 0; evSpAtk = 0; evSpDef = 0; evSpeed = 0
-            if stats == .fullInvestment {
+            loadUninvested(match, championsMode: championsMode)
+            let physical = move.damageClass == "physical"
+            if stats != .noInvestment {
                 let full = evPerStatMax
-                let physical = move.damageClass == "physical"
                 if isAttacker {
                     if physical { evAtk = full } else { evSpAtk = full }
                 } else {
@@ -87,9 +83,30 @@ extension CalcSide {
                     if physical { evDef = full } else { evSpDef = full }
                 }
             }
+            if stats == .fullInvestmentBoostingNature {
+                // Each lowers a stat the calc doesn't use on that side.
+                let natureID = isAttacker ? (physical ? "adamant" : "modest") : (physical ? "bold" : "calm")
+                nature = allNatures.first { $0.id == natureID } ?? nature
+            }
         }
         moves = isAttacker ? [move, nil, nil, nil] : [nil, nil, nil, nil]
         moveSearchTexts = ["", "", "", ""]
         return true
+    }
+
+    /// `pokemon` with no set: its first ability, no item, `championsMode`,
+    /// a neutral nature, level 50 and no EVs or stat points. What "no
+    /// investment" means to every App Intent that asks for stats.
+    func loadUninvested(_ match: PKMNStats, championsMode: Bool) {
+        pokemon = match
+        selectedAbility = match.ability1
+        heldItem = .none
+        megaActive = false
+        teraType = nil
+        loadedSpreadName = nil
+        setChampionsMode(championsMode)
+        nature = allNatures.first { $0.id == "serious" } ?? allNatures[0]
+        level = 50
+        evHP = 0; evAtk = 0; evDef = 0; evSpAtk = 0; evSpDef = 0; evSpeed = 0
     }
 }
