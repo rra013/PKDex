@@ -20,16 +20,37 @@ struct TeamListView: View {
     @State private var showImportTeam = false
     @Environment(\.horizontalSizeClass) private var hSize
     @State private var selectedTeam: SavedTeam?
+    /// A team an App Intent asked to open in the compact layout.
+    @State private var requestedTeam: SavedTeam?
 
     var body: some View {
-        // Wide layouts get a list/detail split; compact (portrait) keeps the
-        // original push navigation, unchanged.
-        if hSize == .regular {
-            wideBody
-        } else {
-            TabNavigationStack {
-                listColumn(selection: nil)
+        Group {
+            // Wide layouts get a list/detail split; compact (portrait) keeps the
+            // original push navigation, unchanged.
+            if hSize == .regular {
+                wideBody
+            } else {
+                TabNavigationStack {
+                    listColumn(selection: nil)
+                        .navigationDestination(item: $requestedTeam) { team in
+                            TeamDetailView(team: team, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+                        }
+                }
             }
+        }
+        .onChange(of: AppNavigator.shared.request, initial: true) { openRequestedTeam() }
+    }
+
+    /// Opens the team an App Intent asked for: selected beside the list, or
+    /// pushed.
+    private func openRequestedTeam() {
+        guard case .savedTeam(let id) = AppNavigator.shared.request else { return }
+        AppNavigator.shared.request = nil
+        guard let team = savedTeams.first(where: { $0.persistentModelID == id }) else { return }
+        if hSize == .regular {
+            selectedTeam = team
+        } else {
+            requestedTeam = team
         }
     }
 

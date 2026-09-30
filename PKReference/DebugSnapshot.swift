@@ -76,6 +76,26 @@ enum DebugSnapshot {
         if let answer = try? await IntentData.teamSearch("Trick Room") {
             snippets.append(("teams", AnyView(TeamSearchSnippetView(answer: answer))))
         }
+        if let first = try? IntentData.pokemonEntities(ids: [887]).first,
+           let second = try? IntentData.pokemonEntities(ids: [785]).first {
+            let open = OpenSpeedTiersIntent(first: first, second: second,
+                                            firstStats: .fullInvestmentSpeedNature, secondStats: .fullInvestment)
+            if let request = try? open.request, let answer = try? IntentData.speed(request) {
+                snippets.append(("speed", AnyView(SpeedSnippetView(answer: answer, open: open))))
+            }
+        }
+        for (kind, id) in [("legal", 727), ("illegal", 10009)] {
+            if let pokemon = try? IntentData.pokemonEntities(ids: [id]).first,
+               let answer = try? IntentData.legality(id, regulation: nil) {
+                snippets.append((kind, AnyView(LegalitySnippetView(answer: answer, pokemon: pokemon))))
+            }
+        }
+        if let set = IntentData.savedSetEntities().first, let answer = try? IntentData.setAnswer(set.id) {
+            snippets.append(("set", AnyView(SetSnippetView(answer: answer, savedSet: set))))
+        }
+        if let team = IntentData.savedTeamEntities().first, let answer = try? IntentData.teamAnswer(team.id) {
+            snippets.append(("team", AnyView(TeamSnippetView(answer: answer, team: team))))
+        }
         for (kind, view) in snippets {
             let renderer = ImageRenderer(content: view.frame(width: 380).background(.background))
             renderer.scale = 2

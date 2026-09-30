@@ -627,14 +627,25 @@ struct DamageCalculatorView: View {
     }
 
     /// Loads the calc an App Intent asked for into a new view model, so no
-    /// field condition or stat stage left on screen changes its answer.
+    /// field condition or stat stage left on screen changes its answer; or
+    /// loads a saved set as the attacker, as the Load button does, keeping
+    /// the defender.
     private func openRequestedCalc() {
-        guard case .calc(let request) = AppNavigator.shared.request else { return }
-        AppNavigator.shared.request = nil
-        let requested = DamageCalcVM()
-        requested.load(request, championsMode: defaultGeneration == PokedexFilter.champions.rawValue,
-                       context: modelContext)
-        vm = requested
+        switch AppNavigator.shared.request {
+        case .calc(let request):
+            AppNavigator.shared.request = nil
+            let requested = DamageCalcVM()
+            requested.load(request, championsMode: defaultGeneration == PokedexFilter.champions.rawValue,
+                           context: modelContext)
+            vm = requested
+        case .calcSet(let id):
+            AppNavigator.shared.request = nil
+            let descriptor = FetchDescriptor<SavedSpread>(predicate: #Predicate { $0.persistentModelID == id })
+            guard let spread = try? modelContext.fetch(descriptor).first else { return }
+            vm.side1.loadSpread(spread, allPokemon: allPokemon, allMoves: allMoves)
+        default:
+            break
+        }
     }
 }
 

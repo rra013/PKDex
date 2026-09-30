@@ -34,8 +34,11 @@ and what was checked.
 | [#49](https://github.com/rra013/PKReference/pull/49), [#50](https://github.com/rra013/PKReference/pull/50), [#53](https://github.com/rra013/PKReference/pull/53) | The Mac app: builds and runs, sidebar and Settings window, screen pass |
 | [#51](https://github.com/rra013/PKReference/pull/51) | A fresh detail page for each selection in split views |
 | [#52](https://github.com/rra013/PKReference/pull/52) | No build warnings |
+| [#54](https://github.com/rra013/PKReference/pull/54) | The Mac app merged into `main` |
+| [#55](https://github.com/rra013/PKReference/pull/55) | Siri, Spotlight and Shortcuts, Phase 1; the app is named PK Reference |
+| [#56](https://github.com/rra013/PKReference/pull/56) | The Xcode project, targets, module and folders renamed to PKReference |
 
-Full suite at #53: 1083 tests, all passing.
+Full suite with Siri Phase 2: 1115 tests, all passing.
 
 ---
 
@@ -359,14 +362,25 @@ Roughly in order of value for effort.
       on GitHub, with the tagged source for the GPL. Optionally Sparkle for
       updates.
 3. **Siri, Spotlight and Shortcuts.** [`AppIntents-PLAN.md`](AppIntents-PLAN.md):
-   App Intents for iPhone, iPad and the Mac. Phase 1 is built: Look Up
-   Pokémon, Calculate Damage and Search Teams, answering in place with an
-   Open button (`AppIntents.swift`, `IntentEntities.swift`,
-   `IntentAnswers.swift`; `AppNavigator` opens the page). Next: Phase 2
-   (speed, legality, saved sets and teams as entities, Spotlight indexing).
-   Siri's phrases need trying on a device by the owner; `-debugSnippets YES`
-   renders the snippets on the Mac, and `-debugNavigate` makes an Open
-   button's request.
+   App Intents for iPhone, iPad and the Mac. Phases 1 and 2 are built: Look
+   Up Pokémon, Calculate Damage, Search Teams, Compare Speed, Check
+   Legality, Show Saved Set, Show Saved Team and Load Set into Damage Calc,
+   answering in place with an Open button, and saved sets and teams in
+   Spotlight (`AppIntents.swift`, `SavedIntents.swift`,
+   `IntentEntities.swift`, `IntentAnswers.swift`, `IntentSnippets.swift`;
+   `AppNavigator` opens the page). Left: trying the phrases with the
+   conversational Siri on the owner's devices and tuning descriptions to
+   what it picks (Phase 3). `-debugSnippets YES` renders the snippets on the
+   Mac, and `-debugNavigate` makes an Open button's request. On the
+   owner's Mac (2026-09-30), Spotlight refused every third-party app's
+   items, this app's sets and teams included, from Xcode's build folder or
+   from Applications ("Failed to request donation": the connection to
+   `com.apple.SetStoreUpdateService` is invalidated; Chrome and Claude
+   failed the same way). That's macOS, not the app: on the simulator the
+   sets and teams are indexed and open from Spotlight. Recheck after a
+   macOS update.
+   - **A new regulation** also needs a case in `RegulationChoice`
+     (`IntentEntities.swift`); `AppIntentsTests` fails until it has one.
 4. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last
@@ -393,7 +407,7 @@ Roughly in order of value for effort.
 | [`PKReference/ShowdownPort-NOTES.md`](PKReference/ShowdownPort-NOTES.md) | Scope and wiring of the `@smogon/calc` port |
 | [`PKReference/AbilityReference.md`](PKReference/AbilityReference.md) | Which abilities the legacy damage engine models |
 | [`PKReference/CompartmentalizationPlan.md`](PKReference/CompartmentalizationPlan.md) | Plan for moving game data into JSON (done) |
-| [`AppIntents-PLAN.md`](AppIntents-PLAN.md) | Plan for Siri, Spotlight and Shortcuts actions (Phase 1 built) |
+| [`AppIntents-PLAN.md`](AppIntents-PLAN.md) | Plan for Siri, Spotlight and Shortcuts actions (Phases 1 and 2 built) |
 | [`RNGRewrite-PLAN.md`](RNGRewrite-PLAN.md) | Plan for an independent RNG core (on hold) |
 | [`tools/README.md`](tools/README.md) | Scripts that regenerate the bundled data |
 

@@ -142,6 +142,11 @@ In `PKReference/ChampionsRegulation.swift`:
 - add `case mD = "m-d"` to the enum;
 - add `case .mD: return "Regulation M-D"` in `displayName`.
 
+In `PKReference/IntentEntities.swift`, so Siri's Check Legality can name it:
+- add `case mD = "m-d"` to `RegulationChoice`, and `.mD: "Regulation M-D"`
+  to its `caseDisplayRepresentations`. App Intents needs these written out;
+  `AppIntentsTests` fails until they match the enum.
+
 Nothing else — bundle names, legal-period parsing, `latest`/`current`, the
 whitelist cache, and the Settings picker are all derived automatically.
 
