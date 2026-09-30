@@ -218,14 +218,31 @@ extension Color {
             return UIColor(red: red, green: green, blue: blue, alpha: 1)
         })
         #else
-        self.init(nsColor: NSColor(name: nil) { appearance in
-            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-            let (red, green, blue) = rgb(isDark ? dark : light)
-            return NSColor(srgbRed: red, green: green, blue: blue, alpha: 1)
-        })
+        self.init(nsColor: .dynamic(light: light, dark: dark))
         #endif
     }
 }
+
+#if os(macOS)
+extension NSColor {
+    /// A color with separate light- and dark-mode values.
+    static func dynamic(light: UInt32, dark: UInt32) -> NSColor {
+        NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            let (red, green, blue) = rgb(isDark ? dark : light)
+            return NSColor(srgbRed: red, green: green, blue: blue, alpha: 1)
+        }
+    }
+
+    // The iOS background colors the views name, with iOS's values, so cards
+    // layer the same way in a Mac window, and `ColorRoleTests`' contrast
+    // checks, which use these values, hold on the Mac too.
+    static var systemGroupedBackground: NSColor { dynamic(light: 0xF2F2F7, dark: 0x000000) }
+    static var secondarySystemGroupedBackground: NSColor { dynamic(light: 0xFFFFFF, dark: 0x1C1C1E) }
+    static var tertiarySystemGroupedBackground: NSColor { dynamic(light: 0xF2F2F7, dark: 0x2C2C2E) }
+    static var secondarySystemBackground: NSColor { dynamic(light: 0xF2F2F7, dark: 0x1C1C1E) }
+}
+#endif
 
 private func rgb(_ hex: UInt32) -> (Double, Double, Double) {
     (Double((hex >> 16) & 0xFF) / 255, Double((hex >> 8) & 0xFF) / 255, Double(hex & 0xFF) / 255)

@@ -227,6 +227,7 @@ struct SpeedTierView: View {
                         filterChampions = true
                     }
                 }
+                .sheetSize()
             }
             .onAppear {
                 if defaultGeneration == PokedexFilter.champions.rawValue {
@@ -582,7 +583,9 @@ private struct SpreadPickerSheet: View {
                 }
             }
             .navigationTitle("Load a Set")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

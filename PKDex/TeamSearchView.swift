@@ -22,21 +22,22 @@ struct TeamSearchView: View {
     var body: some View {
         // Wide layouts get a list/detail split; compact keeps push navigation.
         if hSize == .regular {
-            NavigationSplitView {
+            ListDetailSplit {
                 screen(selection: $selection)
             } detail: {
-                NavigationStack {
-                    if let composition = model.results.first(where: { $0.id == selection }) {
-                        CompositionDetailView(composition: composition, insights: model.insights)
-                    } else {
-                        ContentUnavailableView {
-                            Label("Select a Composition", systemImage: "sidebar.left")
-                        } description: {
-                            Text("Choose a composition to see its teams.")
-                        }
+                if let composition = model.results.first(where: { $0.id == selection }) {
+                    CompositionDetailView(composition: composition, insights: model.insights)
+                } else {
+                    ContentUnavailableView {
+                        Label("Select a Composition", systemImage: "sidebar.left")
+                    } description: {
+                        Text("Choose a composition to see its teams.")
                     }
                 }
             }
+            #if DEBUG && os(macOS)
+            .task { await DebugSnapshot.openFirstItem { selection = model.results.first?.id } }
+            #endif
         } else {
             TabNavigationStack {
                 screen(selection: nil)
@@ -510,7 +511,9 @@ struct CompositionDetailView: View {
             }
         }
         .navigationTitle("Composition")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }
 

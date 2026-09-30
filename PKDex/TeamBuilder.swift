@@ -34,24 +34,25 @@ struct TeamListView: View {
     }
 
     private var wideBody: some View {
-        NavigationSplitView {
+        ListDetailSplit {
             listColumn(selection: $selectedTeam)
         } detail: {
-            NavigationStack {
-                if let selectedTeam {
-                    // A new page for each team: it loads the team once, so a
-                    // reused one kept showing the first team.
-                    TeamDetailView(team: selectedTeam, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
-                        .id(selectedTeam.persistentModelID)
-                } else {
-                    ContentUnavailableView {
-                        Label("Select a Team", systemImage: "sidebar.left")
-                    } description: {
-                        Text("Choose a team from the list to see its coverage.")
-                    }
+            if let selectedTeam {
+                // A new page for each team: it loads the team once, so a
+                // reused one kept showing the first team.
+                TeamDetailView(team: selectedTeam, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+                    .id(selectedTeam.persistentModelID)
+            } else {
+                ContentUnavailableView {
+                    Label("Select a Team", systemImage: "sidebar.left")
+                } description: {
+                    Text("Choose a team from the list to see its coverage.")
                 }
             }
         }
+        #if DEBUG && os(macOS)
+        .task { await DebugSnapshot.openFirstItem { selectedTeam = savedTeams.first } }
+        #endif
     }
 
     @ViewBuilder
@@ -74,6 +75,12 @@ struct TeamListView: View {
                     ForEach(savedTeams) { team in
                         TeamRowView(team: team, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
                             .tag(team)
+                            #if os(macOS)
+                            // Swiping to delete needs a trackpad on the Mac.
+                            .contextMenu {
+                                Button("Delete", role: .destructive) { modelContext.delete(team) }
+                            }
+                            #endif
                     }
                     .onDelete { indices in
                         for i in indices { modelContext.delete(savedTeams[i]) }
@@ -112,10 +119,12 @@ struct TeamListView: View {
         }
         .sheet(isPresented: $showNewTeam) {
             NewTeamSheet(savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+            .sheetSize()
         }
         .sheet(isPresented: $showImportTeam) {
             TeamPasteImportSheet(savedSpreads: savedSpreads, savedTeams: savedTeams,
                                  allPokemon: allPokemon, allMoves: allMoves)
+            .sheetSize()
         }
     }
 }
@@ -169,7 +178,9 @@ private struct NewTeamSheet: View {
         NavigationStack {
             TeamEditorContent(name: $name, slots: $slots, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
                 .navigationTitle("New Team")
+                #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
+                #endif
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
@@ -272,7 +283,9 @@ struct TeamDetailView: View {
     var body: some View {
         TeamEditorContent(name: $name, slots: $slots, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
             .navigationTitle(team.name)
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .navigationBarBackButtonHidden(hasChanges)
             .toolbar {
                 if hasChanges {
@@ -386,10 +399,13 @@ private struct TeamEditorContent: View {
             .padding()
         }
         .scrollDismissesKeyboard(.interactively)
+        #if os(iOS)
         .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+        #endif
         .cardPage()
         .sheet(isPresented: $showAddSlot) {
             AddSlotSheet(slots: $slots, savedSpreads: savedSpreads, allPokemon: allPokemon, allMoves: allMoves)
+            .sheetSize()
         }
     }
 }
@@ -516,7 +532,9 @@ private struct AddSlotSheet: View {
                 }
             }
             .navigationTitle("Add Set to Team")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }

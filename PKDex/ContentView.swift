@@ -20,6 +20,49 @@ extension EnvironmentValues {
     var isWideLayout: Bool { horizontalSizeClass == .regular }
 }
 
+extension View {
+    /// A sheet's size on the Mac, where a sheet is as big as its content
+    /// asks, and a list asks for no height: the calc's Load Spread sheet
+    /// opened as just its title bar. iOS sizes sheets itself.
+    func sheetSize() -> some View {
+        #if os(macOS)
+        frame(minWidth: 480, idealWidth: 560, minHeight: 440, idealHeight: 640)
+        #else
+        self
+        #endif
+    }
+}
+
+/// A tab's list beside the selected item's page, for wide layouts. On iOS,
+/// a split view whose detail has its own navigation stack. The Mac's
+/// sidebar is already a split view, and a split view inside it pushed its
+/// detail's content right by the sidebar's width a second time, leaving an
+/// empty band and running the page off the window. So on the Mac the list
+/// and page share the tab's navigation stack, which sits beside the
+/// sidebar, in a resizable split; a page the detail opens is pushed over
+/// both.
+struct ListDetailSplit<ListColumn: View, Detail: View>: View {
+    @ViewBuilder var list: ListColumn
+    @ViewBuilder var detail: Detail
+
+    var body: some View {
+        #if os(macOS)
+        TabNavigationStack {
+            HSplitView {
+                list.frame(minWidth: 260, idealWidth: 300, maxWidth: 440)
+                detail.frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        #else
+        NavigationSplitView {
+            list
+        } detail: {
+            NavigationStack { detail }
+        }
+        #endif
+    }
+}
+
 // MARK: - App Tab Definition
 
 enum AppTab: String, CaseIterable, Identifiable {
@@ -107,16 +150,39 @@ enum AppAppearance: String, CaseIterable, Identifiable {
     }
 }
 
-struct ContentView: View {
-    @AppStorage(AppSettings.tabOrder) private var tabOrderRaw: String
-    @AppStorage(AppSettings.hiddenTabs) private var hiddenTabsRaw: String
-    @AppStorage(AppSettings.defaultTab) private var defaultTabRaw: String
+/// The viewer's appearance settings, applied to a window's content: the
+/// main window, and on the Mac the Settings window too.
+struct AppearanceSettings: ViewModifier {
     @AppStorage(AppSettings.accentColor) private var accentColorRaw: String
     @AppStorage(AppSettings.appearance) private var appearanceRaw: String
     @AppStorage(AppSettings.typeBadgeStyle) private var typeBadgeStyle: TypeBadgeStyle
     @AppStorage(AppSettings.matchupColors) private var matchupColors: MatchupColors
     @AppStorage(AppSettings.density) private var density: Density
     @AppStorage(AppSettings.typeBackgrounds) private var typeBackgrounds: Bool
+
+    private var accentColor: Color {
+        (AppAccentColor(rawValue: accentColorRaw) ?? .blue).color
+    }
+
+    private var appearance: ColorScheme? {
+        (AppAppearance(rawValue: appearanceRaw) ?? .system).colorScheme
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .tint(accentColor)
+            .preferredColorScheme(appearance)
+            .environment(\.typeBadgeStyle, typeBadgeStyle)
+            .environment(\.matchupColors, matchupColors)
+            .environment(\.density, density)
+            .environment(\.typeBackgrounds, typeBackgrounds)
+    }
+}
+
+struct ContentView: View {
+    @AppStorage(AppSettings.tabOrder) private var tabOrderRaw: String
+    @AppStorage(AppSettings.hiddenTabs) private var hiddenTabsRaw: String
+    @AppStorage(AppSettings.defaultTab) private var defaultTabRaw: String
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     /// The arrangement the tab bar shows. It follows the stored one, except
@@ -160,22 +226,26 @@ struct ContentView: View {
         }
     }
 
-    /// The tabs in the bar and in the More list, if there is one.
+    /// The tabs in the bar and in the More list, if there is one. On the
+    /// Mac, the tabs are in a sidebar and Settings is its own window.
     private static func split(of layout: TabLayout, moreList: Bool) -> (bar: [AppTab], more: [AppTab]) {
+        #if os(macOS)
+        (layout.visible, [])
+        #else
         moreList ? layout.compactSplit : (layout.visible + [.settings], [])
-    }
-
-    private var accentColor: Color {
-        (AppAccentColor(rawValue: accentColorRaw) ?? .blue).color
-    }
-
-    private var appearance: ColorScheme? {
-        (AppAppearance(rawValue: appearanceRaw) ?? .system).colorScheme
+        #endif
     }
 
     var body: some View {
         let split = Self.split(of: shownLayout, moreList: showsMoreList)
         TabView(selection: $selectedTab) {
+            #if os(macOS)
+            ForEach(split.bar) { tab in
+                Tab(tab.label, systemImage: tab.icon, value: RootTab.tab(tab)) {
+                    tabContent(for: tab)
+                }
+            }
+            #else
             ForEach(split.bar) { tab in
                 tabContent(for: tab)
                     .tabItem { Label(tab.label, systemImage: tab.icon) }
@@ -186,13 +256,18 @@ struct ContentView: View {
                     .tabItem { Label("More", systemImage: "ellipsis") }
                     .tag(RootTab.more)
             }
+            #endif
         }
-        .tint(accentColor)
-        .preferredColorScheme(appearance)
-        .environment(\.typeBadgeStyle, typeBadgeStyle)
-        .environment(\.matchupColors, matchupColors)
-        .environment(\.density, density)
-        .environment(\.typeBackgrounds, typeBackgrounds)
+        #if os(macOS)
+        .tabViewStyle(.sidebarAdaptable)
+        .focusedSceneValue(\.selectedTab, $selectedTab)
+        .frame(minWidth: 900, minHeight: 600)
+        // Forms were laid out for iOS's grouped sections. The Mac's default
+        // puts labels and controls in two columns, which pushed the Set
+        // Editor's rows off the side of the window.
+        .formStyle(.grouped)
+        #endif
+        .modifier(AppearanceSettings())
         .environment(\.isArrangingTabs, $isArrangingTabs)
         .onChange(of: tabOrderRaw) { applyStoredLayout() }
         .onChange(of: hiddenTabsRaw) { applyStoredLayout() }
@@ -336,24 +411,29 @@ private struct PokedexTab: View {
     /// Two-pane split for wide layouts: roster list on the left, live detail on
     /// the right (no push/pop — ideal for glancing alongside the game).
     private var wideBody: some View {
-        NavigationSplitView {
+        ListDetailSplit {
             indexColumn(selection: $selectedMon)
         } detail: {
-            NavigationStack {
-                if let selectedMon {
-                    // A new page for each Pokémon, so a form or move search
-                    // chosen on one doesn't carry over to the next.
-                    monIndexDestination(for: selectedMon, filter: activeFilter)
-                        .id(selectedMon.persistentModelID)
-                } else {
-                    ContentUnavailableView {
-                        Label("Select a Pokémon", systemImage: "sidebar.left")
-                    } description: {
-                        Text("Choose a Pokémon from the list to see its details.")
-                    }
+            if let selectedMon {
+                // A new page for each Pokémon, so a form or move search
+                // chosen on one doesn't carry over to the next.
+                monIndexDestination(for: selectedMon, filter: activeFilter)
+                    .id(selectedMon.persistentModelID)
+            } else {
+                ContentUnavailableView {
+                    Label("Select a Pokémon", systemImage: "sidebar.left")
+                } description: {
+                    Text("Choose a Pokémon from the list to see its details.")
                 }
             }
         }
+        #if DEBUG && os(macOS)
+        .task {
+            await DebugSnapshot.openFirstItem {
+                selectedMon = allPokemon.first { activeFilter != .champions || championsRoster.contains($0.name) }
+            }
+        }
+        #endif
         // Drop the selection when the roster changes so the detail pane never
         // shows a mon that isn't in the newly-selected dex/regulation.
         .onChange(of: activeFilter) { _, _ in selectedMon = nil }
@@ -447,6 +527,7 @@ private struct PokedexTab: View {
                 availableAbilities: ChampionsFilterOptions.availableAbilities(),
                 availableMoves: ChampionsFilterOptions.availableMoves()
             )
+            .sheetSize()
         }
     }
 }

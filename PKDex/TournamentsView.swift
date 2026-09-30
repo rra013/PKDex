@@ -130,6 +130,7 @@ struct TournamentsTab: View {
             }
             .sheet(isPresented: $showFilters) {
                 TournamentFilterSheet(vm: vm)
+                .sheetSize()
             }
             .task {
                 if vm.games.isEmpty {
@@ -253,10 +254,13 @@ private struct TournamentFilterSheet: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .labelsHidden()
                 }
             }
             .navigationTitle("Filters")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Apply") {
@@ -341,7 +345,9 @@ struct TournamentDetailView: View {
             }
         }
         .navigationTitle(tournament.name)
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             await loadData()
         }
@@ -390,6 +396,7 @@ struct TournamentDetailView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .listRowSeparator(.hidden)
 
             ForEach(filteredStandings) { standing in
@@ -538,6 +545,16 @@ struct StandingDetailView: View {
         case noTeam
     }
 
+    /// Save Full Team's place: the top bar's trailing edge on iOS, the
+    /// primary spot in a Mac window's toolbar.
+    private static var saveTeamPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .topBarTrailing
+        #else
+        .primaryAction
+        #endif
+    }
+
     var body: some View {
         List {
             Section("Player") {
@@ -585,9 +602,11 @@ struct StandingDetailView: View {
             }
         }
         .navigationTitle(standing.name)
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: Self.saveTeamPlacement) {
                 Button {
                     saveFullTeam()
                 } label: {
@@ -810,20 +829,37 @@ private struct MonIndexDetailView: View {
     }
 }
 
-private struct TournamentWebView: UIViewRepresentable {
+private struct TournamentWebView: TournamentViewRepresentable {
     let url: URL
 
-    func makeUIView(context: Context) -> WKWebView {
+    func makeView(context: Context) -> WKWebView {
         let webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
         webView.allowsBackForwardNavigationGestures = true
+        #if os(macOS)
+        webView.setValue(false, forKey: "drawsBackground")
+        #endif
         return webView
     }
 
-    func updateUIView(_ webView: WKWebView, context: Context) {
+    func updateView(_ webView: WKWebView, context: Context) {
         guard webView.url != url else { return }
         webView.load(URLRequest(url: url))
     }
 }
+
+#if os(iOS)
+private typealias TournamentViewRepresentable = UIViewRepresentable
+private extension TournamentWebView {
+    func makeUIView(context: Context) -> WKWebView { makeView(context: context) }
+    func updateUIView(_ webView: WKWebView, context: Context) { updateView(webView, context: context) }
+}
+#else
+private typealias TournamentViewRepresentable = NSViewRepresentable
+private extension TournamentWebView {
+    func makeNSView(context: Context) -> WKWebView { makeView(context: context) }
+    func updateNSView(_ webView: WKWebView, context: Context) { updateView(webView, context: context) }
+}
+#endif
 
 // MARK: - PKMN Detail URL Helper
 

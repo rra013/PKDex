@@ -394,14 +394,17 @@ struct SettingsView: View {
 /// Reorder shows the drag handles. The two can't share a mode: a list in
 /// edit mode ignores taps on its rows' switches. Changes are saved as they're
 /// made; the tab bar applies them when the page closes, and each row's note
-/// previews where its tab will land.
+/// previews where its tab will land. Mac lists reorder by dragging, with no
+/// edit mode, so there's no Reorder button there.
 private struct TabSettingsView: View {
     @AppStorage(AppSettings.tabOrder) private var tabOrderRaw: String
     @AppStorage(AppSettings.hiddenTabs) private var hiddenTabsRaw: String
     @AppStorage(AppSettings.defaultTab) private var defaultTabRaw: String
     @Environment(\.isArrangingTabs) private var isArrangingTabs
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #if os(iOS)
     @State private var editMode: EditMode = .inactive
+    #endif
 
     private var layout: TabLayout {
         get { TabLayout(orderRaw: tabOrderRaw, hiddenRaw: hiddenTabsRaw) }
@@ -422,13 +425,22 @@ private struct TabSettingsView: View {
                     )) {
                         row(for: tab)
                     }
+                    #if os(iOS)
                     .disabled(editMode.isEditing || !layout.canHide(tab))
+                    #else
+                    .disabled(!layout.canHide(tab))
+                    #endif
                 }
                 .onMove { layout.move(fromOffsets: $0, toOffset: $1) }
             } footer: {
+                #if os(iOS)
                 Text("Tap Reorder, then drag tabs to change the order. With more than five tabs, iPhone and narrow iPad windows show the first four in the tab bar and the rest under More. Settings always comes last, and at least one other tab stays shown. The tab bar updates when you leave this page.")
+                #else
+                Text("Drag tabs to change their order in the sidebar. At least one tab stays shown.")
+                #endif
             }
         }
+        #if os(iOS)
         .environment(\.editMode, $editMode)
         .toolbar {
             Button(editMode.isEditing ? "Done" : "Reorder") {
@@ -436,8 +448,11 @@ private struct TabSettingsView: View {
             }
             .fontWeight(editMode.isEditing ? .semibold : .regular)
         }
+        #endif
         .navigationTitle("Arrange Tabs")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .onAppear { isArrangingTabs.wrappedValue = true }
         .onDisappear { isArrangingTabs.wrappedValue = false }
     }

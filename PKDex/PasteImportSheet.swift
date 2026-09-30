@@ -58,7 +58,9 @@ struct PasteImportSheet: View {
                         .font(.system(.footnote, design: .monospaced))
                         .frame(minHeight: 160)
                         .autocorrectionDisabled()
+                        #if os(iOS)
                         .textInputAutocapitalization(.never)
+                        #endif
                         .overlay(alignment: .topLeading) {
                             if text.isEmpty {
                                 Text("Garchomp @ Choice Scarf\nAbility: Rough Skin\nEVs: 252 Atk / 4 Def / 252 Spe\nJolly Nature\n- Earthquake")
@@ -87,7 +89,9 @@ struct PasteImportSheet: View {
                 }
             }
             .navigationTitle("Import Paste")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -132,6 +136,7 @@ struct PasteImportSheet: View {
                     Text("Champions (0–\(championsMaxEVPerStat))").tag(StatScale.champions)
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
             } footer: {
                 Text("These numbers fit both scales, so this defaults to the calc's current scale. Change it if the paste was written in the other one.")
             }

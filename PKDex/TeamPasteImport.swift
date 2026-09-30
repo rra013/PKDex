@@ -133,7 +133,8 @@ struct TeamPasteImportSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Imported Team", text: $teamName)
+                    TextField("Team name", text: $teamName, prompt: Text("Imported Team"))
+                        .labelsHidden()
                 } header: {
                     Text("Team name")
                 }
@@ -143,7 +144,9 @@ struct TeamPasteImportSheet: View {
                         .font(.system(.footnote, design: .monospaced))
                         .frame(minHeight: 180)
                         .autocorrectionDisabled()
+                        #if os(iOS)
                         .textInputAutocapitalization(.never)
+                        #endif
                     PasteButton(payloadType: String.self) { strings in
                         if let first = strings.first { text = first }
                     }
@@ -158,7 +161,9 @@ struct TeamPasteImportSheet: View {
                 }
             }
             .navigationTitle("Import Team")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

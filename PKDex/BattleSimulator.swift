@@ -4934,6 +4934,7 @@ struct BattleSimulatorView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
 
             Toggle(isOn: $championsFormat) {
                 Label("Champions Regulation", systemImage: "trophy")
@@ -5708,6 +5709,7 @@ private struct ActorActionCard: View {
         .sheet(isPresented: $showSwitchSheet) {
             SwitchSheet(engine: engine, sideIndex: sideIndex,
                         slotIndex: slotIndex, isPresented: $showSwitchSheet)
+            .sheetSize()
         }
         .confirmationDialog(
             "Choose target",
