@@ -2,8 +2,10 @@
 
 Status: **Phases 1 and 2 built** (2026-09-30): the solver
 (`ProblemSolver.swift`) and the Problem Solver tab (`ProblemSolverView.swift`),
-with `ProblemSolverTests`. Phase 3's extras are next. The owner's decisions are
-in §8; what building it showed is in §9.
+with `ProblemSolverTests`. **Phase 3 in progress,** one PR per feature (§8):
+field options and grouping by Pokémon are built; the two-hit mode, usage
+ranking and the Siri action are next. The owner's decisions are in §8; what
+building it showed is in §9.
 
 The goal: a player picks a Pokémon set that's giving them trouble, and the
 app lists the Pokémon, move and investment combinations that knock it out in
@@ -223,12 +225,15 @@ and the Mac sidebar, and in More on the iPhone by default.
 2. **The screen** (one PR): the tab, choosing the problem set, the results,
    Open in Damage Calc (the spread-carrying `CalcRequest`), Save as Set, and
    the Mac and iPad layouts.
-3. **Later:**
-   - Field options: weather, terrain, Helping Hand, Tailwind.
-   - A two-hit mode, using `TwoHitSolver`.
-   - Ranking by tournament usage (Limitless data is already in the app).
+3. **Extras** (one PR each, in this order):
+   - **Built:** field options (weather, terrain, Helping Hand, Tailwind,
+     Trick Room), and answers grouped by Pokémon, a Pokémon's other moves
+     behind "N more".
+   - A two-hit mode (§8.8).
+   - Ranking by tournament usage (§8.9; Limitless data is already in the
+     app).
    - A Siri action: "PK Reference, what beats Incineroar?", answering with
-     the top three in place, like the others.
+     the top three in place, like the others (§8.10).
 
 ---
 
@@ -263,6 +268,20 @@ All settled with the owner on 2026-09-30:
    fewer points in all is kept.
 7. **Where the tab lives:** in More on the iPhone, in the bar on iPad and
    the Mac.
+
+Settled for Phase 3, also on 2026-09-30:
+
+8. **Two-hit mode: fast, then verify.** Two lowest rolls must reach the
+   target's HP, across the whole roster. When the target has something that
+   acts between hits (Sitrus Berry, Leftovers, Multiscale), each answer is
+   re-checked in the battle simulator, as `TwoHitSolver` does.
+9. **Usage is a sort option:** "Fewest points" (as now) or "Most used",
+   from the Limitless data Team Search downloads, with each row showing the
+   Pokémon's usage.
+10. **Siri asks for the target's investment** each time: no investment,
+    full HP and Defense, full HP and Sp. Def, or a saved set of that
+    Pokémon.
+11. **One PR per feature.**
 
 ---
 
@@ -302,3 +321,11 @@ All settled with the owner on 2026-09-30:
 - **`-debugNavigate problem:Incineroar,intimidate,bulky`** opens the tab on a
   set, through `AppNavigator.Request.problemSolver`, which a Siri "what
   beats X" action can use later.
+- **Field options** (Phase 3): weather and terrain go on the field;
+  Helping Hand and Tailwind on each counter. Under Trick Room the slower
+  Pokémon moves first, so only a nature lowering Speed is tried (Brave,
+  Quiet, Relaxed), with no Speed points, and Choice Scarf is skipped.
+  Psychic Terrain stops priority moves hitting a grounded target, so they
+  aren't answers then. A two-turn move that weather skips (Solar Beam in
+  sun) loses its "charges first" mark in that weather. Answers open in the
+  calc with the same weather and terrain.

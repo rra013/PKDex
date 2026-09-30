@@ -65,6 +65,11 @@ struct ProblemSolverView: View {
     @State private var problem = ProblemSolverView.newProblem()
     @State private var model = ProblemSolverModel()
     @State private var intimidate = true
+    @State private var weather: WeatherCondition = .none
+    @State private var terrain: TerrainCondition = .none
+    @State private var helpingHand = false
+    @State private var tailwind = false
+    @State private var trickRoom = false
     /// Wide layouts show the chosen answer above the list.
     @State private var selected: ProblemSolver.Counter?
 
@@ -78,14 +83,26 @@ struct ProblemSolverView: View {
         return side
     }
 
+    /// The set to beat on the field chosen; nil without a Pokémon.
+    private var rules: ProblemSolver.Problem? {
+        problem.snapshot().map {
+            ProblemSolver.Problem(defender: $0, intimidate: intimidate, weather: weather, terrain: terrain,
+                                  helpingHand: helpingHand, tailwind: tailwind, trickRoom: trickRoom)
+        }
+    }
+
     private struct SolveKey: Equatable {
         let problem: CalcSnapshot?
-        let intimidate: Bool
+        let intimidate, helpingHand, tailwind, trickRoom: Bool
+        let weather: WeatherCondition
+        let terrain: TerrainCondition
         let regulation: ChampionsRegulation
     }
 
     private var solveKey: SolveKey {
-        SolveKey(problem: problem.snapshot(), intimidate: intimidate, regulation: regulation)
+        SolveKey(problem: problem.snapshot(), intimidate: intimidate, helpingHand: helpingHand,
+                 tailwind: tailwind, trickRoom: trickRoom, weather: weather, terrain: terrain,
+                 regulation: regulation)
     }
 
     var body: some View {
@@ -106,7 +123,7 @@ struct ProblemSolverView: View {
                             .frame(maxWidth: .infinity, alignment: .top)
                             CardStack {
                                 if let selected {
-                                    CounterDetailCard(counter: selected, problem: problem)
+                                    CounterDetailCard(counter: selected, problem: problem, rules: rules)
                                 }
                                 resultsCard(wide: true)
                             }
@@ -127,7 +144,7 @@ struct ProblemSolverView: View {
             .cardPage()
             .navigationDestination(for: ProblemSolver.Counter.self) { counter in
                 ScrollView {
-                    CardStack { CounterDetailCard(counter: counter, problem: problem) }
+                    CardStack { CounterDetailCard(counter: counter, problem: problem, rules: rules) }
                         .padding()
                 }
                 .navigationTitle(counter.name)
@@ -137,9 +154,7 @@ struct ProblemSolverView: View {
                 // Let a burst of edits settle before searching.
                 try? await Task.sleep(for: .milliseconds(400))
                 guard !Task.isCancelled else { return }
-                let snapshot = problem.snapshot()
-                await model.solve(snapshot.map { ProblemSolver.Problem(defender: $0, intimidate: intimidate) },
-                                  regulation: regulation, context: modelContext)
+                await model.solve(rules, regulation: regulation, context: modelContext)
             }
             .onChange(of: model.counters) {
                 if let selected, !model.counters.contains(selected) { self.selected = nil }
@@ -183,12 +198,35 @@ struct ProblemSolverView: View {
                 Toggle("Its Intimidate lowers the counters' Attack", isOn: $intimidate)
                     .font(.subheadline)
             }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Weather").font(.subheadline).foregroundStyle(.secondary)
+                Picker("Weather", selection: $weather) {
+                    ForEach(WeatherCondition.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Terrain").font(.subheadline).foregroundStyle(.secondary)
+                Picker("Terrain", selection: $terrain) {
+                    ForEach(TerrainCondition.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                if rules?.blocksPriority == true {
+                    Text("Psychic Terrain stops priority moves hitting \(problem.effectiveDisplayName).")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Toggle("Helping Hand from a partner", isOn: $helpingHand).font(.subheadline)
+            Toggle("Tailwind on your side", isOn: $tailwind).font(.subheadline)
+            Toggle("Trick Room", isOn: $trickRoom).font(.subheadline)
         }
     }
 
     private func resultsCard(wide: Bool) -> some View {
         CountersCard(model: model, problemName: problem.effectiveDisplayName,
-                     regulation: regulation, wide: wide, selected: $selected)
+                     regulation: regulation, trickRoom: trickRoom, wide: wide, selected: $selected)
     }
 }
 
@@ -198,11 +236,14 @@ private struct CountersCard: View {
     let model: ProblemSolverModel
     let problemName: String
     let regulation: ChampionsRegulation
+    let trickRoom: Bool
     let wide: Bool
     @Binding var selected: ProblemSolver.Counter?
 
     @State private var filter = ""
     @State private var showingAll: Set<ProblemSolver.Group> = []
+    /// Pokémon whose other answers are showing.
+    @State private var expanded: Set<String> = []
 
     private static let firstShown = 25
 
@@ -239,25 +280,27 @@ private struct CountersCard: View {
 
     @ViewBuilder
     private var results: some View {
-        Text("\(model.counters.count.formatted()) ways to knock out \(problemName) in one hit.")
+        let pokemon = Set(model.counters.map(\.name)).count
+        Text("\(pokemon.formatted()) Pokémon can knock out \(problemName) in one hit, \(model.counters.count.formatted()) ways.")
             .font(.subheadline).foregroundStyle(.secondary)
         TextField("Filter by Pokémon or move", text: $filter)
             .textFieldStyle(.roundedBorder)
         let counters = filtered
         ForEach(ProblemSolver.Group.allCases, id: \.self) { group in
-            let members = counters.filter { $0.group == group }
+            let members = ProblemSolver.byPokemon(counters.filter { $0.group == group })
             if !members.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     Divider()
                     HStack(alignment: .firstTextBaseline) {
-                        Text(group.title).font(.headline)
+                        Text(group.title(trickRoom: trickRoom)).font(.headline)
                         Spacer()
-                        Text("\(members.count)").font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
+                        Text("\(members.count) Pokémon").font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
                     }
-                    Text(group.explanation(problemName)).font(.caption).foregroundStyle(.secondary)
+                    Text(group.explanation(problemName, trickRoom: trickRoom))
+                        .font(.caption).foregroundStyle(.secondary)
                     let shown = showingAll.contains(group) ? members : Array(members.prefix(Self.firstShown))
-                    ForEach(shown) { counter in
-                        row(counter)
+                    ForEach(shown, id: \.first!.id) { answers in
+                        pokemonRows(answers)
                     }
                     if shown.count < members.count {
                         Button("Show all \(members.count)") { showingAll.insert(group) }
@@ -265,6 +308,28 @@ private struct CountersCard: View {
                     }
                 }
             }
+        }
+    }
+
+    /// A Pokémon's best answer, then its others when opened.
+    @ViewBuilder
+    private func pokemonRows(_ answers: [ProblemSolver.Counter]) -> some View {
+        let best = answers[0]
+        row(best)
+        if answers.count > 1 {
+            let open = expanded.contains(best.name)
+            if open {
+                ForEach(answers.dropFirst()) { row($0).padding(.leading, 12) }
+            }
+            Button {
+                if open { expanded.remove(best.name) } else { expanded.insert(best.name) }
+            } label: {
+                Text(open ? "Fewer" : "\(answers.count - 1) more: \(answers.dropFirst().map(\.move.name).joined(separator: ", "))")
+                    .font(.caption)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.borderless)
+            .padding(.leading, 12)
         }
     }
 
@@ -325,6 +390,8 @@ private struct CounterRow: View {
 private struct CounterDetailCard: View {
     let counter: ProblemSolver.Counter
     let problem: CalcSide
+    /// The field it was solved on.
+    let rules: ProblemSolver.Problem?
 
     @Environment(\.modelContext) private var modelContext
     @State private var naming = false
@@ -354,7 +421,8 @@ private struct CounterDetailCard: View {
                     .font(.subheadline)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(counter.speedLabel(against: ProblemSolver.speed(problemSnapshot, fieldSnapshot),
-                                        problemName: problem.effectiveDisplayName))
+                                        problemName: problem.effectiveDisplayName,
+                                        trickRoom: rules?.trickRoom ?? false))
                     .font(.subheadline).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(counter.notes, id: \.self) { note in
@@ -367,7 +435,8 @@ private struct CounterDetailCard: View {
                     guard let defender = SideSetup(problem) else { return }
                     AppNavigator.shared.request = .calcSides(CalcSides(
                         attacker: SideSetup(counter.attacker, pokemonID: counter.pokemonID),
-                        defender: defender, doubles: true))
+                        defender: defender, doubles: true,
+                        weather: fieldSnapshot.weather, terrain: fieldSnapshot.terrain))
                 } label: {
                     Label("Open in Damage Calc", systemImage: "bolt.fill").frame(maxWidth: .infinity)
                 }
@@ -395,7 +464,7 @@ private struct CounterDetailCard: View {
     }
 
     private var fieldSnapshot: FieldSnapshot {
-        ProblemSolver.Problem(defender: problemSnapshot).field
+        rules?.field ?? ProblemSolver.Problem(defender: problemSnapshot).field
     }
 
     private func detail(_ label: String, _ value: String) -> some View {
@@ -417,18 +486,21 @@ private struct CounterDetailCard: View {
 // MARK: - Wording
 
 extension ProblemSolver.Group {
-    var title: String {
+    func title(trickRoom: Bool) -> String {
         switch self {
-        case .outspeeds: "Outspeeds and OHKOs"
+        case .outspeeds: trickRoom ? "Moves first in Trick Room, and OHKOs" : "Outspeeds and OHKOs"
         case .priority: "OHKOs with priority"
-        case .slower: "OHKOs but slower"
+        case .slower: trickRoom ? "OHKOs but moves later" : "OHKOs but slower"
         }
     }
 
-    func explanation(_ problemName: String) -> String {
+    func explanation(_ problemName: String, trickRoom: Bool) -> String {
         switch self {
+        case .outspeeds where trickRoom:
+            "Slower than \(problemName), so under Trick Room it knocks it out before it moves."
         case .outspeeds: "Faster than \(problemName), so it knocks it out before it moves."
         case .priority: "A priority move goes first, whatever the Speeds."
+        case .slower where trickRoom: "Too fast for Trick Room: it needs a switch-in to land the hit."
         case .slower: "Needs Trick Room, Tailwind or a switch-in to land the hit."
         }
     }
@@ -462,11 +534,15 @@ extension ProblemSolver.Counter {
             .joined(separator: ", ")
     }
 
-    func speedLabel(against target: Int, problemName: String) -> String {
+    func speedLabel(against target: Int, problemName: String, trickRoom: Bool = false) -> String {
         switch group {
+        case .outspeeds where trickRoom:
+            "Speed \(speed), slower than \(problemName)'s \(target), so it moves first in Trick Room."
         case .outspeeds: "Speed \(speed), faster than \(problemName)'s \(target)."
         case .priority: "\(move.name) has priority, so Speed doesn't matter."
         case .slower where marks.contains(.movesLast): "\(move.name) moves last, whatever the Speeds."
+        case .slower where trickRoom:
+            "Speed \(speed), not slower than \(problemName)'s \(target), so it moves later in Trick Room."
         case .slower: "Speed \(speed), slower than \(problemName)'s \(target)."
         }
     }

@@ -28,16 +28,39 @@ nonisolated enum ProblemSolver {
     struct Problem: Sendable {
         var defender: CalcSnapshot
         /// Champions doubles: `multi` is on, so spread moves take 0.75×.
+        /// Weather and terrain are the field's.
         var field: FieldSnapshot
         /// Whether the defender's Intimidate lowers the counters' Attack.
         var intimidate = true
+        /// A partner's Helping Hand powers up every counter's move.
+        var helpingHand = false
+        /// Tailwind on the counters' side doubles their Speed.
+        var tailwind = false
+        /// Under Trick Room the slower Pokémon moves first.
+        var trickRoom = false
 
-        init(defender: CalcSnapshot, intimidate: Bool = true) {
+        init(defender: CalcSnapshot, intimidate: Bool = true, weather: WeatherCondition = .none,
+             terrain: TerrainCondition = .none, helpingHand: Bool = false, tailwind: Bool = false,
+             trickRoom: Bool = false) {
             self.defender = defender
             var field = FieldSnapshot()
             field.multi = true
+            field.weather = weather
+            field.terrain = terrain
             self.field = field
             self.intimidate = intimidate
+            self.helpingHand = helpingHand
+            self.tailwind = tailwind
+            self.trickRoom = trickRoom
+        }
+
+        /// Psychic Terrain stops priority moves hitting a grounded target:
+        /// one that isn't Flying type, Levitating or holding Air Balloon.
+        var blocksPriority: Bool {
+            field.terrain == .psychic
+                && !defender.effectiveTypes.contains("Flying")
+                && defender.effectiveAbility != "levitate"
+                && defender.heldItem.rawValue != "Air Balloon"
         }
     }
 
@@ -53,6 +76,9 @@ nonisolated enum ProblemSolver {
         var accuracy: Int?
         var priority: Int
         var marks: Set<Mark>
+        /// For a two-turn move, the weather that skips the charge (Solar
+        /// Beam in sun).
+        var chargeSkipWeather: WeatherCondition? = nil
     }
 
     // MARK: - Results
@@ -135,6 +161,7 @@ nonisolated enum ProblemSolver {
         for candidate in candidates {
             if isCancelled() { break }
             guard !candidate.move.isStatus, (candidate.move.power ?? 0) > 0 else { continue }
+            if candidate.priority > 0, problem.blocksPriority { continue }
 
             let attacker = prepared(candidate, problem)
             let stat = offensiveStat(for: candidate.move)
@@ -172,6 +199,8 @@ nonisolated enum ProblemSolver {
     static func prepared(_ candidate: Candidate, _ problem: Problem) -> CalcSnapshot {
         var attacker = candidate.attacker
         attacker.moves = [candidate.move]
+        attacker.isHelpingHand = problem.helpingHand
+        attacker.isTailwind = problem.tailwind
         if attacker.megaForm == nil {
             attacker.heldItem = booster(for: candidate.move.type) ?? .none
         }
@@ -202,7 +231,9 @@ nonisolated enum ProblemSolver {
                                   _ problem: Problem, _ targetSpeed: Int) -> [Counter] {
         guard let best = bestOption(candidate, attacker, stat, problem, targetSpeed) else { return [] }
         var counters = [best]
-        if best.group == .slower, attacker.megaForm == nil, candidate.priority == 0 {
+        // Choice Scarf only helps when faster is first, so not under Trick
+        // Room.
+        if best.group == .slower, attacker.megaForm == nil, candidate.priority == 0, !problem.trickRoom {
             var scarfed = attacker
             scarfed.heldItem = .choiceScarf
             if let withScarf = bestOption(candidate, scarfed, stat, problem, targetSpeed),
@@ -217,9 +248,11 @@ nonisolated enum ProblemSolver {
     /// better group, then the fewer points. nil when neither KOs.
     private static func bestOption(_ candidate: Candidate, _ attacker: CalcSnapshot, _ stat: EVSolver.Stat,
                                    _ problem: Problem, _ targetSpeed: Int) -> Counter? {
-        // Speed decides nothing for a priority move, first or last.
-        let natures = candidate.priority != 0
-            ? [attackingNature(for: stat)]
+        // Speed decides nothing for a priority move, first or last. Under
+        // Trick Room a nature lowering Speed is as strong and slower, so
+        // it's the only one worth trying.
+        let natures = candidate.priority != 0 ? [attackingNature(for: stat)]
+            : problem.trickRoom ? [trickRoomNature(for: stat)]
             : [attackingNature(for: stat), speedNature(for: stat)]
         return natures.compactMap { nature in
             option(candidate, attacker.settingNature(nature), problem, targetSpeed)
@@ -251,6 +284,9 @@ nonisolated enum ProblemSolver {
         }
 
         var marks = candidate.marks
+        if let weather = candidate.chargeSkipWeather, weather == problem.field.weather {
+            marks.remove(.chargesFirst)
+        }
         let speedOf = { (side: CalcSnapshot) in speed(side, problem.field) }
         let group: Group
         var speedPoints: Int?
@@ -260,6 +296,16 @@ nonisolated enum ProblemSolver {
         } else if candidate.priority < 0 {
             group = .slower
             marks.insert(.movesLast)
+        } else if problem.trickRoom {
+            // No Speed points: under Trick Room the slower one moves first.
+            let own = speedOf(solved)
+            if own < targetSpeed {
+                group = .outspeeds
+                speedPoints = 0
+            } else {
+                group = .slower
+                if own == targetSpeed { marks.insert(.speedTie) }
+            }
         } else if case .success(let fast) = EVSolver.minimumToOutspeed(solved, targetSpeed: targetSpeed,
                                                                       speedOf: speedOf) {
             group = .outspeeds
@@ -301,6 +347,27 @@ nonisolated enum ProblemSolver {
     /// A nature raising Speed and lowering one the move doesn't use.
     static func speedNature(for stat: EVSolver.Stat) -> Nature {
         nature(stat == .atk ? "jolly" : "timid")
+    }
+
+    /// For Trick Room: a nature raising `stat` and lowering Speed.
+    static func trickRoomNature(for stat: EVSolver.Stat) -> Nature {
+        nature(stat == .spAtk ? "quiet" : stat == .def ? "relaxed" : "brave")
+    }
+
+    /// Answers grouped by Pokémon (a Mega apart from its species), in the
+    /// order each Pokémon first appears.
+    static func byPokemon(_ counters: [Counter]) -> [[Counter]] {
+        var index: [String: Int] = [:]
+        var grouped: [[Counter]] = []
+        for counter in counters {
+            if let at = index[counter.name] {
+                grouped[at].append(counter)
+            } else {
+                index[counter.name] = grouped.count
+                grouped.append([counter])
+            }
+        }
+        return grouped
     }
 
     private static func nature(_ id: String) -> Nature {
@@ -372,9 +439,10 @@ extension ProblemSolver {
                 side.selectedAbility = ability
                 guard let attacker = side.snapshot(), let pokemonID = side.pokemon?.id else { continue }
                 for move in moves {
-                    candidates.append(Candidate(pokemonID: pokemonID, attacker: attacker, move: move.snapshot(),
-                                                accuracy: move.accuracy, priority: move.priority,
-                                                marks: marks(for: move.name)))
+                    candidates.append(Candidate(
+                        pokemonID: pokemonID, attacker: attacker, move: move.snapshot(),
+                        accuracy: move.accuracy, priority: move.priority, marks: marks(for: move.name),
+                        chargeSkipWeather: BattleMoveEffects.chargeMoves[BattleSimSeed.normalize(move.name)]?.skipInWeather))
                 }
             }
         }

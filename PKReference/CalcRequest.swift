@@ -218,9 +218,12 @@ extension SideSetup {
     }
 }
 
-/// Both sides of a calc to open, and whether it's doubles.
+/// Both sides of a calc to open, and the field: doubles, weather and
+/// terrain.
 struct CalcSides: Hashable, Sendable {
     var attacker: SideSetup
     var defender: SideSetup
     var doubles: Bool
+    var weather: WeatherCondition = .none
+    var terrain: TerrainCondition = .none
 }

@@ -651,6 +651,8 @@ struct DamageCalculatorView: View {
                   sides.defender.apply(to: requested.side2, allPokemon: allPokemon, allMoves: allMoves)
             else { return }
             requested.multi = sides.doubles
+            requested.weather = sides.weather
+            requested.terrain = sides.terrain
             vm = requested
         default:
             break
