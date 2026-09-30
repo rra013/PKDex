@@ -1,6 +1,7 @@
 # PK Reference (PKDex)
 
-**PK Reference** is a SwiftUI + SwiftData app for competitive Pokémon players.
+**PK Reference** is a SwiftUI + SwiftData app for competitive Pokémon players,
+on iPhone, iPad and the Mac.
 It is built mainly around **Pokémon Champions**, and it also covers the whole
 National Pokédex and the classic RNG-manipulation games. Everything lives in
 one app:
@@ -56,7 +57,9 @@ The Xcode project and target are named `PKDex`, and the app's display name is
 
 Every tab except Settings can be reordered, hidden or made the default tab. On iPad and
 wide iPhone layouts, the list-based tabs switch to a split view with the list
-and the detail side by side.
+and the detail side by side. On the Mac, the tabs are in a sidebar (⌘1–⌘9
+switch between the first nine), the list-based tabs show the list beside the
+detail, and Settings is its own window (⌘,).
 
 ---
 
@@ -377,16 +380,18 @@ limitations and what's next),
 
 ## Building, running and testing
 
-**Requirements:** Xcode 27, with the iOS 26.4 SDK or later. The deployment
-target is iOS 26.4, and the device families are iPhone, iPad and Apple
-Vision. The project has no Swift package dependencies.
+**Requirements:** Xcode 27, with the iOS 26.4 and macOS 26.4 SDKs or later.
+The deployment targets are iOS 26.4 and macOS 26.4; the device families are
+iPhone, iPad and Apple Vision, and the same target builds the Mac app. The
+project has no Swift package dependencies.
 
 1. Open `PKDex.xcodeproj` and select the **PKDex** scheme.
-2. Run on a simulator or a device. The first launch downloads Pokémon and move
-   data from PokeAPI, so it needs a network connection; later launches work
-   offline, except for Tournaments.
+2. Run on a simulator, a device or **My Mac**. The first launch downloads
+   Pokémon and move data from PokeAPI, so it needs a network connection;
+   later launches work offline, except for Tournaments. The Mac app is
+   sandboxed, with outgoing network access.
 
-**Tests:** 990 tests written with Swift Testing. They cover the damage engines
+**Tests:** 1,083 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
 tools, ML parity, the tournament import and data store, Team Search's parser,

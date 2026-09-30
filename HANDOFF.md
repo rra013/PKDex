@@ -1,6 +1,6 @@
 # PK Reference: handoff
 
-State of `main` as of 2026-09-27, how the codebase fits together for the
+State of `main` as of 2026-09-30, how the codebase fits together for the
 next change, and what's worth doing next. The [README](README.md) describes
 the app itself; this file is for whoever works on it.
 
@@ -19,25 +19,23 @@ the app itself; this file is for whoever works on it.
 
 ## Recent work
 
-The last twelve PRs made the UI consistent and customizable. Each one's
-description says what changed and what was checked on the simulator.
+Since the UI work (#23–#35), the PRs moved game data into JSON, fixed
+iPad layouts, and built the Mac app. Each one's description says what changed
+and what was checked.
 
 | PR | Change |
 |---|---|
-| [#23](https://github.com/rra013/PKDex/pull/23) | Hidden tabs stay hidden across launches; tabs can be reordered (`TabLayout`) |
-| [#24](https://github.com/rra013/PKDex/pull/24) | One type palette with readable badge text (`Theme.swift` starts) |
-| [#25](https://github.com/rra013/PKDex/pull/25) | Shared colors for Pokémon 1/2, ability and item (`ColorRole`) |
-| [#26](https://github.com/rra013/PKDex/pull/26) | One card style; cards have an edge in dark mode |
-| [#27](https://github.com/rra013/PKDex/pull/27) | One primary action button style |
-| [#28](https://github.com/rra013/PKDex/pull/28) | Screens work at large Dynamic Type sizes |
-| [#29](https://github.com/rra013/PKDex/pull/29) | The same for the Battle Sim screen |
-| [#30](https://github.com/rra013/PKDex/pull/30) | Type badge style and density options; settings keys in `AppSettings` |
-| [#31](https://github.com/rra013/PKDex/pull/31) | Optional type-colored backgrounds |
-| [#32](https://github.com/rra013/PKDex/pull/32) | The app's own More tab (no doubled back button); asks before closing a tab with work in progress |
-| [#33](https://github.com/rra013/PKDex/pull/33) | Forms show their species' Dex number; no thousands separator |
-| [#35](https://github.com/rra013/PKDex/pull/35) | A Settings switch turns the set delete prompt back on after "Don't Ask Again" |
+| [#36](https://github.com/rra013/PKDex/pull/36) | Matchup colors for Pokémon 1 and 2 (`MatchupColors`) |
+| [#37](https://github.com/rra013/PKDex/pull/37), [#38](https://github.com/rra013/PKDex/pull/38) | iPad layout fixes |
+| [#39](https://github.com/rra013/PKDex/pull/39) | The remaining hard-coded colors |
+| [#40](https://github.com/rra013/PKDex/pull/40)–[#46](https://github.com/rra013/PKDex/pull/46) | Game data into JSON: regulation rules, Mega forms, Tera type, Battle Sim move tables, held items, setup moves, the type chart (and Poison resisting Bug) |
+| [#47](https://github.com/rra013/PKDex/pull/47) | PokéFinder's generator scripts and inputs left out of the bundle |
+| [#48](https://github.com/rra013/PKDex/pull/48) | The item picker shows the held item; mainline mode offers Choice items again |
+| [#49](https://github.com/rra013/PKDex/pull/49), [#50](https://github.com/rra013/PKDex/pull/50), [#53](https://github.com/rra013/PKDex/pull/53) | The Mac app: builds and runs, sidebar and Settings window, screen pass |
+| [#51](https://github.com/rra013/PKDex/pull/51) | A fresh detail page for each selection in split views |
+| [#52](https://github.com/rra013/PKDex/pull/52) | No build warnings |
 
-Full suite at #35: 1032 tests, all passing.
+Full suite at #53: 1083 tests, all passing.
 
 ---
 
@@ -243,7 +241,7 @@ xcodebuild test -project PKDex.xcodeproj -scheme PKDex \
   line for checks: `xcrun simctl ui <udid> content_size accessibility-large`
   and `xcrun simctl ui <udid> appearance dark`.
 
-The Mac app builds from the same target (on `mac-main` until it merges).
+The Mac app builds from the same target.
 This signs it to run on this Mac only:
 
 ```bash
@@ -342,14 +340,14 @@ Roughly in order of value for effort.
    validator's setup moves and Choice items (P6) and a set's Tera type (P7).
    See the plan for what each covers and leaves; what's left are the parts
    of P5 and P7 that need features first (items, Tera, Dynamax).
-2. **Mac app, distributed outside the App Store.** Work happens on
-   `mac-main`, with a PR into it per step; merge `main` into it as `main`
-   moves, and `mac-main` into `main` once the Mac app is ready.
+2. **Mac app, distributed outside the App Store.** Steps 1–3 were built on
+   `mac-main` and merged into `main` on 2026-09-30; the Mac app is now just
+   another destination of `main`, and `mac-main` is retired.
    1. Builds and runs. Done: iOS-only APIs guarded, Mac entitlements.
    2. App shell. Done: the tabs in a sidebar (`.sidebarAdaptable`), with no
       More list; Settings as the ⌘, window; a 1280×820 default window, at
-      least 900×600; wider list columns in split-view tabs. The sidebar
-      itself hasn't been seen, since snapshots can't draw glass.
+      least 900×600. The sidebar itself hasn't been seen in a snapshot,
+      since snapshots can't draw glass.
    3. Screen pass. Done: list/detail tabs in `ListDetailSplit`; form text
       fields and segmented pickers without stray labels; a right-click
       Delete where rows only swiped (Sets, Teams, Load Spread); every sheet
@@ -360,17 +358,21 @@ Roughly in order of value for effort.
    4. Developer ID signing, the hardened runtime, notarization, and releases
       on GitHub, with the tagged source for the GPL. Optionally Sparkle for
       updates.
-3. **Team Search open risks.**
+3. **Siri, Spotlight and Shortcuts.** [`AppIntents-PLAN.md`](AppIntents-PLAN.md):
+   App Intents for iPhone, iPad and the Mac, in three phases, starting with
+   Pokémon lookup, the damage calc and Team Search. The questions in its §7
+   come first.
+4. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last
      regulation's teams" option (keeping only teams legal now) was planned
      but not built.
    - Names Limitless writes that the alias table doesn't know still search,
      but saving a team reports them; a log of them would show the gaps.
-4. **Gen 9 in the Showdown port.** Only Champions is ported; other
+5. **Gen 9 in the Showdown port.** Only Champions is ported; other
    generations use the legacy engine, and `calculateShowdown` stops with a
    clear error for them. See [`PKDex/ShowdownPort-NOTES.md`](PKDex/ShowdownPort-NOTES.md).
-5. **App Store.** Blocked on the GPL until PokéFinder's authors give
+6. **App Store.** Blocked on the GPL until PokéFinder's authors give
    permission, or the RNG core is rewritten per
    [`RNGRewrite-PLAN.md`](RNGRewrite-PLAN.md) (on hold).
 
@@ -385,7 +387,8 @@ Roughly in order of value for effort.
 | [`PKDex/Core/MODIFICATIONS.md`](PKDex/Core/MODIFICATIONS.md) | Changes made to PokéFinder's code (required by its GPL) |
 | [`PKDex/ShowdownPort-NOTES.md`](PKDex/ShowdownPort-NOTES.md) | Scope and wiring of the `@smogon/calc` port |
 | [`PKDex/AbilityReference.md`](PKDex/AbilityReference.md) | Which abilities the legacy damage engine models |
-| [`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md) | Plan for moving game data into JSON (not started) |
+| [`PKDex/CompartmentalizationPlan.md`](PKDex/CompartmentalizationPlan.md) | Plan for moving game data into JSON (done) |
+| [`AppIntents-PLAN.md`](AppIntents-PLAN.md) | Plan for Siri, Spotlight and Shortcuts actions (not started) |
 | [`RNGRewrite-PLAN.md`](RNGRewrite-PLAN.md) | Plan for an independent RNG core (on hold) |
 | [`tools/README.md`](tools/README.md) | Scripts that regenerate the bundled data |
 
