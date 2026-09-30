@@ -10,6 +10,7 @@ one app:
 - a damage calculator ported line by line from Smogon's `@smogon/calc`, with an EV solver
 - set and team builders with Showdown paste import and export
 - a speed tier checker
+- a problem solver: pick a set that's giving you trouble and see every Pokémon, move and investment that knocks it out in one hit
 - a singles and doubles battle simulator with an on-device AI opponent
 - a full suite of Gen 3–5 RNG tools, ported from PokéFinder and EonTimer
 - tournament results and team sheets from Limitless
@@ -52,6 +53,7 @@ commits use.
 | **Sets** | Library of saved spreads, with a set editor and an on-device **set predictor**. |
 | **Teams** | Six-slot teams built from saved sets, with type-coverage analysis and whole-team Showdown paste import. |
 | **Speed Tiers** | Your Pokémon's final Speed, after every modifier, ranked against the roster. |
+| **Problem Solver** | Pick the set you need to beat and see every Champions Pokémon, move and investment that knocks it out in one hit, guaranteed, in doubles, grouped by whether it moves first. |
 | **Battle Sim** | Singles and doubles battle engine using your saved teams, with Mega Evolution and an on-device AI that can play either side. |
 | **RNG Tools** | Timer, seed finder, wild and static encounters, eggs, TID/SID, GameCube (Colosseum/XD), IV calculator, IV→PID and Hidden Power, for Gen 3–5, plus Sword/Shield raid dens. |
 | **Tournaments** | Tournaments, standings and team sheets from Limitless, with one-tap import of any team. |
@@ -162,6 +164,28 @@ Evolution. The tab then shows where its final Speed falls against a benchmark
 list. That list can be limited to the Champions roster, with or without Mega
 Evolutions. Speed values match the Showdown port for every combination of
 modifiers.
+
+### Problem Solver
+
+Enter the set you need to beat, the same way as a side of the calc (or load a
+saved set or paste one), and the tab lists every combination in the current
+Champions regulation that knocks it out in one hit:
+
+- **Guaranteed:** the lowest damage roll must KO, under doubles rules
+  (spread moves do 0.75×) and after the set's own ability, including its
+  Intimidate, which a switch can turn off.
+- **Every candidate is checked by the calc:** each legal Pokémon, form and
+  Mega, with each of its abilities and legal damaging moves, holding the
+  move's type-boosting item. The whole regulation takes a second or two.
+- **The fewest points:** each answer's attack investment is scaled down to
+  the least that still guarantees the KO, with the Speed to outspeed, trying
+  an attacking and a Speed nature, and Choice Scarf when nothing else is
+  faster.
+- **Grouped:** outspeeds and OHKOs; OHKOs with priority; OHKOs but slower
+  (Trick Room, Tailwind or a switch-in). Accuracy under 100% and drawbacks
+  (must recharge, faints the user, charges first) are marked.
+- **Each answer** opens in the Damage Calc exactly as solved, or saves as a
+  set.
 
 ### Battle Sim
 
@@ -430,7 +454,7 @@ project has no Swift package dependencies.
    later launches work offline, except for Tournaments. The Mac app is
    sandboxed, with outgoing network access.
 
-**Tests:** 1,133 tests written with Swift Testing. They cover the damage engines
+**Tests:** 1,137 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
 tools, ML parity, the tournament import and data store, Team Search's parser,

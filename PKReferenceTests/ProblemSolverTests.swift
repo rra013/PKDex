@@ -85,6 +85,7 @@ struct ProblemSolverTests {
                            ability: String? = nil) throws -> ProblemSolver.Candidate {
         let move = try #require(store.moves[move])
         return ProblemSolver.Candidate(
+            pokemonID: try #require(store.pokemon[name]).id,
             attacker: try #require(try side(name, in: store, ability: ability).snapshot()),
             move: move.snapshot(), accuracy: move.accuracy, priority: move.priority,
             marks: ProblemSolver.marks(for: move.name))
@@ -306,5 +307,86 @@ struct ProblemSolverTests {
         #expect(!counters.isEmpty)
         #expect(finished.timeIntervalSince(started) < 30)
         for counter in counters { expectMinimal(counter, problem) }
+    }
+
+    // MARK: The screen's pieces
+
+    /// A side with a bit of everything survives the trip into a setup and
+    /// back.
+    @Test("A calc side loads back exactly")
+    func sideSetupRoundTrip() throws {
+        let store = try store()
+        let side = try side("Garchomp", in: store, ability: "rough-skin") {
+            $0.heldItem = .softSand
+            $0.nature = allNatures.first { $0.id == "jolly" }!
+            $0.evAtk = 28; $0.evSpeed = 20
+            $0.atkStage = -1
+            $0.status = .brn
+            $0.isReflect = true
+            $0.moves = [store.moves["Earthquake"], nil, store.moves["Dragon Claw"], nil]
+        }
+        let setup = try #require(SideSetup(side))
+        let loaded = CalcSide()
+        #expect(setup.apply(to: loaded, allPokemon: store.all, allMoves: Array(store.moves.values)))
+        #expect(loaded.snapshot() == side.snapshot())
+    }
+
+    /// Opening an answer in the calc loads the attacker exactly as solved,
+    /// Intimidate's stage included.
+    @Test("An answer opens in the calc as solved")
+    func answerInCalc() throws {
+        let store = try store()
+        let problem = try problem("Incineroar", in: store, ability: "intimidate", intimidate: false)
+        let counter = try #require(ProblemSolver.solve(problem, candidates: [
+            try candidate("Garchomp", "Earthquake", in: store, ability: "rough-skin"),
+        ]).first)
+        let side = CalcSide()
+        #expect(SideSetup(counter.attacker, pokemonID: counter.pokemonID)
+            .apply(to: side, allPokemon: store.all, allMoves: Array(store.moves.values)))
+        #expect(side.snapshot() == counter.attacker)
+        let calc = CalcEngine.evaluate(move: counter.move, attacker: try #require(side.snapshot()),
+                                       defender: problem.defender, field: problem.field)
+        #expect(calc == counter.outcome)
+    }
+
+    @Test("How an answer is described")
+    func wording() throws {
+        let store = try store()
+        let problem = try problem("Dragapult", in: store) {
+            $0.evSpeed = 32
+            $0.nature = allNatures.first { $0.id == "jolly" }!
+        }
+        let counters = ProblemSolver.solve(problem, candidates: [try candidate("Garchomp", "Dragon Claw", in: store)])
+        let scarfed = try #require(counters.first { $0.group == .outspeeds })
+        #expect(scarfed.itemName == "Choice Scarf")
+        #expect(scarfed.pointsLabel.hasSuffix("Spe"))
+        #expect(scarfed.percentLabel.contains("% – "))
+
+        var marked = scarfed
+        marked.accuracy = 90
+        marked.marks = [.mustRecharge, .speedTie]
+        #expect(marked.notes == ["90% accurate", "Must recharge", "Can only tie on Speed"])
+
+        let spread = scarfed.savedSpread(named: "Scarf Chomp")
+        #expect(spread.pokemonID == 445 && spread.itemRawValue == "Choice Scarf" && spread.moveID1 == 337)
+        #expect(spread.evSpeed == scarfed.attacker.evSpeed && spread.natureID == scarfed.attacker.nature.id)
+        #expect(spread.championsMode)
+    }
+
+    /// The screen's model builds the candidates from the regulation and the
+    /// store, and solves off the main thread.
+    @Test("The screen's model solves from the store")
+    func model() async throws {
+        let store = try store()
+        let context = store.container.mainContext
+        let problem = try problem("Heatran", in: store)
+        let model = ProblemSolverModel()
+        #expect(model.status == .waiting)
+        await model.solve(problem, regulation: .mC, context: context)
+        #expect(model.status == .solved)
+        #expect(model.candidateCount > 0)
+        #expect(model.counters.contains { $0.name == "Garchomp" && $0.move.name == "Earthquake" })
+        await model.solve(nil, regulation: .mC, context: context)
+        #expect(model.status == .waiting && model.counters.isEmpty)
     }
 }

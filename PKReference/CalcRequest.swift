@@ -124,3 +124,103 @@ extension CalcSide {
         }
     }
 }
+
+// MARK: - A whole side
+
+/// Everything about one calc side, to load it back exactly: the Pokémon
+/// and its set, investment, stages, condition and side conditions. The
+/// Problem Solver opens its answers in the calc with it.
+struct SideSetup: Hashable, Sendable {
+    /// `PKMNStats.id`; a Mega is its species with `megaActive`.
+    var pokemonID: Int
+    var ability: String?
+    var item: HeldItem
+    var natureID: String
+    var level: Int
+    var championsMode: Bool
+    var megaActive: Bool
+    var evs: [Int]
+    var ivs: [Int]
+    /// Atk, Def, SpA, SpD, Speed.
+    var stages: [Int]
+    var status: ShowdownStatus
+    var currentHPPercent: Int
+    var abilityOn: Bool
+    var conditions: [Bool]
+    var spikesLayers: Int
+    var moveIDs: [Int?]
+}
+
+extension SideSetup {
+    /// `side` as it is now; nil without a Pokémon.
+    init?(_ side: CalcSide) {
+        guard let pokemon = side.pokemon else { return nil }
+        self.init(
+            pokemonID: pokemon.id, ability: side.selectedAbility, item: side.heldItem, natureID: side.nature.id,
+            level: side.level, championsMode: side.championsMode, megaActive: side.megaActive,
+            evs: [side.evHP, side.evAtk, side.evDef, side.evSpAtk, side.evSpDef, side.evSpeed],
+            ivs: [side.ivHP, side.ivAtk, side.ivDef, side.ivSpAtk, side.ivSpDef, side.ivSpeed],
+            stages: [side.atkStage, side.defStage, side.spAtkStage, side.spDefStage, side.speedStage],
+            status: side.status, currentHPPercent: side.currentHPPercent, abilityOn: side.abilityOn,
+            conditions: [side.isReflect, side.isLightScreen, side.isAuroraVeil, side.isFriendGuard,
+                         side.isProtected, side.isStealthRock, side.isHelpingHand, side.isTailwind],
+            spikesLayers: side.spikesLayers, moveIDs: side.moves.map { $0?.id })
+    }
+
+    /// `snapshot` of the Pokémon `pokemonID`, with its moves.
+    init(_ snapshot: CalcSnapshot, pokemonID: Int) {
+        self.init(
+            pokemonID: pokemonID, ability: snapshot.selectedAbility, item: snapshot.heldItem,
+            natureID: snapshot.nature.id, level: snapshot.level, championsMode: snapshot.championsMode,
+            megaActive: snapshot.megaForm != nil,
+            evs: [snapshot.evHP, snapshot.evAtk, snapshot.evDef, snapshot.evSpAtk, snapshot.evSpDef, snapshot.evSpeed],
+            ivs: [snapshot.ivHP, snapshot.ivAtk, snapshot.ivDef, snapshot.ivSpAtk, snapshot.ivSpDef, snapshot.ivSpeed],
+            stages: [snapshot.atkStage, snapshot.defStage, snapshot.spAtkStage, snapshot.spDefStage, snapshot.speedStage],
+            status: snapshot.status, currentHPPercent: snapshot.currentHPPercent, abilityOn: snapshot.abilityOn,
+            conditions: [snapshot.isReflect, snapshot.isLightScreen, snapshot.isAuroraVeil, snapshot.isFriendGuard,
+                         snapshot.isProtected, snapshot.isStealthRock, snapshot.isHelpingHand, snapshot.isTailwind],
+            spikesLayers: snapshot.spikesLayers, moveIDs: snapshot.moves.map { $0.id })
+    }
+
+    /// Loads this into `side`. Returns false when the Pokémon isn't in
+    /// `allPokemon`. Moves not in `allMoves` are left empty.
+    @discardableResult
+    func apply(to side: CalcSide, allPokemon: [PKMNStats], allMoves: [MoveData]) -> Bool {
+        guard let pokemon = allPokemon.first(where: { $0.id == pokemonID }) else { return false }
+        side.pokemon = pokemon
+        side.searchText = ""
+        side.selectedAbility = ability
+        side.heldItem = item
+        side.teraType = nil
+        side.loadedSpreadName = nil
+        side.nature = allNatures.first { $0.id == natureID } ?? side.nature
+        side.level = level
+        side.championsMode = championsMode
+        side.megaActive = megaActive
+        (side.evHP, side.evAtk, side.evDef, side.evSpAtk, side.evSpDef, side.evSpeed)
+            = (evs[0], evs[1], evs[2], evs[3], evs[4], evs[5])
+        (side.ivHP, side.ivAtk, side.ivDef, side.ivSpAtk, side.ivSpDef, side.ivSpeed)
+            = (ivs[0], ivs[1], ivs[2], ivs[3], ivs[4], ivs[5])
+        (side.atkStage, side.defStage, side.spAtkStage, side.spDefStage, side.speedStage)
+            = (stages[0], stages[1], stages[2], stages[3], stages[4])
+        side.status = status
+        side.currentHPPercent = currentHPPercent
+        side.abilityOn = abilityOn
+        (side.isReflect, side.isLightScreen, side.isAuroraVeil, side.isFriendGuard,
+         side.isProtected, side.isStealthRock, side.isHelpingHand, side.isTailwind)
+            = (conditions[0], conditions[1], conditions[2], conditions[3],
+               conditions[4], conditions[5], conditions[6], conditions[7])
+        side.spikesLayers = spikesLayers
+        let slots = (moveIDs + [nil, nil, nil, nil]).prefix(4)
+        side.moves = slots.map { id in id.flatMap { id in allMoves.first { $0.id == id } } }
+        side.moveSearchTexts = ["", "", "", ""]
+        return true
+    }
+}
+
+/// Both sides of a calc to open, and whether it's doubles.
+struct CalcSides: Hashable, Sendable {
+    var attacker: SideSetup
+    var defender: SideSetup
+    var doubles: Bool
+}
