@@ -397,6 +397,9 @@ private struct PokedexTab: View {
     /// A Pokémon an App Intent asked to open while this tab is under More,
     /// whose navigation stack is the More list's.
     @State private var requestedMon: PKMN?
+    /// Whether the list has been on screen a moment, so a request can be
+    /// shown; see the task that sets it.
+    @State private var isSettled = false
 
     private var activeFilter: PokedexFilter {
         selectedFilter ?? PokedexFilter(rawValue: defaultGeneration) ?? .champions
@@ -429,12 +432,33 @@ private struct PokedexTab: View {
                 .sensoryFeedback(.selection, trigger: path)
             }
         }
-        .onChange(of: AppNavigator.shared.request, initial: true) { openRequestedPokemon() }
+        .onChange(of: AppNavigator.shared.request) {
+            if isSettled { openRequestedPokemon() }
+        }
+        .task {
+            // This tab is on screen from launch, so a request that opened
+            // the app arrives during its first layout, when a selection is
+            // lost (on the Mac it can lay the split view out absurdly wide,
+            // as `DebugSnapshot.openFirstItem` found) and the search field
+            // drops text set before it exists. So that request waits a
+            // moment, as a click would. The tab is built twice at launch;
+            // the first, discarded at once, leaves the request alone.
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            isSettled = true
+            openRequestedPokemon()
+        }
     }
 
     /// Opens the Pokémon an App Intent asked for, by National Dex number:
-    /// selected beside the list, or pushed.
+    /// selected beside the list, or pushed. An in-app search that names no
+    /// Pokémon fills in the search field instead.
     private func openRequestedPokemon() {
+        if case .indexSearch(.monIndex, let term) = AppNavigator.shared.request {
+            AppNavigator.shared.request = nil
+            searchText = term
+            return
+        }
         guard case .pokemon(let speciesID) = AppNavigator.shared.request else { return }
         AppNavigator.shared.request = nil
         guard let mon = allPokemon.first(where: { $0.nationalPokedexNumber == speciesID }) else { return }

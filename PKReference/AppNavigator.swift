@@ -31,6 +31,9 @@ final class AppNavigator {
         case savedTeam(PersistentIdentifier)
         /// The calc, with a saved set as the attacker and the defender kept.
         case calcSet(PersistentIdentifier)
+        /// An index, with its search field filled in: the Mon, Move or
+        /// Ability Index.
+        case indexSearch(AppTab, String)
 
         var tab: AppTab {
             switch self {
@@ -40,6 +43,7 @@ final class AppNavigator {
             case .speed: .speedTiers
             case .savedSet: .sets
             case .savedTeam: .teams
+            case .indexSearch(let tab, _): tab
             }
         }
     }
@@ -51,9 +55,10 @@ final class AppNavigator {
     /// "teamSearch:Trick Room"`, `-debugNavigate calc:445,485,89` (attacker,
     /// defender and move ids, both with no investment), `-debugNavigate
     /// speed:887,785` (the first with full investment and a Speed nature,
-    /// the second with full investment), or `set:`, `team:` or `calcSet:`
-    /// and a saved set's or team's name makes the same request an intent's
-    /// Open button would, so opening the app can be checked without Siri.
+    /// the second with full investment), `set:`, `team:` or `calcSet:` and
+    /// a saved set's or team's name, or `search:` and words, as in-app search
+    /// gets them, makes the same request an intent's Open button would, so
+    /// opening the app can be checked without Siri.
     func requestFromLaunchArguments() {
         guard let argument = UserDefaults.standard.string(forKey: "debugNavigate"),
               let colon = argument.firstIndex(of: ":") else { return }
@@ -82,6 +87,8 @@ final class AppNavigator {
             if let id = spread?.persistentModelID {
                 request = argument.hasPrefix("set:") ? .savedSet(id) : .calcSet(id)
             }
+        case "search":
+            request = IntentData.searchRequest(for: value)
         case "team":
             let context = AppModelContainer.shared.mainContext
             let team = try? context.fetch(FetchDescriptor<SavedTeam>(predicate: #Predicate { $0.name == value })).first

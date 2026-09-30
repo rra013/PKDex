@@ -105,6 +105,12 @@ struct MoveIndexTab: View {
             }
             .navigationTitle("Move Index")
             .searchable(text: $searchText, prompt: "Search Moves")
+            // An in-app search from Siri or Spotlight that names a move.
+            .onChange(of: AppNavigator.shared.request, initial: true) {
+                guard case .indexSearch(.moveIndex, let term) = AppNavigator.shared.request else { return }
+                AppNavigator.shared.request = nil
+                searchText = term
+            }
             .toolbar {
                 ToolbarItem(placement: .automatic) {
                     Menu {

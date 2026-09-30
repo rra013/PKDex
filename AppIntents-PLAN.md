@@ -123,9 +123,21 @@ sentence), separate from the intents, so they can be tested directly.
   `IntentSnippets.swift`.
 - **Parameter prompts and follow-ups**: built; every required parameter
   has a question Siri asks when it's missing.
+- **In-app search** (built): the new Siri told the owner it "attempted to
+  search within PK Reference, but the app does not currently support direct
+  in-app searches through my system tools", and went to the web. The app
+  now has the system search (`@AppIntent(schema: .system.search)`, renamed
+  `.system.searchInApp` in the 27 SDKs). It opens the Pokémon, move or
+  ability the words name, or the Mon Index filtered to them.
 - **Left:** revisit once the conversational Siri is on the owner's devices:
   which requests it maps to these intents, and which descriptions need
   work.
+- **Spotlight on the Mac closes after Calculate Damage** (2026-09-30): the
+  logs show the calc ran and returned its answer, then the Shortcuts runner
+  couldn't find the app's record ("No LSRecord for yukisoft.PKReference")
+  while presenting it. Suspected: the Xcode build runs from `~/Library`,
+  which the runner's sandbox can't read. To check: Look Up Pokémon from
+  Spotlight, and a build run from Applications.
 
 ---
 

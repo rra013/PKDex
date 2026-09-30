@@ -462,4 +462,25 @@ struct AppIntentsTests {
     func regulationChoices() {
         #expect(RegulationChoice.allCases.map(\.rawValue) == ChampionsRegulation.allCases.map(\.rawValue))
     }
+
+    // MARK: Search in the app
+
+    @Test("A search opens what it names, or the Mon Index filtered to it", arguments: [
+        ("Garchomp", AppNavigator.Request.pokemon(speciesID: 445)),
+        ("  garchomp ", .pokemon(speciesID: 445)),
+        ("Mega Garchomp", .pokemon(speciesID: 445)),
+        ("earthquake", .indexSearch(.moveIndex, "Earthquake")),
+        ("rough skin", .indexSearch(.abilityIndex, "Rough Skin")),
+        ("chomp", .indexSearch(.monIndex, "chomp")),
+        ("", .indexSearch(.monIndex, "")),
+    ] as [(String, AppNavigator.Request)])
+    func searchRouting(said: String, expected: AppNavigator.Request) throws {
+        let container = try store()
+        let context = container.mainContext
+        context.insert(PKMNStats(id: 10058, speciesID: 445, name: "Garchomp-Mega", formName: "mega",
+                                 type1: "Dragon", type2: "Ground", baseHP: 108, baseAtk: 170, baseDef: 115,
+                                 baseSpAtk: 120, baseSpDef: 95, baseSpeed: 92, ability1: "sand-force"))
+        try context.save()
+        #expect(IntentData.searchRequest(for: said, in: context) == expected)
+    }
 }

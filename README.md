@@ -345,6 +345,10 @@ with a button that opens the page in the app:
   Battle Sim's legality check. "PK Reference, show my team Sand Offense."
 - **Load Set into Damage Calc**: opens the calc with a saved set as the
   attacker. "PK Reference, load Scarf Koko into the calc."
+- **Search**: the system's in-app search, which Siri and Spotlight can use
+  for requests they send to the app. It opens the Pokémon, move or ability
+  the words name, or the Mon Index filtered to them. "Search in PK
+  Reference."
 
 Saved sets and teams also show up in Spotlight by name; choosing one opens
 it in the app.
@@ -424,7 +428,7 @@ project has no Swift package dependencies.
    later launches work offline, except for Tournaments. The Mac app is
    sandboxed, with outgoing network access.
 
-**Tests:** 1,115 tests written with Swift Testing. They cover the damage engines
+**Tests:** 1,116 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
 tools, ML parity, the tournament import and data store, Team Search's parser,

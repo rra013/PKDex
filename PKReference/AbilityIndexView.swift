@@ -71,6 +71,12 @@ struct AbilityIndexTab: View {
             }
             .navigationTitle("Ability Index")
             .searchable(text: $searchText, prompt: "Search Abilities")
+            // An in-app search from Siri or Spotlight that names an ability.
+            .onChange(of: AppNavigator.shared.request, initial: true) {
+                guard case .indexSearch(.abilityIndex, let term) = AppNavigator.shared.request else { return }
+                AppNavigator.shared.request = nil
+                searchText = term
+            }
         }
     }
 }
