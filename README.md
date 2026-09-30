@@ -181,9 +181,12 @@ Champions regulation that knocks it out in one hit:
   the least that still guarantees the KO, with the Speed to outspeed, trying
   an attacking and a Speed nature, and Choice Scarf when nothing else is
   faster.
+- **The field:** weather, terrain, a partner's Helping Hand, Tailwind on
+  your side, and Trick Room, under which the slower Pokémon moves first.
 - **Grouped:** outspeeds and OHKOs; OHKOs with priority; OHKOs but slower
-  (Trick Room, Tailwind or a switch-in). Accuracy under 100% and drawbacks
-  (must recharge, faints the user, charges first) are marked.
+  (Trick Room, Tailwind or a switch-in). Each Pokémon shows its best answer,
+  with its other moves a tap away. Accuracy under 100% and drawbacks (must
+  recharge, faints the user, charges first) are marked.
 - **Each answer** opens in the Damage Calc exactly as solved, or saves as a
   set.
 
@@ -454,7 +457,7 @@ project has no Swift package dependencies.
    later launches work offline, except for Tournaments. The Mac app is
    sandboxed, with outgoing network access.
 
-**Tests:** 1,137 tests written with Swift Testing. They cover the damage engines
+**Tests:** 1,143 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
 tools, ML parity, the tournament import and data store, Team Search's parser,

@@ -100,7 +100,7 @@ struct ProblemSolverTests {
 
     /// Every answer is a guaranteed OHKO by the calc, at the fewest points:
     /// one fewer attacking point fails, and one fewer Speed point doesn't
-    /// outspeed.
+    /// outspeed (under Trick Room, moving first means being slower).
     private func expectMinimal(_ counter: ProblemSolver.Counter, _ problem: ProblemSolver.Problem) {
         let damage = { (attacker: CalcSnapshot) in
             CalcEngine.evaluate(move: counter.move, attacker: attacker, defender: problem.defender,
@@ -111,7 +111,10 @@ struct ProblemSolverTests {
             #expect(!damage(counter.attacker.settingEV(stat, to: counter.attackPoints - 1)).isGuaranteedOHKO)
         }
         let target = ProblemSolver.speed(problem.defender, problem.field)
-        if let points = counter.speedPoints {
+        if problem.trickRoom, counter.group == .outspeeds {
+            // Under Trick Room, first means slower, with no Speed points.
+            #expect(counter.speed < target && counter.speedPoints == 0)
+        } else if let points = counter.speedPoints {
             #expect(counter.speed > target)
             if points > 0 {
                 #expect(ProblemSolver.speed(counter.attacker.settingEV(.speed, to: points - 1), problem.field) <= target)
@@ -388,5 +391,99 @@ struct ProblemSolverTests {
         #expect(model.counters.contains { $0.name == "Garchomp" && $0.move.name == "Earthquake" })
         await model.solve(nil, regulation: .mC, context: context)
         #expect(model.status == .waiting && model.counters.isEmpty)
+    }
+
+    // MARK: The field
+
+    private func fastDragapult(in store: Store, trickRoom: Bool = false, tailwind: Bool = false) throws
+        -> ProblemSolver.Problem {
+        let base = try problem("Dragapult", in: store) {
+            $0.evSpeed = 32
+            $0.nature = allNatures.first { $0.id == "jolly" }!
+        }
+        return ProblemSolver.Problem(defender: base.defender, tailwind: tailwind, trickRoom: trickRoom)
+    }
+
+    /// Under Trick Room the slower Pokémon moves first, so Garchomp wants a
+    /// Speed-lowering nature and no Speed points, and no Choice Scarf.
+    @Test("Trick Room puts the slower Pokémon first")
+    func trickRoom() throws {
+        let store = try store()
+        let problem = try fastDragapult(in: store, trickRoom: true)
+        let counters = ProblemSolver.solve(problem, candidates: [try candidate("Garchomp", "Dragon Claw", in: store)])
+        let counter = try #require(counters.first)
+        #expect(counters.count == 1)
+        #expect(counter.group == .outspeeds && counter.speedPoints == 0)
+        #expect(counter.attacker.nature.id == "brave" && counter.attacker.heldItem == .dragonFang)
+        #expect(counter.speed < ProblemSolver.speed(problem.defender, problem.field))
+        expectMinimal(counter, problem)
+    }
+
+    /// Tailwind doubles Garchomp's Speed, so it outspeeds Jolly Dragapult
+    /// holding Dragon Fang, with no need for Choice Scarf.
+    @Test("Tailwind doubles the counters' Speed")
+    func tailwind() throws {
+        let store = try store()
+        let problem = try fastDragapult(in: store, tailwind: true)
+        let counter = try #require(ProblemSolver.solve(problem, candidates: [
+            try candidate("Garchomp", "Dragon Claw", in: store),
+        ]).first)
+        #expect(counter.group == .outspeeds && counter.attacker.heldItem == .dragonFang)
+        #expect(counter.attacker.isTailwind)
+        expectMinimal(counter, problem)
+    }
+
+    @Test("Helping Hand powers up the counters")
+    func helpingHand() throws {
+        let store = try store()
+        let bulky: (CalcSide) -> Void = { $0.evHP = 32; $0.evDef = 32 }
+        let plain = try problem("Heatran", in: store, configure: bulky)
+        let helped = ProblemSolver.Problem(defender: plain.defender, helpingHand: true)
+        let chomp = try candidate("Garchomp", "Earthquake", in: store, ability: "rough-skin")
+        let alone = try #require(ProblemSolver.solve(plain, candidates: [chomp]).first)
+        let boosted = try #require(ProblemSolver.solve(helped, candidates: [chomp]).first)
+        #expect(boosted.attackPoints <= alone.attackPoints)
+        #expect(ProblemSolver.prepared(chomp, helped).isHelpingHand)
+        expectMinimal(boosted, helped)
+    }
+
+    /// A two-turn move that weather skips (Solar Beam in sun) isn't marked
+    /// as charging first in that weather.
+    @Test("Weather that skips a charge turn clears the mark")
+    func chargeInWeather() throws {
+        let store = try store()
+        var solarLike = try candidate("Garchomp", "Earthquake", in: store)
+        solarLike.marks = [.chargesFirst]
+        solarLike.chargeSkipWeather = .sun
+        let defender = try problem("Heatran", in: store).defender
+        let sunny = try #require(ProblemSolver.solve(ProblemSolver.Problem(defender: defender, weather: .sun),
+                                                     candidates: [solarLike]).first)
+        let clear = try #require(ProblemSolver.solve(ProblemSolver.Problem(defender: defender),
+                                                     candidates: [solarLike]).first)
+        #expect(!sunny.marks.contains(.chargesFirst) && clear.marks.contains(.chargesFirst))
+    }
+
+    @Test("Psychic Terrain stops priority moves on a grounded target")
+    func psychicTerrain() throws {
+        let store = try store()
+        let defender = try problem("Dragapult", in: store).defender
+        let sucker = try candidate("Kingambit", "Sucker Punch", in: store, ability: "supreme-overlord")
+        let terrain = ProblemSolver.Problem(defender: defender, terrain: .psychic)
+        #expect(terrain.blocksPriority)
+        #expect(ProblemSolver.solve(terrain, candidates: [sucker]).isEmpty)
+        #expect(!ProblemSolver.solve(ProblemSolver.Problem(defender: defender), candidates: [sucker]).isEmpty)
+    }
+
+    @Test("Answers group by Pokémon, in order")
+    func grouping() throws {
+        let store = try store()
+        let problem = try problem("Kingambit", in: store)
+        let counters = ProblemSolver.solve(problem, candidates: [
+            try candidate("Garchomp", "Earthquake", in: store),
+            try candidate("Garchomp", "Focus Punch", in: store),
+        ])
+        let grouped = ProblemSolver.byPokemon(counters)
+        #expect(grouped.count == 1 && grouped[0].count == counters.count)
+        #expect(grouped[0].map(\.id) == counters.map(\.id))
     }
 }
