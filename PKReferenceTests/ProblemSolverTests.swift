@@ -555,6 +555,23 @@ struct ProblemSolverTests {
         #expect(!ProblemSolver.solve(ProblemSolver.Problem(defender: defender), candidates: [sucker]).isEmpty)
     }
 
+    @Test("The results filter finds answers by Pokémon, move or ability")
+    func filter() throws {
+        let store = try store()
+        let counter = try #require(ProblemSolver.solve(try problem("Heatran", in: store), candidates: [
+            try candidate("Garchomp", "Earthquake", in: store, ability: "sand-veil"),
+            try candidate("Garchomp", "Earthquake", in: store, ability: "rough-skin"),
+        ]).first)
+        for text in ["", "garch", "Earthquake", "rough skin", "Rough-Skin", "SAND"] {
+            #expect(counter.matches(filter: text), "\(text)")
+        }
+        #expect(!counter.matches(filter: "levitate"))
+        #expect(counter.abilityMatching(filter: "skin") == "rough-skin")
+        // Found by its name, so no ability to point out.
+        #expect(counter.abilityMatching(filter: "garchomp") == nil)
+        #expect(counter.abilityMatching(filter: "") == nil)
+    }
+
     @Test("Answers group by Pokémon, in order")
     func grouping() throws {
         let store = try store()
