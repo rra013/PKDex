@@ -22,6 +22,12 @@ nonisolated enum ShowdownDamageValue {
 
 nonisolated struct ShowdownResult {
     var damage: ShowdownDamageValue = .fixed(0)
+    /// The move's type once abilities have had their say (Liquid Voice,
+    /// Pixilate), and its effectiveness on the defender. nil when the calc
+    /// stopped before working them out. Not in upstream, where the move
+    /// passed in is changed in place; here it's a copy.
+    var moveType: ShowdownType?
+    var typeEffectiveness: Double?
 }
 
 // MARK: - Rounding / overflow (util.ts)

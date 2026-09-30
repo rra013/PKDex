@@ -8,9 +8,12 @@
 //  nature or Choice Scarf is used when it's what moves first; the problem
 //  set's Intimidate lowers or raises the counters' stats as their abilities
 //  say; abilities with the same result are listed together; and moves with
-//  drawbacks are marked. The Pokémon are in a store in memory, with their
-//  real base stats. A timing test runs the whole regulation against the
-//  simulator's downloaded Pokédex when it's there.
+//  drawbacks are marked. In two-hit mode, what happens between the hits
+//  (Sitrus Berry, Leftovers, Multiscale, Draco Meteor's drop, Knock Off)
+//  is allowed for, and the battle simulator agrees. The Pokémon are in a
+//  store in memory, with their real base stats. A timing test runs the
+//  whole regulation against the simulator's downloaded Pokédex when it's
+//  there.
 //
 
 import Testing
@@ -53,6 +56,9 @@ struct ProblemSolverTests {
             PKMNStats(id: 94, speciesID: 94, name: "Gengar", type1: "Ghost", type2: "Poison",
                       baseHP: 60, baseAtk: 65, baseDef: 60, baseSpAtk: 130, baseSpDef: 75, baseSpeed: 110,
                       ability1: "cursed-body"),
+            PKMNStats(id: 730, speciesID: 730, name: "Primarina", type1: "Water", type2: "Fairy",
+                      baseHP: 80, baseAtk: 74, baseDef: 74, baseSpAtk: 126, baseSpDef: 116, baseSpeed: 60,
+                      ability1: "torrent", hiddenAbility: "liquid-voice"),
         ]
         let moves = [
             MoveData(id: 89, name: "Earthquake", type: "Ground", damageClass: "physical",
@@ -63,6 +69,12 @@ struct ProblemSolverTests {
                      power: 70, accuracy: 100, pp: 5, priority: 1, makesContact: true, generationId: 4),
             MoveData(id: 264, name: "Focus Punch", type: "Fighting", damageClass: "physical",
                      power: 150, accuracy: 100, pp: 20, priority: -3, makesContact: true, generationId: 3),
+            MoveData(id: 434, name: "Draco Meteor", type: "Dragon", damageClass: "special",
+                     power: 130, accuracy: 90, pp: 5, generationId: 4),
+            MoveData(id: 282, name: "Knock Off", type: "Dark", damageClass: "physical",
+                     power: 65, accuracy: 100, pp: 20, makesContact: true, generationId: 3),
+            MoveData(id: 917, name: "Psychic Noise", type: "Psychic", damageClass: "special",
+                     power: 75, accuracy: 100, pp: 10, generationId: 9),
         ]
         rows.forEach { context.insert($0) }
         moves.forEach { context.insert($0) }
@@ -88,7 +100,8 @@ struct ProblemSolverTests {
             pokemonID: try #require(store.pokemon[name]).id,
             attacker: try #require(try side(name, in: store, ability: ability).snapshot()),
             move: move.snapshot(), accuracy: move.accuracy, priority: move.priority,
-            marks: ProblemSolver.marks(for: move.name))
+            marks: ProblemSolver.marks(for: move.name),
+            selfStatChanges: ProblemSolver.selfStatChanges(for: move.name))
     }
 
     private func problem(_ name: String, in store: Store, ability: String? = nil, intimidate: Bool = true,
@@ -310,6 +323,74 @@ struct ProblemSolverTests {
         #expect(!counters.isEmpty)
         #expect(finished.timeIntervalSince(started) < 30)
         for counter in counters { expectMinimal(counter, problem) }
+
+        // Every candidate's move is one its species (or a form of it)
+        // learns in the regulation.
+        let learnsets = ChampionsLearnsetStore.store(for: .mC)
+        var learnable: [Int: Set<String>] = [:]
+        for (name, row) in ProblemSolver.rosterRows(for: .mC, allPokemon: all, dexNames: dexNames) {
+            guard let row, let data = learnsets.data(for: name) else { continue }
+            let moves = data.moves + data.alternateForms.flatMap { $0.moves ?? [] }
+            learnable[row.speciesID, default: []].formUnion(moves.map(IntentNames.key))
+        }
+        let rows = Dictionary(all.map { ($0.id, $0.speciesID) }, uniquingKeysWith: { first, _ in first })
+        let unlearnable = candidates.filter { candidate in
+            guard let species = rows[candidate.pokemonID] else { return true }
+            return !(learnable[species]?.contains(IntentNames.key(candidate.move.name)) ?? false)
+        }.map { "\($0.attacker.species.name) \($0.move.name)" }
+        #expect(unlearnable.isEmpty, "Candidates with moves they don't learn: \(unlearnable.prefix(10))")
+        #expect(!candidates.contains { $0.attacker.species.name == "Garchomp" && $0.move.name == "Knock Off" })
+    }
+
+    /// Two hits against full HP and Defense Intimidate Incineroar holding
+    /// a Sitrus Berry: the fast check over the whole regulation, then the
+    /// simulator over every answer, each within a budget. The simulator
+    /// confirms nearly all of them as they are.
+    @Test("The whole regulation in two hits, timed")
+    func wholeRegulationTwoHits() throws {
+        let context = AppModelContainer.shared.mainContext
+        guard let incineroar = try context.fetch(FetchDescriptor<PKMNStats>(
+            predicate: #Predicate { $0.name == "Incineroar" })).first else {
+            print("[ProblemSolverTests] No downloaded Pokédex; skipping the two-hit timing test.")
+            return
+        }
+        let all = try context.fetch(FetchDescriptor<PKMNStats>())
+        let moves = try context.fetch(FetchDescriptor<MoveData>())
+        let target = CalcSide()
+        target.loadUninvested(incineroar, championsMode: true, allPokemon: all)
+        target.selectedAbility = "intimidate"
+        target.evHP = 32
+        target.evDef = 32
+        target.heldItem = .sitrusBerry
+        let problem = ProblemSolver.Problem(defender: try #require(target.snapshot()), twoHits: true)
+
+        let candidates = ProblemSolver.candidates(for: .mC, in: context)
+        let started = Date()
+        let counters = ProblemSolver.solve(problem, candidates: candidates)
+        let solved = Date()
+        let vm = DamageCalcVM()
+        vm.multi = true
+        #expect(try #require(SideSetup(target)).apply(to: vm.side2, allPokemon: all, allMoves: moves))
+        let byID = Dictionary(moves.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var (confirmed, raised, dropped) = (0, 0, [String]())
+        for counter in counters {
+            #expect(ProblemSolver.needsSimulation(counter, problem))
+            let move = try #require(byID[counter.move.id])
+            switch ProblemSolver.simulated(counter, problem, vm: vm, move: move, allPokemon: all, allMoves: moves) {
+            case let checked? where checked.attackPoints == counter.attackPoints: confirmed += 1
+            case .some: raised += 1
+            case nil: dropped.append("\(counter.name) \(counter.move.name)")
+            }
+        }
+        let finished = Date()
+        print(String(format: "[ProblemSolverTests] Two hits: %d counters from %d Pokémon in %.2fs; simulator in %.2fs: %d confirmed, %d raised, %d dropped %@",
+                     counters.count, Set(counters.map(\.name)).count, solved.timeIntervalSince(started),
+                     finished.timeIntervalSince(solved), confirmed, raised, dropped.count, dropped.prefix(8).description))
+
+        #expect(!counters.isEmpty)
+        #expect(solved.timeIntervalSince(started) < 30)
+        #expect(finished.timeIntervalSince(solved) < 60)
+        #expect(confirmed * 100 >= counters.count * 95)
     }
 
     // MARK: The screen's pieces
@@ -385,11 +466,11 @@ struct ProblemSolverTests {
         let problem = try problem("Heatran", in: store)
         let model = ProblemSolverModel()
         #expect(model.status == .waiting)
-        await model.solve(problem, regulation: .mC, context: context)
+        await model.solve(problem, target: nil, regulation: .mC, context: context)
         #expect(model.status == .solved)
         #expect(model.candidateCount > 0)
         #expect(model.counters.contains { $0.name == "Garchomp" && $0.move.name == "Earthquake" })
-        await model.solve(nil, regulation: .mC, context: context)
+        await model.solve(nil, target: nil, regulation: .mC, context: context)
         #expect(model.status == .waiting && model.counters.isEmpty)
     }
 
@@ -485,5 +566,209 @@ struct ProblemSolverTests {
         let grouped = ProblemSolver.byPokemon(counters)
         #expect(grouped.count == 1 && grouped[0].count == counters.count)
         #expect(grouped[0].map(\.id) == counters.map(\.id))
+    }
+
+    // MARK: Two hits
+
+    private func twoHitProblem(_ name: String, in store: Store, ability: String? = nil,
+                               configure: (CalcSide) -> Void = { _ in }) throws -> ProblemSolver.Problem {
+        let target = try side(name, in: store, ability: ability, configure: configure)
+        return ProblemSolver.Problem(defender: try #require(target.snapshot()), twoHits: true)
+    }
+
+    /// Every two-hit answer KOs by the fast check, and one fewer attacking
+    /// point doesn't.
+    private func expectTwoHitMinimal(_ counter: ProblemSolver.Counter, _ problem: ProblemSolver.Problem) {
+        let hits = { (attacker: CalcSnapshot) in
+            ProblemSolver.twoHits(counter.move, attacker, problem,
+                                  selfStatChanges: ProblemSolver.selfStatChanges(for: counter.move.name))
+        }
+        #expect(hits(counter.attacker).isGuaranteedKO)
+        if let stat = counter.attackStat?.natureKey, counter.attackPoints > 0 {
+            #expect(!hits(counter.attacker.settingEV(stat, to: counter.attackPoints - 1)).isGuaranteedKO)
+        }
+    }
+
+    /// The battle simulator, with `problem`'s target as side 2.
+    private func simulator(for problem: ProblemSolver.Problem, target: CalcSide, in store: Store) throws -> DamageCalcVM {
+        let vm = DamageCalcVM()
+        vm.multi = true
+        let setup = try #require(SideSetup(target))
+        #expect(setup.apply(to: vm.side2, allPokemon: store.all, allMoves: Array(store.moves.values)))
+        return vm
+    }
+
+    /// The simulator confirms the answer at its points, and from one point
+    /// fewer finds its way back up to them.
+    private func expectSimulatorAgrees(_ counter: ProblemSolver.Counter, _ problem: ProblemSolver.Problem,
+                                       target: CalcSide, in store: Store) throws {
+        let vm = try simulator(for: problem, target: target, in: store)
+        let move = try #require(store.moves[counter.move.name])
+        let (all, moves) = (store.all, Array(store.moves.values))
+        let checked = try #require(ProblemSolver.simulated(counter, problem, vm: vm, move: move,
+                                                                 allPokemon: all, allMoves: moves))
+        #expect(checked.simulated && checked.attackPoints == counter.attackPoints)
+        guard let stat = counter.attackStat?.natureKey, counter.attackPoints > 0 else { return }
+        var weaker = counter
+        weaker.attacker = counter.attacker.settingEV(stat, to: counter.attackPoints - 1)
+        weaker.attackPoints -= 1
+        let climbed = ProblemSolver.simulated(weaker, problem, vm: vm, move: move, allPokemon: all, allMoves: moves)
+        #expect(climbed?.attackPoints == counter.attackPoints)
+    }
+
+    /// Full HP and Defense Garchomp takes a little over half from Dragon
+    /// Claw: no one-hit KO, but two hits do it.
+    @Test("Two hits find what one can't, at the fewest points")
+    func twoHits() throws {
+        let store = try store()
+        let bulky: (CalcSide) -> Void = { $0.evHP = 32; $0.evDef = 32 }
+        let claw = try candidate("Garchomp", "Dragon Claw", in: store, ability: "rough-skin")
+        #expect(ProblemSolver.solve(try problem("Garchomp", in: store, configure: bulky), candidates: [claw]).isEmpty)
+        let problem = try twoHitProblem("Garchomp", in: store, configure: bulky)
+        let counter = try #require(ProblemSolver.solve(problem, candidates: [claw]).first)
+        let hits = try #require(counter.twoHits)
+        #expect(hits.first == counter.outcome && !counter.outcome.isGuaranteedOHKO)
+        #expect(hits.second.damageMin * 2 >= Double(counter.outcome.defenderHP))
+        #expect(counter.damageSummary.hasSuffix("a guaranteed two-hit KO."))
+        expectTwoHitMinimal(counter, problem)
+    }
+
+    /// A Sitrus Berry heals a quarter once the first hit takes Garchomp to
+    /// half, so Dragon Claw needs Attack points it didn't before.
+    @Test("A Sitrus Berry between the hits needs more, and the simulator agrees")
+    func sitrus() throws {
+        let store = try store()
+        let setup: (CalcSide) -> Void = { $0.evHP = 32; $0.evDef = 32; $0.heldItem = .sitrusBerry }
+        let problem = try twoHitProblem("Garchomp", in: store, configure: setup)
+        let claw = try candidate("Garchomp", "Dragon Claw", in: store, ability: "rough-skin")
+        let counter = try #require(ProblemSolver.solve(problem, candidates: [claw]).first)
+        #expect(counter.attackPoints > 0)
+        let hits = try #require(counter.twoHits)
+        #expect(hits.hpBeforeSecond > counter.outcome.defenderHP - Int(counter.outcome.damageMin))
+        expectTwoHitMinimal(counter, problem)
+        #expect(ProblemSolver.needsSimulation(counter, problem))
+        try expectSimulatorAgrees(counter, problem, target: try side("Garchomp", in: store, configure: setup), in: store)
+    }
+
+    /// Multiscale halves only the first hit, from full HP.
+    @Test("Multiscale only softens the first hit, and the simulator agrees")
+    func multiscale() throws {
+        let store = try store()
+        let setup: (CalcSide) -> Void = { $0.evHP = 32; $0.evDef = 32 }
+        let problem = try twoHitProblem("Garchomp", in: store, ability: "multiscale", configure: setup)
+        let claw = try candidate("Garchomp", "Dragon Claw", in: store, ability: "rough-skin")
+        let counter = try #require(ProblemSolver.solve(problem, candidates: [claw]).first)
+        let hits = try #require(counter.twoHits)
+        #expect(hits.second.damageMin > hits.first.damageMin * 1.9)
+        expectTwoHitMinimal(counter, problem)
+        try expectSimulatorAgrees(counter, problem,
+                                        target: try side("Garchomp", in: store, ability: "multiscale", configure: setup),
+                                        in: store)
+    }
+
+    /// Draco Meteor's second hit is at -2 Sp. Atk; Knock Off's has no
+    /// item to boost it once the first has taken it.
+    @Test("A move that changes after the first hit, and the simulator agrees")
+    func changingMoves() throws {
+        let store = try store()
+        let draco = try twoHitProblem("Garchomp", in: store) { $0.evHP = 32; $0.evSpDef = 32 }
+        let meteor = try #require(ProblemSolver.solve(draco, candidates: [
+            try candidate("Dragapult", "Draco Meteor", in: store, ability: "clear-body"),
+        ]).first)
+        let meteorHits = try #require(meteor.twoHits)
+        #expect(meteorHits.second.damageMin < meteorHits.first.damageMin * 0.6)
+        #expect(ProblemSolver.needsSimulation(meteor, draco))
+        expectTwoHitMinimal(meteor, draco)
+
+        let setup: (CalcSide) -> Void = { $0.evHP = 32; $0.evDef = 32; $0.heldItem = .sitrusBerry }
+        let knock = try twoHitProblem("Dragapult", in: store, configure: setup)
+        let counters = ProblemSolver.solve(knock, candidates: [
+            try candidate("Kingambit", "Knock Off", in: store, ability: "defiant"),
+        ])
+        let scarfed = try #require(counters.first { $0.attacker.heldItem == .choiceScarf })
+        let knockHits = try #require(scarfed.twoHits)
+        #expect(knockHits.second.damageMin < knockHits.first.damageMin)
+        expectTwoHitMinimal(scarfed, knock)
+        try expectSimulatorAgrees(scarfed, knock, target: try side("Dragapult", in: store, configure: setup),
+                                        in: store)
+    }
+
+    @Test("Only moves that can land on two turns running")
+    func hitsTwice() throws {
+        let store = try store()
+        let problem = try twoHitProblem("Heatran", in: store)
+        var move = try candidate("Garchomp", "Earthquake", in: store)
+        #expect(ProblemSolver.canHitTwice(move, problem))
+        for mark in [ProblemSolver.Mark.mustRecharge, .faintsUser, .firstTurnOnly, .chargesFirst] {
+            move.marks = [mark]
+            #expect(!ProblemSolver.canHitTwice(move, problem))
+            #expect(ProblemSolver.solve(problem, candidates: [move]).isEmpty)
+        }
+        move.chargeSkipWeather = .sun
+        #expect(ProblemSolver.canHitTwice(move, ProblemSolver.Problem(defender: problem.defender, weather: .sun,
+                                                                       twoHits: true)))
+    }
+
+    @Test("How a two-hit answer is described")
+    func twoHitWording() throws {
+        let store = try store()
+        let setup: (CalcSide) -> Void = { $0.evHP = 32; $0.evDef = 32; $0.heldItem = .sitrusBerry }
+        let problem = try twoHitProblem("Garchomp", in: store, configure: setup)
+        let counter = try #require(ProblemSolver.solve(problem, candidates: [
+            try candidate("Garchomp", "Dragon Claw", in: store, ability: "rough-skin"),
+        ]).first)
+        #expect(counter.twoHitNotes(problem, targetName: "Garchomp") == ["Allows for Garchomp's Sitrus Berry."])
+        var checked = counter
+        checked.simulated = true
+        #expect(checked.twoHitNotes(problem, targetName: "Garchomp").last == "Checked in the battle simulator.")
+        let helped = ProblemSolver.Problem(defender: problem.defender, helpingHand: true, twoHits: true)
+        #expect(!ProblemSolver.needsSimulation(counter, helped))
+        #expect(counter.twoHitNotes(helped, targetName: "Garchomp").last?.contains("Helping Hand") == true)
+        #expect(ProblemSolver.Group.outspeeds.title(trickRoom: false, twoHits: true) == "Outspeeds and 2HKOs")
+        #expect(ProblemSolver.Group.slower.title(trickRoom: true, twoHits: true) == "2HKOs but moves later")
+    }
+
+    /// Two things the simulator got wrong, found by re-checking the whole
+    /// regulation: it read a Liquid Voice Psychic Noise as having no effect
+    /// on Dark-type Incineroar (the calc reported the Psychic type's
+    /// effectiveness, not the Water type's), and it added Knock Off's 1.5×
+    /// on top of the Champions calc's own.
+    @Test("The simulator's single hits match the calc: Liquid Voice, Knock Off")
+    func simulatorMatchesCalc() throws {
+        let store = try store()
+        let vm = DamageCalcVM()
+        func expectSameHit(_ attacker: CalcSide, _ defender: CalcSide, _ moveName: String) throws -> CalcOutcome {
+            let move = try #require(store.moves[moveName])
+            let calc = CalcEngine.evaluate(move: move.snapshot(), attacker: try #require(attacker.snapshot()),
+                                           defender: try #require(defender.snapshot()), field: FieldSnapshot())
+            let run = TwoHitSolver.simulate(vm: vm, attacker: attacker, defender: defender, move: move,
+                                            rolls: (.max, .max), hits: 1)
+            #expect(run.defenderHPLost == Int(calc.damageMax), "\(moveName)")
+            return calc
+        }
+
+        let voice = try expectSameHit(try side("Primarina", in: store, ability: "liquid-voice"),
+                                      try side("Incineroar", in: store) { $0.evHP = 32; $0.evSpDef = 32 },
+                                      "Psychic Noise")
+        #expect(voice.effectiveness == 2 && voice.isSTAB)
+        let knock = try expectSameHit(try side("Kingambit", in: store, ability: "defiant"),
+                                      try side("Incineroar", in: store) { $0.heldItem = .choiceScarf },
+                                      "Knock Off")
+        #expect(knock.damageMax < Double(knock.defenderHP) / 2)
+    }
+
+    /// The model shows the fast answers, then has the simulator re-check
+    /// each one against the Sitrus Berry.
+    @Test("The screen's model re-checks two-hit answers in the simulator")
+    func modelSimulates() async throws {
+        let store = try store()
+        let target = try side("Garchomp", in: store) { $0.evHP = 32; $0.evDef = 32; $0.heldItem = .sitrusBerry }
+        let problem = ProblemSolver.Problem(defender: try #require(target.snapshot()), twoHits: true)
+        let model = ProblemSolverModel()
+        await model.solve(problem, target: SideSetup(target), regulation: .mC, context: store.container.mainContext)
+        #expect(model.status == .solved && model.simulating == nil)
+        #expect(!model.counters.isEmpty)
+        #expect(model.counters.allSatisfy { $0.simulated })
+        #expect(model.counters == ProblemSolver.sorted(model.counters))
     }
 }

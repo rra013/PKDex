@@ -3,9 +3,9 @@
 //  PKReference
 //
 //  Finds the Pokémon, move and investment combinations that knock out a
-//  chosen set in one hit, guaranteed, under Champions doubles rules, and
-//  says which of them move first. ProblemSolver-PLAN.md has the plan and
-//  the owner's decisions.
+//  chosen set in one hit (or two), guaranteed, under Champions doubles
+//  rules, and says which of them move first. ProblemSolver-PLAN.md has the
+//  plan and the owner's decisions.
 //
 //  Every answer comes from the calc itself (`CalcEngine.evaluate`, through
 //  `EVSolver` for the scaling down), never from an estimate, so the solver
@@ -38,10 +38,12 @@ nonisolated enum ProblemSolver {
         var tailwind = false
         /// Under Trick Room the slower Pokémon moves first.
         var trickRoom = false
+        /// Two hits of the same move on consecutive turns rather than one.
+        var twoHits = false
 
         init(defender: CalcSnapshot, intimidate: Bool = true, weather: WeatherCondition = .none,
              terrain: TerrainCondition = .none, helpingHand: Bool = false, tailwind: Bool = false,
-             trickRoom: Bool = false) {
+             trickRoom: Bool = false, twoHits: Bool = false) {
             self.defender = defender
             var field = FieldSnapshot()
             field.multi = true
@@ -52,13 +54,15 @@ nonisolated enum ProblemSolver {
             self.helpingHand = helpingHand
             self.tailwind = tailwind
             self.trickRoom = trickRoom
+            self.twoHits = twoHits
         }
 
-        /// Psychic Terrain stops priority moves hitting a grounded target:
-        /// one that isn't Flying type, Levitating or holding Air Balloon.
-        var blocksPriority: Bool {
-            field.terrain == .psychic
-                && !defender.effectiveTypes.contains("Flying")
+        /// Psychic Terrain stops priority moves hitting a grounded target.
+        var blocksPriority: Bool { field.terrain == .psychic && targetIsGrounded }
+
+        /// Not Flying type, Levitating or holding Air Balloon.
+        var targetIsGrounded: Bool {
+            !defender.effectiveTypes.contains("Flying")
                 && defender.effectiveAbility != "levitate"
                 && defender.heldItem.rawValue != "Air Balloon"
         }
@@ -79,6 +83,9 @@ nonisolated enum ProblemSolver {
         /// For a two-turn move, the weather that skips the charge (Solar
         /// Beam in sun).
         var chargeSkipWeather: WeatherCondition? = nil
+        /// Stages the move costs its user each time it hits (Draco Meteor's
+        /// Sp. Atk -2), for a second hit.
+        var selfStatChanges: [Nature.StatKey: Int] = [:]
     }
 
     // MARK: - Results
@@ -130,6 +137,11 @@ nonisolated enum ProblemSolver {
         var group: Group
         var accuracy: Int?
         var marks: Set<Mark>
+        /// In two-hit mode, both hits as the fast check played them.
+        /// `outcome` is the first.
+        var twoHits: TwoHits?
+        /// Whether the battle simulator re-checked the two hits.
+        var simulated = false
 
         var totalPoints: Int { attackPoints + (speedPoints ?? 0) }
 
@@ -140,15 +152,17 @@ nonisolated enum ProblemSolver {
             "\(name)|\(move.id)|\(attacker.heldItem.rawValue)|\(attacker.nature.id)|\(group)"
         }
 
-        static func == (a: Counter, b: Counter) -> Bool { a.id == b.id && a.abilities == b.abilities }
+        static func == (a: Counter, b: Counter) -> Bool {
+            a.id == b.id && a.abilities == b.abilities && a.attackPoints == b.attackPoints
+                && a.simulated == b.simulated
+        }
         func hash(into hasher: inout Hasher) { hasher.combine(id) }
     }
 
     // MARK: - Solving
 
-    /// Every counter among `candidates`, best first: by group, then fewest
-    /// points, then accuracy, then fewest marks. Stops early, returning what
-    /// it has, when `isCancelled` says so.
+    /// Every counter among `candidates`, best first (see `sorted`). Stops
+    /// early, returning what it has, when `isCancelled` says so.
     static func solve(_ problem: Problem, candidates: [Candidate],
                       isCancelled: () -> Bool = { false }) -> [Counter] {
         let targetSpeed = speed(problem.defender, problem.field)
@@ -162,16 +176,25 @@ nonisolated enum ProblemSolver {
             if isCancelled() { break }
             guard !candidate.move.isStatus, (candidate.move.power ?? 0) > 0 else { continue }
             if candidate.priority > 0, problem.blocksPriority { continue }
+            if problem.twoHits, !canHitTwice(candidate, problem) { continue }
 
             let attacker = prepared(candidate, problem)
             let stat = offensiveStat(for: candidate.move)
             let strongest = attacker.settingNature(attackingNature(for: stat))
                 .settingEV(stat.natureKey!, to: attacker.evPerStatMax)
-            let best = CalcEngine.evaluate(move: candidate.move, attacker: strongest,
+            let best: CalcOutcome
+            var second: CalcOutcome?
+            if problem.twoHits {
+                let hits = twoHits(candidate.move, strongest, problem, selfStatChanges: candidate.selfStatChanges)
+                guard hits.isGuaranteedKO else { continue }
+                (best, second) = (hits.first, hits.second)
+            } else {
+                best = CalcEngine.evaluate(move: candidate.move, attacker: strongest,
                                            defender: problem.defender, field: problem.field)
-            guard best.isGuaranteedOHKO else { continue }
+                guard best.isGuaranteedOHKO else { continue }
+            }
 
-            let key = scaledKey(candidate, attacker, best)
+            let key = scaledKey(candidate, attacker, best, second)
             let counters = scaled[key] ?? scaleDown(candidate, attacker, stat, problem, targetSpeed)
             scaled[key] = counters
 
@@ -188,7 +211,13 @@ nonisolated enum ProblemSolver {
             }
         }
 
-        return order.compactMap { byKey[$0] }.sorted { a, b in
+        return sorted(order.compactMap { byKey[$0] })
+    }
+
+    /// Best first: by group, then fewest points, then accuracy, then fewest
+    /// marks.
+    static func sorted(_ counters: [Counter]) -> [Counter] {
+        counters.sorted { a, b in
             (a.group, a.totalPoints, -(a.accuracy ?? 101), a.marks.count, a.name, a.move.name)
                 < (b.group, b.totalPoints, -(b.accuracy ?? 101), b.marks.count, b.name, b.move.name)
         }
@@ -218,9 +247,9 @@ nonisolated enum ProblemSolver {
     /// Two abilities with the same damage at full investment scale down the
     /// same way, so they share the work.
     private static func scaledKey(_ candidate: Candidate, _ attacker: CalcSnapshot,
-                                  _ best: CalcOutcome) -> String {
+                                  _ best: CalcOutcome, _ second: CalcOutcome?) -> String {
         [candidate.attacker.species.name, candidate.attacker.megaForm?.displayName ?? "",
-         "\(candidate.move.id)", "\(best.damageMin)", "\(best.damageMax)",
+         "\(candidate.move.id)", "\(best.damageMin)", "\(best.damageMax)", "\(second?.damageMin ?? 0)",
          "\(attacker.atkStage)", "\(attacker.spAtkStage)", "\(attacker.speedStage)"].joined(separator: "|")
     }
 
@@ -259,29 +288,68 @@ nonisolated enum ProblemSolver {
         }.min { ($0.group, $0.totalPoints) < ($1.group, $1.totalPoints) }
     }
 
-    private static func option(_ candidate: Candidate, _ attacker: CalcSnapshot,
-                               _ problem: Problem, _ targetSpeed: Int) -> Counter? {
-        let solved: CalcSnapshot
-        let outcome: CalcOutcome
-        let attackStat: EVSolver.Stat?
-        let attackPoints: Int
+    /// The fewest points that KO, and the attacker holding them.
+    private struct Attack {
+        var solved: CalcSnapshot
+        var outcome: CalcOutcome
+        var stat: EVSolver.Stat?
+        var points: Int
+        var twoHits: TwoHits?
+    }
+
+    private static func oneHit(_ candidate: Candidate, _ attacker: CalcSnapshot, _ problem: Problem) -> Attack? {
         switch EVSolver.minimumToKO(move: candidate.move, attacker: attacker,
                                     defender: problem.defender, field: problem.field) {
         case .success(let solution):
-            guard let result = solution.outcome else { return nil }
-            solved = solution.snapshot
-            outcome = result
-            attackStat = solution.evs.keys.first
-            attackPoints = solution.cost
+            guard let outcome = solution.outcome else { return nil }
+            return Attack(solved: solution.snapshot, outcome: outcome, stat: solution.evs.keys.first,
+                          points: solution.cost)
         case .failure(.noRelevantStat):
             // Damage that doesn't depend on the attacker's stats (Foul Play).
-            let result = CalcEngine.evaluate(move: candidate.move, attacker: attacker,
-                                             defender: problem.defender, field: problem.field)
-            guard result.isGuaranteedOHKO else { return nil }
-            (solved, outcome, attackStat, attackPoints) = (attacker, result, nil, 0)
+            let outcome = CalcEngine.evaluate(move: candidate.move, attacker: attacker,
+                                              defender: problem.defender, field: problem.field)
+            guard outcome.isGuaranteedOHKO else { return nil }
+            return Attack(solved: attacker, outcome: outcome, stat: nil, points: 0)
         case .failure:
             return nil
         }
+    }
+
+    /// The fewest points in the move's stat that knock the target out in
+    /// two hits. Found by halving the range rather than counting up, as
+    /// there are ten times as many two-hit answers as one-hit ones; more
+    /// points almost always help, and where they don't (a bigger first hit
+    /// setting off a Sitrus Berry) the answer found still KOs, just maybe
+    /// not with the very fewest points.
+    private static func twoHit(_ candidate: Candidate, _ attacker: CalcSnapshot, _ problem: Problem) -> Attack? {
+        let stat = offensiveStat(for: candidate.move)
+        let key = stat.natureKey!
+        let domain = attacker.evDomain
+        func hits(_ index: Int) -> TwoHits {
+            twoHits(candidate.move, attacker.settingEV(key, to: domain[index]), problem,
+                    selfStatChanges: candidate.selfStatChanges)
+        }
+        var (low, high) = (0, domain.count - 1)
+        var found = hits(high)
+        guard found.isGuaranteedKO else { return nil }
+        while low < high {
+            let middle = (low + high) / 2
+            let tried = hits(middle)
+            if tried.isGuaranteedKO {
+                (high, found) = (middle, tried)
+            } else {
+                low = middle + 1
+            }
+        }
+        return Attack(solved: attacker.settingEV(key, to: domain[high]), outcome: found.first, stat: stat,
+                      points: domain[high], twoHits: found)
+    }
+
+    private static func option(_ candidate: Candidate, _ attacker: CalcSnapshot,
+                               _ problem: Problem, _ targetSpeed: Int) -> Counter? {
+        guard let attack = problem.twoHits ? twoHit(candidate, attacker, problem)
+                                           : oneHit(candidate, attacker, problem) else { return nil }
+        let solved = attack.solved
 
         var marks = candidate.marks
         if let weather = candidate.chargeSkipWeather, weather == problem.field.weather {
@@ -319,9 +387,100 @@ nonisolated enum ProblemSolver {
             }
         }
         return Counter(pokemonID: candidate.pokemonID, attacker: final, abilities: [], move: candidate.move,
-                       outcome: outcome,
-                       attackStat: attackStat, attackPoints: attackPoints, speedPoints: speedPoints,
-                       speed: speedOf(final), group: group, accuracy: candidate.accuracy, marks: marks)
+                       outcome: attack.outcome,
+                       attackStat: attack.stat, attackPoints: attack.points, speedPoints: speedPoints,
+                       speed: speedOf(final), group: group, accuracy: candidate.accuracy, marks: marks,
+                       twoHits: attack.twoHits)
+    }
+
+    // MARK: - Two hits
+
+    /// Two hits of one move on consecutive turns, as the fast check plays
+    /// them: the first on the target as it is; the second once Multiscale
+    /// and a resist berry are spent, Knock Off has taken the item, and the
+    /// attacker has paid for its move (Draco Meteor); between them, an HP
+    /// berry at half HP, then Leftovers or Grassy Terrain at the end of the
+    /// turn.
+    struct TwoHits: Sendable {
+        var first: CalcOutcome
+        var second: CalcOutcome
+        /// The first hit's damage that leaves the target best placed for
+        /// the second; nil when every first hit KOs.
+        var worstFirstHit: Int?
+        /// The target's HP when the second hit lands, at worst.
+        var hpBeforeSecond: Int
+
+        /// Even the lowest second hit KOs.
+        var isGuaranteedKO: Bool { second.damageMin >= Double(hpBeforeSecond) }
+    }
+
+    /// Moves that can land on two turns running: not ones that recharge,
+    /// faint the user, only work on the first turn, or charge first
+    /// (unless the weather skips the charge).
+    static func canHitTwice(_ candidate: Candidate, _ problem: Problem) -> Bool {
+        let charges = candidate.marks.contains(.chargesFirst) && candidate.chargeSkipWeather != problem.field.weather
+        return !charges && candidate.marks.isDisjoint(with: [.mustRecharge, .faintsUser, .firstTurnOnly])
+    }
+
+    /// Abilities that change the second hit or the target between hits.
+    /// The fast check covers Multiscale and Shadow Shield; the battle
+    /// simulator covers the rest.
+    static let betweenHitAbilities: Set<String> = [
+        "multiscale", "shadow-shield", "stamina", "weak-armor", "disguise", "ice-face",
+    ]
+
+    /// Moves whose power falls with the target's HP, left to the simulator.
+    static let targetHPMoves: Set<String> = ["crushgrip", "wringout", "hardpress"]
+
+    static func twoHits(_ move: MoveSnapshot, _ attacker: CalcSnapshot, _ problem: Problem,
+                        selfStatChanges: [Nature.StatKey: Int]) -> TwoHits {
+        let defender = problem.defender
+        let first = CalcEngine.evaluate(move: move, attacker: attacker, defender: defender, field: problem.field)
+        let maxHP = max(first.defenderHP, 1)
+        let startHP = first.hpBeforeHit
+        // `effectiveHeldItem` is nothing for a Mega, whose stone stays put.
+        let item = defender.effectiveHeldItem
+        let knockedOff = BattleSimSeed.normalize(move.name) == "knockoff" && item != .none
+        let resisted = item == .chilanBerry ? move.type == "Normal"
+            : typeResistBerryMap[item] == move.type && first.effectiveness > 1
+
+        var second = first
+        let fullHPAbility = defender.currentHPPercent >= 100
+            && ["multiscale", "shadow-shield"].contains(defender.effectiveAbility ?? "")
+        if resisted || knockedOff || fullHPAbility || !selfStatChanges.isEmpty
+            || targetHPMoves.contains(BattleSimSeed.normalize(move.name)) {
+            var target = defender
+            target.currentHPPercent = min(99, max(1, (startHP - Int(first.damageMin)) * 100 / maxHP))
+            target.atFullHP = false
+            if resisted || knockedOff { target.heldItem = .none }
+            var user = attacker
+            for (stat, change) in selfStatChanges {
+                switch stat {
+                case .atk: user.atkStage = max(-6, min(6, user.atkStage + change))
+                case .def: user.defStage = max(-6, min(6, user.defStage + change))
+                case .spAtk: user.spAtkStage = max(-6, min(6, user.spAtkStage + change))
+                case .spDef: user.spDefStage = max(-6, min(6, user.spDefStage + change))
+                case .speed: user.speedStage = max(-6, min(6, user.speedStage + change))
+                }
+            }
+            second = CalcEngine.evaluate(move: move, attacker: user, defender: target, field: problem.field)
+        }
+
+        // Knock Off takes Leftovers before the end of the turn; an HP berry
+        // has already been eaten by then.
+        let endOfTurnHeal = (item == .leftovers && !knockedOff ? max(1, maxHP / 16) : 0)
+            + (problem.field.terrain == .grassy && problem.targetIsGrounded ? max(1, maxHP / 16) : 0)
+        var worst: (hp: Int, damage: Int)?
+        for damage in Set(first.rolls ?? [Int(first.damageMin), Int(first.damageMax)]).sorted() {
+            var hp = startHP - damage
+            guard hp > 0 else { continue }
+            if hp * 2 <= maxHP, item == .sitrusBerry { hp += max(1, maxHP / 4) }
+            if hp * 2 <= maxHP, item == .oranBerry { hp += 10 }
+            if hp < maxHP { hp += endOfTurnHeal }
+            hp = min(hp, maxHP)
+            if hp > worst?.hp ?? 0 { worst = (hp, damage) }
+        }
+        return TwoHits(first: first, second: second, worstFirstHit: worst?.damage, hpBeforeSecond: worst?.hp ?? 0)
     }
 
     // MARK: - Rules
@@ -442,7 +601,8 @@ extension ProblemSolver {
                     candidates.append(Candidate(
                         pokemonID: pokemonID, attacker: attacker, move: move.snapshot(),
                         accuracy: move.accuracy, priority: move.priority, marks: marks(for: move.name),
-                        chargeSkipWeather: BattleMoveEffects.chargeMoves[BattleSimSeed.normalize(move.name)]?.skipInWeather))
+                        chargeSkipWeather: BattleMoveEffects.chargeMoves[BattleSimSeed.normalize(move.name)]?.skipInWeather,
+                        selfStatChanges: selfStatChanges(for: move.name)))
                 }
             }
         }
@@ -510,6 +670,13 @@ extension ProblemSolver {
         return ids.isEmpty ? [row.ability1] : ids
     }
 
+    /// What the move costs its user's stats each time it hits.
+    @MainActor
+    static func selfStatChanges(for moveName: String) -> [Nature.StatKey: Int] {
+        let changes = BattleMoveEffects.selfStatChangesOnHit[BattleSimSeed.normalize(moveName)] ?? []
+        return Dictionary(changes, uniquingKeysWith: +)
+    }
+
     @MainActor
     static func marks(for moveName: String) -> Set<Mark> {
         let key = BattleSimSeed.normalize(moveName)
@@ -520,5 +687,84 @@ extension ProblemSolver {
         if BattleMoveEffects.firstTurnOnlyMoves.contains(key) { marks.insert(.firstTurnOnly) }
         if BattleMoveEffects.failsIfHitMoves.contains(key) { marks.insert(.failsIfHit) }
         return marks
+    }
+}
+
+// MARK: - Checking two hits in the battle simulator
+
+extension ProblemSolver {
+    /// Whether the battle simulator should re-check a two-hit answer:
+    /// something acts between the hits, on the target (an HP berry,
+    /// Leftovers, the resist berry for this move, Multiscale, Stamina,
+    /// Disguise…) or the attacker (Draco Meteor's drop, Knock Off, Crush
+    /// Grip). The simulator doesn't model Helping Hand, so with it on the
+    /// fast check stands.
+    @MainActor
+    static func needsSimulation(_ counter: Counter, _ problem: Problem) -> Bool {
+        guard problem.twoHits, !problem.helpingHand else { return false }
+        let item = problem.defender.effectiveHeldItem
+        let key = BattleSimSeed.normalize(counter.move.name)
+        return [.sitrusBerry, .oranBerry, .leftovers].contains(item)
+            || typeResistBerryMap[item] == counter.move.type
+            || item == .chilanBerry && counter.move.type == "Normal"
+            || betweenHitAbilities.contains(problem.defender.effectiveAbility ?? "")
+            || key == "knockoff" && item != .none
+            || targetHPMoves.contains(key)
+            || !selfStatChanges(for: counter.move.name).isEmpty
+    }
+
+    /// Re-checks a two-hit answer in the battle simulator, as
+    /// `TwoHitSolver` does: the counter uses its move on two turns running
+    /// and the target does nothing. The first hit is played at the roll the
+    /// fast check found worst and at the lowest, the second at the lowest.
+    /// Where the simulator needs more points they're found by halving the
+    /// range above; nil when even full investment doesn't do it.
+    ///
+    /// `vm` holds the field and, as side 2, the target; side 1 is
+    /// overwritten. A few milliseconds a time, so the caller yields between
+    /// answers.
+    @MainActor
+    static func simulated(_ counter: Counter, _ problem: Problem, vm: DamageCalcVM, move: MoveData,
+                          allPokemon: [PKMNStats], allMoves: [MoveData]) -> Counter? {
+        let changes = selfStatChanges(for: move.name)
+        let key = counter.attackStat?.natureKey
+        func check(_ points: Int) -> Counter? {
+            var attacker = counter.attacker
+            if let key { attacker = attacker.settingEV(key, to: points) }
+            let hits = twoHits(counter.move, attacker, problem, selfStatChanges: changes)
+            SideSetup(attacker, pokemonID: counter.pokemonID).apply(to: vm.side1, allPokemon: allPokemon, allMoves: allMoves)
+            var firstRolls: [BattleEngine.RollOverride.Roll] = [.min]
+            let (low, high) = (Int(hits.first.damageMin), Int(hits.first.damageMax))
+            if let worst = hits.worstFirstHit, worst > low, high > low {
+                firstRolls.append(.fraction(Double(worst - low) / Double(high - low)))
+            }
+            for first in firstRolls {
+                let run = TwoHitSolver.simulate(vm: vm, attacker: vm.side1, defender: vm.side2, move: move,
+                                                rolls: (first, .min))
+                if !run.defenderFainted { return nil }
+            }
+            var checked = counter
+            checked.attacker = attacker
+            checked.attackPoints = points
+            checked.outcome = hits.first
+            checked.twoHits = hits
+            checked.simulated = true
+            return checked
+        }
+
+        if let checked = check(counter.attackPoints) { return checked }
+        guard key != nil else { return nil }
+        let domain = counter.attacker.evDomain.filter { $0 > counter.attackPoints }
+        guard !domain.isEmpty, var found = check(domain[domain.count - 1]) else { return nil }
+        var (low, high) = (0, domain.count - 1)
+        while low < high {
+            let middle = (low + high) / 2
+            if let checked = check(domain[middle]) {
+                (high, found) = (middle, checked)
+            } else {
+                low = middle + 1
+            }
+        }
+        return found
     }
 }

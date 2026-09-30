@@ -106,7 +106,8 @@ final class AppNavigator {
             request = IntentData.searchRequest(for: value)
         case "problem":
             // `problem:Incineroar` or `problem:Incineroar,intimidate`: the
-            // Pokémon, uninvested, with full HP and Defense when "bulky".
+            // Pokémon, uninvested, with full HP and Defense when "bulky"
+            // and holding Sitrus Berry when "sitrus".
             let parts = value.split(separator: ",").map(String.init)
             let context = AppModelContainer.shared.mainContext
             let all = (try? context.fetch(FetchDescriptor<PKMNStats>())) ?? []
@@ -115,6 +116,7 @@ final class AppNavigator {
                 side.loadUninvested(row, championsMode: true, allPokemon: all)
                 if parts.contains("intimidate") { side.selectedAbility = "intimidate" }
                 if parts.contains("bulky") { side.evHP = 32; side.evDef = 32 }
+                if parts.contains("sitrus") { side.heldItem = .sitrusBerry }
                 if let setup = SideSetup(side) { request = .problemSolver(setup) }
             }
         case "team":

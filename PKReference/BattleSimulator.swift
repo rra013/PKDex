@@ -2294,7 +2294,10 @@ final class BattleEngine {
                 damage = Int(Double(damage) * invDamageMult)
             }
             // Knock Off: 1.5x damage when the defender has a removable item.
-            if isKnockOff && defenderHadItemBefore && !preBerry.isMegaStone {
+            // The Champions calc applies this itself, so it's only added
+            // here when both sides are on mainline rules (the legacy engine).
+            if isKnockOff && defenderHadItemBefore && !preBerry.isMegaStone
+                && !(attacker.slot.championsMode && defender.slot.championsMode) {
                 damage = Int(Double(damage) * 1.5)
             }
             // Tier 5 — power-modifier moves (Acrobatics / Hex / Venoshock /

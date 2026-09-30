@@ -3,7 +3,7 @@
 Status: **Phases 1 and 2 built** (2026-09-30): the solver
 (`ProblemSolver.swift`) and the Problem Solver tab (`ProblemSolverView.swift`),
 with `ProblemSolverTests`. **Phase 3 in progress,** one PR per feature (§8):
-field options and grouping by Pokémon are built; the two-hit mode, usage
+field options, grouping by Pokémon and the two-hit mode are built; usage
 ranking and the Siri action are next. The owner's decisions are in §8; what
 building it showed is in §9.
 
@@ -229,7 +229,7 @@ and the Mac sidebar, and in More on the iPhone by default.
    - **Built:** field options (weather, terrain, Helping Hand, Tailwind,
      Trick Room), and answers grouped by Pokémon, a Pokémon's other moves
      behind "N more".
-   - A two-hit mode (§8.8).
+   - **Built:** a two-hit mode (§8.8).
    - Ranking by tournament usage (§8.9; Limitless data is already in the
      app).
    - A Siri action: "PK Reference, what beats Incineroar?", answering with
@@ -329,3 +329,35 @@ Settled for Phase 3, also on 2026-09-30:
   aren't answers then. A two-turn move that weather skips (Solar Beam in
   sun) loses its "charges first" mark in that weather. Answers open in the
   calc with the same weather and terrain.
+- **Two hits** (Phase 3): the same move on two turns running, so moves
+  that recharge, faint the user, only work on the first turn or charge
+  first (unless the weather skips it) are left out. The fast check runs
+  over the whole roster and allows for what the battle simulator models
+  between hits: the second hit comes after Multiscale or Shadow Shield and
+  a resist berry are spent, after Knock Off takes the item, and after the
+  attacker's own drops (Draco Meteor); a Sitrus or Oran Berry heals at
+  half HP, then Leftovers or Grassy Terrain at the end of the turn. Every
+  first-hit roll is tried, so a bigger first hit setting off the berry is
+  caught. Points are found by halving the range (ten times as many answers
+  as one hit); where more points don't always help, an answer can be a
+  point or two above the fewest, never below what KOs.
+- **The simulator re-check:** when anything acts between the hits, every
+  answer is played out in the battle simulator (`TwoHitSolver.simulate`)
+  at the worst first roll and the lowest, and given more points if it
+  needs them. Answers show as soon as the fast check has them; the screen
+  shows the simulator's progress. Against full HP and Defense Intimidate
+  Incineroar with a Sitrus Berry, M-C has 584 answers from 196 Pokémon:
+  2.1 s for the fast check and half a second for the simulator (debug
+  build), which confirmed every one as it was. Helping Hand isn't in the simulator, so with it on
+  the fast check stands, and the answer says so.
+- **Running it on the main actor** (the simulator's damage goes through
+  `DamageCalcVM`): yielding after every answer cost a pass of the run loop
+  each, and the re-check took over 15 s in the app. It now works in 25 ms
+  slices, and the progress bar is its own view so it doesn't redraw the
+  list.
+- **Two simulator bugs the re-check found,** both fixed: the calc reported
+  a move's effectiveness from its listed type, so a Liquid Voice Psychic
+  Noise read as having no effect on Dark types and the simulator skipped
+  it (the Showdown port now returns the move's final type and
+  effectiveness); and the simulator added Knock Off's 1.5× on top of the
+  Champions calc's own.

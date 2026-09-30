@@ -85,6 +85,14 @@ line from `champions.ts`/`util.ts` is simply dropped; the math is otherwise
 line-for-line. If the calc's description text is ever wanted, add a `RawDesc`
 sink and re-thread it.
 
+## Deviation: the result carries the move's final type
+Upstream changes the move passed in (`move.type = …` for Liquid Voice,
+Pixilate and the like) and callers read it back. Here `calculateShowdown` works
+on a copy, so `ShowdownResult` also carries `moveType` and
+`typeEffectiveness`. `CalcEngine` reports those, so the calc and the battle
+simulator (which treats effectiveness 0 as "no effect") see a Liquid Voice
+Psychic Noise as the Water move it is.
+
 ## Champions specifics (from Showdown's official mods)
 Champions rules/data live upstream in `pokemon-showdown/data/mods/champions`
 (+ `championsregmb`) and in the calc's `mechanics/champions.ts`. We vendor that
