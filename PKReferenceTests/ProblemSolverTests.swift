@@ -10,7 +10,8 @@
 //  say; abilities with the same result are listed together; and moves with
 //  drawbacks are marked. In two-hit mode, what happens between the hits
 //  (Sitrus Berry, Leftovers, Multiscale, Draco Meteor's drop, Knock Off)
-//  is allowed for, and the battle simulator agrees. The Pokémon are in a
+//  is allowed for, and the battle simulator agrees. Usage comes from
+//  tournament teams, a Mega counted by its stone. The Pokémon are in a
 //  store in memory, with their real base stats. A timing test runs the
 //  whole regulation against the simulator's downloaded Pokédex when it's
 //  there.
@@ -20,6 +21,21 @@ import Testing
 import Foundation
 import SwiftData
 @testable import PKReference
+
+/// Limitless, serving one event.
+private actor CannedLimitless: TeamCorpusFetching {
+    let events: [CorpusEvent]
+
+    init(_ events: [CorpusEvent]) { self.events = events }
+
+    func tournaments(format: String, page: Int, limit: Int) async throws -> [LimitlessTournament] {
+        page == 1 ? events.map(\.tournament) : []
+    }
+
+    func standings(tournamentID: String) async throws -> [LimitlessStanding] {
+        events.first { $0.tournament.id == tournamentID }?.standings ?? []
+    }
+}
 
 @MainActor
 @Suite("Problem Solver")
@@ -787,5 +803,69 @@ struct ProblemSolverTests {
         #expect(!model.counters.isEmpty)
         #expect(model.counters.allSatisfy { $0.simulated })
         #expect(model.counters == ProblemSolver.sorted(model.counters))
+    }
+
+    // MARK: Usage
+
+    private typealias F = TeamSearchFixtures
+
+    private static let megaGarchomp = MegaForms.all.first { $0.displayName.hasPrefix("Mega Garchomp") && $0.stone != nil }!
+
+    /// Four teams: Garchomp on three (one holding its stone), Incineroar on
+    /// three, Kingambit on two.
+    private static func usageEvent() -> CorpusEvent {
+        F.event("e1", [
+            F.standing("a", placing: 1, [F.member("Garchomp", item: megaGarchomp.stone!.rawValue), F.member("Incineroar")]),
+            F.standing("b", placing: 2, [F.member("Garchomp"), F.member("Incineroar")]),
+            F.standing("c", placing: 3, [F.member("Garchomp"), F.member("Kingambit")]),
+            F.standing("d", placing: 4, [F.member("Incineroar"), F.member("Kingambit")]),
+        ])
+    }
+
+    @Test("Usage is the share of tournament teams, a Mega counted by its stone")
+    func usage() throws {
+        let store = try store()
+        let garchomp = try #require(ProblemSolver.solve(try problem("Heatran", in: store), candidates: [
+            try candidate("Garchomp", "Earthquake", in: store, ability: "rough-skin"),
+        ]).first)
+        var kingambit = garchomp
+        kingambit.attacker.species.name = "Kingambit"
+        var mega = garchomp
+        mega.attacker.megaForm = Self.megaGarchomp
+        mega.attacker.heldItem = try #require(Self.megaGarchomp.stone)
+        var slower = garchomp
+        slower.attacker.species.name = "Incineroar"
+        slower.group = .slower
+
+        let usage = TournamentUsage(corpus: TeamCorpus(format: "M-C", events: [Self.usageEvent()],
+                                                       listFetchedAt: F.now, missingEvents: []),
+                                    vocabulary: F.vocabulary)
+        #expect(usage.teamCount == 4 && usage.eventCount == 1)
+        #expect(usage.share(of: garchomp) == 0.75)
+        #expect(usage.share(of: kingambit) == 0.5)
+        #expect(usage.share(of: mega) == 0.25)
+        // Most used first, but never ahead of a better group.
+        #expect(usage.sorted([mega, slower, kingambit, garchomp]).map(\.name)
+                    == ["Garchomp", "Kingambit", mega.name, "Incineroar"])
+        #expect(TournamentUsage.percent(0.141) == "14%")
+        #expect(TournamentUsage.percent(0.004) == "0.4%")
+        #expect(TournamentUsage.percent(0) == "0%")
+    }
+
+    /// Usage loads from Team Search's cache without the network, and is
+    /// fetched from Limitless only for "Most used".
+    @Test("The screen's model fetches tournament teams only when asked")
+    func modelUsage() async throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "ProblemSolverUsage-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let corpusStore = TeamCorpusStore(fetcher: CannedLimitless([Self.usageEvent()]), directory: directory,
+                                          now: { F.now }, sleep: { _ in })
+        let model = ProblemSolverModel(corpusStore: corpusStore)
+        await model.loadUsage(for: .mC, download: false)
+        #expect(model.usage == nil && model.usageStatus == .idle)
+        await model.loadUsage(for: .mC, download: true)
+        let usage = try #require(model.usage)
+        #expect(usage.teamCount == 4 && usage.eventCount == 1)
+        #expect(model.usageStatus == .idle)
     }
 }
