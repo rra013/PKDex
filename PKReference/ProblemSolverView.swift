@@ -18,7 +18,8 @@ import SwiftData
 /// candidates built once per regulation. A new solve cancels the last.
 /// Two-hit answers show as soon as the fast check has them, then the
 /// battle simulator re-checks the ones it needs to, on the main actor
-/// (its damage goes through `DamageCalcVM`).
+/// (its damage goes through `DamageCalcVM`). Tournament usage comes from
+/// Team Search's Limitless teams.
 @MainActor @Observable
 final class ProblemSolverModel {
     enum Status: Equatable {
@@ -35,6 +36,69 @@ final class ProblemSolverModel {
     /// re-checking; nil when it isn't.
     private(set) var simulating: (done: Int, of: Int)?
     private var candidates: [ChampionsRegulation: [ProblemSolver.Candidate]] = [:]
+
+    enum UsageStatus: Equatable {
+        case idle
+        /// Fetching the regulation's tournament teams from Limitless.
+        case loading(completed: Int, total: Int)
+        case failed(String)
+    }
+
+    /// How often each Pokémon is brought to tournaments in the regulation;
+    /// nil until loaded.
+    private(set) var usage: TournamentUsage?
+    private(set) var usageStatus: UsageStatus = .idle
+    private var usageRegulation: ChampionsRegulation?
+    private let corpusStore: TeamCorpusStore
+
+    init(corpusStore: TeamCorpusStore = .shared) {
+        self.corpusStore = corpusStore
+    }
+
+    /// Tournament usage for `regulation`, from the teams Team Search has
+    /// cached. With `download`, the teams are fetched from Limitless when
+    /// none are cached.
+    func loadUsage(for regulation: ChampionsRegulation, download: Bool) async {
+        if usageRegulation != regulation {
+            (usage, usageRegulation, usageStatus) = (nil, regulation, .idle)
+        }
+        guard usage == nil else { return }
+        var corpus = await corpusStore.cachedCorpus(format: regulation.limitlessFormat)
+        if corpus?.teams.isEmpty ?? true {
+            guard download else { return }
+            usageStatus = .loading(completed: 0, total: 0)
+            do {
+                corpus = try await corpusStore.corpus(for: regulation) { progress in
+                    Task { @MainActor [weak self] in
+                        guard let self, case .loading = self.usageStatus else { return }
+                        self.usageStatus = .loading(completed: progress.completed, total: progress.total)
+                    }
+                }
+            } catch {
+                guard usageRegulation == regulation else { return }
+                usageStatus = Task.isCancelled ? .idle : .failed(error.localizedDescription)
+                return
+            }
+        }
+        guard usageRegulation == regulation, !Task.isCancelled else { return }
+        guard let corpus, !corpus.teams.isEmpty else {
+            usageStatus = .failed("Limitless has no published teams for \(regulation.displayName) yet.")
+            return
+        }
+        guard let vocabulary = try? TeamSearchVocabulary.bundled(for: regulation) else {
+            usageStatus = .failed("The Team Search data for \(regulation.displayName) didn't load.")
+            return
+        }
+        let loaded = await Self.usage(corpus, vocabulary)
+        guard usageRegulation == regulation else { return }
+        (usage, usageStatus) = (loaded, .idle)
+    }
+
+    @concurrent
+    nonisolated private static func usage(_ corpus: TeamCorpus,
+                                          _ vocabulary: TeamSearchVocabulary) async -> TournamentUsage {
+        TournamentUsage(corpus: corpus, vocabulary: vocabulary)
+    }
 
     /// `target` is the set to beat as the simulator loads it.
     func solve(_ problem: ProblemSolver.Problem?, target: SideSetup?, regulation: ChampionsRegulation,
@@ -170,7 +234,8 @@ struct ProblemSolverView: View {
                             .frame(maxWidth: .infinity, alignment: .top)
                             CardStack {
                                 if let selected {
-                                    CounterDetailCard(counter: selected, problem: problem, rules: rules)
+                                    CounterDetailCard(counter: selected, problem: problem, rules: rules,
+                                                      usage: model.usage)
                                 }
                                 resultsCard(wide: true)
                             }
@@ -191,7 +256,9 @@ struct ProblemSolverView: View {
             .cardPage()
             .navigationDestination(for: ProblemSolver.Counter.self) { counter in
                 ScrollView {
-                    CardStack { CounterDetailCard(counter: counter, problem: problem, rules: rules) }
+                    CardStack {
+                        CounterDetailCard(counter: counter, problem: problem, rules: rules, usage: model.usage)
+                    }
                         .padding()
                 }
                 .navigationTitle(counter.name)
@@ -295,6 +362,13 @@ struct ProblemSolverView: View {
 
 // MARK: - Results
 
+private enum CounterSort: String, CaseIterable, Identifiable {
+    case fewestPoints = "Fewest points"
+    case mostUsed = "Most used"
+
+    var id: Self { self }
+}
+
 private struct CountersCard: View {
     let model: ProblemSolverModel
     let problemName: String
@@ -305,14 +379,23 @@ private struct CountersCard: View {
     @Binding var selected: ProblemSolver.Counter?
 
     @State private var filter = ""
+    @State private var sort: CounterSort = .fewestPoints
     @State private var showingAll: Set<ProblemSolver.Group> = []
     /// Pokémon whose other answers are showing.
     @State private var expanded: Set<String> = []
 
     private static let firstShown = 25
 
-    private var filtered: [ProblemSolver.Counter] {
-        model.counters.filter { $0.matches(filter: filter) }
+    /// In the order chosen, then filtered. Until usage loads, "Most used"
+    /// keeps the fewest-points order.
+    private var shown: [ProblemSolver.Counter] {
+        let ordered = sort == .mostUsed ? model.usage?.sorted(model.counters) ?? model.counters : model.counters
+        return ordered.filter { $0.matches(filter: filter) }
+    }
+
+    private struct UsageRequest: Equatable {
+        let regulation: ChampionsRegulation
+        let download: Bool
     }
 
     var body: some View {
@@ -337,6 +420,33 @@ private struct CountersCard: View {
                 }
             }
         }
+        // Usage shows on the rows whenever Team Search has the teams;
+        // "Most used" fetches them when it doesn't.
+        .task(id: UsageRequest(regulation: regulation, download: sort == .mostUsed)) {
+            await model.loadUsage(for: regulation, download: sort == .mostUsed)
+        }
+    }
+
+    @ViewBuilder
+    private var usageNote: some View {
+        switch model.usageStatus {
+        case .loading(let completed, let total):
+            HStack(spacing: 8) {
+                ProgressView()
+                Text(total > 0 ? "Loading tournament teams from Limitless… \(completed) of \(total) events"
+                               : "Loading tournament teams from Limitless…")
+            }
+            .font(.caption).foregroundStyle(.secondary)
+        case .failed(let message):
+            Text("Couldn't load tournament usage. \(message)")
+                .font(.caption).foregroundStyle(.secondary)
+        case .idle:
+            if let usage = model.usage {
+                Text("Usage: the share of \(usage.teamCount.formatted()) teams from \(usage.eventCount.formatted()) Limitless events that bring each Pokémon.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     @ViewBuilder
@@ -346,7 +456,13 @@ private struct CountersCard: View {
             .font(.subheadline).foregroundStyle(.secondary)
         TextField("Filter by Pokémon, move or ability", text: $filter)
             .textFieldStyle(.roundedBorder)
-        let counters = filtered
+        Picker("Sort", selection: $sort) {
+            ForEach(CounterSort.allCases) { Text($0.rawValue).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        usageNote
+        let counters = shown
         if counters.isEmpty {
             Text("No answers match “\(filter)”.")
                 .font(.subheadline).foregroundStyle(.secondary)
@@ -404,7 +520,8 @@ private struct CountersCard: View {
     private func row(_ counter: ProblemSolver.Counter) -> some View {
         if wide {
             Button { selected = counter } label: {
-                CounterRow(counter: counter, ability: counter.abilityMatching(filter: filter))
+                CounterRow(counter: counter, ability: counter.abilityMatching(filter: filter),
+                           usage: model.usage?.share(of: counter))
                     .padding(6)
                     .background(selected?.id == counter.id ? Color.accentColor.opacity(0.15) : .clear,
                                 in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -413,7 +530,8 @@ private struct CountersCard: View {
             .buttonStyle(.plain)
         } else {
             NavigationLink(value: counter) {
-                CounterRow(counter: counter, ability: counter.abilityMatching(filter: filter))
+                CounterRow(counter: counter, ability: counter.abilityMatching(filter: filter),
+                           usage: model.usage?.share(of: counter))
             }
                 .buttonStyle(.plain)
         }
@@ -440,6 +558,8 @@ private struct CounterRow: View {
     let counter: ProblemSolver.Counter
     /// The ability the filter found it by, shown with the move.
     var ability: String? = nil
+    /// The share of tournament teams with this Pokémon, when loaded.
+    var usage: Double? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -467,6 +587,10 @@ private struct CounterRow: View {
                     Text("Spe \(counter.speed)")
                         .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                 }
+                if let usage {
+                    Text("Usage \(TournamentUsage.percent(usage))")
+                        .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                }
             }
         }
         .accessibilityElement(children: .combine)
@@ -480,6 +604,7 @@ private struct CounterDetailCard: View {
     let problem: CalcSide
     /// The field it was solved on.
     let rules: ProblemSolver.Problem?
+    var usage: TournamentUsage? = nil
 
     @Environment(\.modelContext) private var modelContext
     @State private var naming = false
@@ -519,6 +644,11 @@ private struct CounterDetailCard: View {
                                         trickRoom: rules?.trickRoom ?? false))
                     .font(.subheadline).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if let usage {
+                    Text("On \(TournamentUsage.percent(usage.share(of: counter))) of \(usage.teamCount.formatted()) tournament teams on Limitless.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 ForEach(counter.notes, id: \.self) { note in
                     Label(note, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
                 }

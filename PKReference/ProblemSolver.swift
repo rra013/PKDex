@@ -768,3 +768,64 @@ extension ProblemSolver {
         return found
     }
 }
+
+// MARK: - Tournament usage
+
+/// How often each Pokémon is brought to tournaments: the share of Team
+/// Search's Limitless teams that have it. A Mega counts where it holds its
+/// stone; any other answer counts its species or form however it's held.
+/// Megas are found by the app's own stones (`MegaForms`), which list some
+/// the Team Search vocabulary doesn't.
+nonisolated struct TournamentUsage: Sendable {
+    let teamCount: Int
+    let eventCount: Int
+    private let vocabulary: TeamSearchVocabulary
+    /// Teams with each species identity, and with "identity|stone" for a
+    /// Mega.
+    private let teams: [String: Int]
+
+    init(corpus: TeamCorpus, vocabulary: TeamSearchVocabulary) {
+        let stones = Set(MegaForms.all.compactMap { $0.stone.map { IntentNames.key($0.rawValue) } })
+        var teams: [String: Int] = [:]
+        for team in corpus.teams {
+            var keys = Set<String>()
+            for member in team.members {
+                let identity = vocabulary.identity(name: member.name, slug: member.limitlessID).key
+                keys.insert(identity)
+                if let item = member.item.map(IntentNames.key), stones.contains(item) {
+                    keys.insert(identity + "|" + item)
+                }
+            }
+            for key in keys { teams[key, default: 0] += 1 }
+        }
+        self.teams = teams
+        self.vocabulary = vocabulary
+        teamCount = corpus.teams.count
+        eventCount = Set(corpus.teams.map(\.tournament.id)).count
+    }
+
+    /// The share of teams, 0 to 1, with this answer's Pokémon.
+    func share(of counter: ProblemSolver.Counter) -> Double {
+        guard teamCount > 0 else { return 0 }
+        var key = vocabulary.identity(name: counter.attacker.species.name, slug: nil).key
+        if counter.attacker.megaForm != nil { key += "|" + IntentNames.key(counter.attacker.heldItem.rawValue) }
+        return Double(teams[key] ?? 0) / Double(teamCount)
+    }
+
+    /// "14%", or "0.4%" under one percent.
+    static func percent(_ share: Double) -> String {
+        let percent = share * 100
+        return percent > 0 && percent < 1 ? String(format: "%.1f%%", percent) : "\(Int(percent.rounded()))%"
+    }
+
+    /// The most used Pokémon first within each group; otherwise as they
+    /// were, so each Pokémon's best answer still leads its others.
+    func sorted(_ counters: [ProblemSolver.Counter]) -> [ProblemSolver.Counter] {
+        var shares: [String: Double] = [:]
+        for counter in counters where shares[counter.name] == nil { shares[counter.name] = share(of: counter) }
+        return counters.enumerated().sorted { a, b in
+            (a.element.group, -(shares[a.element.name] ?? 0), a.offset)
+                < (b.element.group, -(shares[b.element.name] ?? 0), b.offset)
+        }.map(\.element)
+    }
+}

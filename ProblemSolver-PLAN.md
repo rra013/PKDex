@@ -3,8 +3,8 @@
 Status: **Phases 1 and 2 built** (2026-09-30): the solver
 (`ProblemSolver.swift`) and the Problem Solver tab (`ProblemSolverView.swift`),
 with `ProblemSolverTests`. **Phase 3 in progress,** one PR per feature (§8):
-field options, grouping by Pokémon and the two-hit mode are built; usage
-ranking and the Siri action are next. The owner's decisions are in §8; what
+field options, grouping by Pokémon, the two-hit mode and usage ranking are
+built; the Siri action is next. The owner's decisions are in §8; what
 building it showed is in §9.
 
 The goal: a player picks a Pokémon set that's giving them trouble, and the
@@ -230,8 +230,8 @@ and the Mac sidebar, and in More on the iPhone by default.
      Trick Room), and answers grouped by Pokémon, a Pokémon's other moves
      behind "N more".
    - **Built:** a two-hit mode (§8.8).
-   - Ranking by tournament usage (§8.9; Limitless data is already in the
-     app).
+   - **Built:** ranking by tournament usage (§8.9), from Team Search's
+     Limitless teams.
    - A Siri action: "PK Reference, what beats Incineroar?", answering with
      the top three in place, like the others (§8.10).
 
@@ -361,3 +361,14 @@ Settled for Phase 3, also on 2026-09-30:
   it (the Showdown port now returns the move's final type and
   effectiveness); and the simulator added Knock Off's 1.5× on top of the
   Champions calc's own.
+- **Usage** (Phase 3): the share of Team Search's Limitless teams for the
+  regulation that bring each Pokémon (`TournamentUsage`). Species and forms
+  are matched through Team Search's vocabulary; a Mega counts where its
+  species holds its stone, found by the app's own stones, since the
+  vocabulary's list lacks some (Dragoninite). Rows show usage whenever Team
+  Search has the teams cached; "Most used" fetches them from Limitless when
+  it doesn't, with progress. Within each group the most used Pokémon come
+  first, each still led by its fewest-points answer. Against the simulator's
+  cache (3,970 teams, 71 events), it builds in about 0.1 s; the most used
+  answers to bulky Intimidate Incineroar are Archaludon, Milotic and
+  Basculegion, each on 14% of teams.

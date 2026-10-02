@@ -38,7 +38,7 @@ and what was checked.
 | [#55](https://github.com/rra013/PKReference/pull/55) | Siri, Spotlight and Shortcuts, Phase 1; the app is named PK Reference |
 | [#56](https://github.com/rra013/PKReference/pull/56) | The Xcode project, targets, module and folders renamed to PKReference |
 
-Full suite with the Problem Solver's ability filter: 1153 tests, all passing.
+Full suite with the Problem Solver's usage ranking: 1155 tests, all passing.
 
 ---
 
@@ -399,9 +399,9 @@ Roughly in order of value for effort.
    (`ProblemSolver.swift`) and the tab (`ProblemSolverView.swift`, under
    More on the iPhone), with `ProblemSolverTests`. The whole of M-C, 25,922 candidates, solves in about
    2 s in a debug build. Phase 3, one PR per feature: field options,
-   grouping by Pokémon and the two-hit mode (fast check, then the battle
-   simulator) are built; next are usage ranking and a Siri "what beats X"
-   (decisions in the plan's §8).
+   grouping by Pokémon, the two-hit mode (fast check, then the battle
+   simulator) and usage ranking (Limitless teams) are built; next is a Siri
+   "what beats X" (decisions in the plan's §8).
 5. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last
