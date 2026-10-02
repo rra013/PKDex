@@ -146,6 +146,43 @@ struct LegalitySnippetView: View {
     }
 }
 
+struct CountersSnippetView: View {
+    let answer: CountersAnswer
+    let open: OpenProblemSolverIntent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("What beats \(answer.target)").font(.headline)
+                Text(answer.details).font(.caption).foregroundStyle(.secondary)
+            }
+            if answer.top.isEmpty {
+                Text(answer.spoken).font(.subheadline)
+            } else {
+                Text("\(answer.pokemonCount) Pokémon can knock it out in one hit.").font(.subheadline)
+            }
+            ForEach(Array(answer.top.enumerated()), id: \.offset) { _, pick in
+                VStack(alignment: .leading, spacing: 2) {
+                    // The badges wrap under a long name rather than cutting it.
+                    FlowLayout(spacing: 6) {
+                        Text(pick.name).font(.subheadline.bold()).fixedSize()
+                        ForEach(pick.types, id: \.self) { TypeBadge(type: $0) }
+                    }
+                    Text("\(pick.move) · \(pick.item) · \(pick.damage)").font(.caption.monospacedDigit())
+                    Text("\(pick.investment.prefix(1).uppercased() + pick.investment.dropFirst()), \(pick.timing)")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if !pick.notes.isEmpty {
+                        Text(pick.notes.joined(separator: " · ")).font(.caption2).foregroundStyle(.orange)
+                    }
+                }
+            }
+            Button(intent: open) { OpenInAppLabel() }
+                .buttonStyle(.bordered)
+        }
+        .padding()
+    }
+}
+
 struct SetSnippetView: View {
     let answer: SetAnswer
     let savedSet: SavedSetEntity

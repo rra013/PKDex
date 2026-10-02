@@ -269,6 +269,72 @@ nonisolated struct SecondSpeedOptions: DynamicOptionsProvider {
     }
 }
 
+// MARK: - The Pokémon to beat
+
+/// The investment of the Pokémon to beat, in Find Counters. Siri asks for
+/// it each time and offers these.
+nonisolated struct TargetStatsEntity: AppEntity {
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Stats"
+    static let defaultQuery = TargetStatsQuery()
+
+    /// "none", "physical", "special", or "set:" and the saved set's encoded
+    /// identifier.
+    let id: String
+    let title: String
+    let subtitle: String
+    /// Other ways to say it, for answering Siri's question: "max def".
+    var synonyms: [String] = []
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "\(title)", subtitle: "\(subtitle)", image: nil,
+                              synonyms: synonyms.map { "\($0)" })
+    }
+
+    static let noInvestment = TargetStatsEntity(
+        id: "none", title: "No investment",
+        subtitle: "No EVs or stat points, a neutral nature, level 50",
+        synonyms: ["Uninvested", "No EVs", "No stat points"])
+    static let physicallyBulky = TargetStatsEntity(
+        id: "physical", title: "Full HP and Defense",
+        subtitle: "Full HP and Defense stat points, a neutral nature, level 50",
+        synonyms: ["Max Defense", "Max Def", "Max HP and Defense", "Physically bulky", "Physical bulk"])
+    static let speciallyBulky = TargetStatsEntity(
+        id: "special", title: "Full HP and Sp. Def",
+        subtitle: "Full HP and Special Defense stat points, a neutral nature, level 50",
+        synonyms: ["Max Special Defense", "Max Sp. Def", "Max SpD", "Max HP and Special Defense",
+                   "Specially bulky", "Special bulk"])
+
+    static let fixed = [noInvestment, physicallyBulky, speciallyBulky]
+
+    var choice: TargetStats? {
+        switch id {
+        case "none": return .noInvestment
+        case "physical": return .physicallyBulky
+        case "special": return .speciallyBulky
+        default: return StoredID.set(from: id).map { .savedSet($0) }
+        }
+    }
+}
+
+nonisolated struct TargetStatsQuery: EntityStringQuery {
+    func entities(for identifiers: [String]) async throws -> [TargetStatsEntity] {
+        await IntentData.targetStatsEntities(ids: identifiers)
+    }
+
+    /// "max def" is full HP and Defense; a saved set by its name.
+    func entities(matching string: String) async throws -> [TargetStatsEntity] {
+        await IntentData.targetStatsEntities(matching: string)
+    }
+}
+
+nonisolated struct TargetStatsOptions: DynamicOptionsProvider {
+    @IntentParameterDependency<FindCountersIntent>(\.$pokemon) var counters
+
+    func results() async throws -> [TargetStatsEntity] {
+        await IntentData.targetStatsChoices(for: counters?.pokemon.id)
+    }
+}
+
 // MARK: - Regulations
 
 /// A Pokémon Champions regulation, for Check Legality. Every
@@ -466,6 +532,49 @@ enum IntentData {
             if let fixed = SpeedStatsEntity.fixed.first(where: { $0.id == id }) { return fixed }
             guard let identifier = StoredID.set(from: id), let spread = savedSpread(identifier) else { return nil }
             return speedStatsEntity(spread)
+        }
+    }
+
+    // The Pokémon to beat
+
+    static func targetStatsEntity(_ spread: SavedSpread) -> TargetStatsEntity? {
+        guard let id = StatsEntity.setID(spread.persistentModelID) else { return nil }
+        var parts = ["Saved set"]
+        if let ability = spread.abilityName { parts.append(formatAbilityName(ability)) }
+        if let nature = allNatures.first(where: { $0.id == spread.natureID }) { parts.append(nature.name) }
+        return TargetStatsEntity(id: id, title: spread.name, subtitle: parts.joined(separator: " · "))
+    }
+
+    /// No investment, full HP and Defense, full HP and Special Defense,
+    /// then the Pokémon's saved sets, newest first.
+    static func targetStatsChoices(for pokemonID: Int?, in store: ModelContext? = nil) -> [TargetStatsEntity] {
+        let context = store ?? storeContext
+        let sets = pokemonID.map { sets(for: $0, in: context) } ?? []
+        return TargetStatsEntity.fixed + sets.compactMap(targetStatsEntity)
+    }
+
+    /// The bulk `text` says ("max def", "max SpD", "uninvested"), then the
+    /// saved sets its words name.
+    static func targetStatsEntities(matching text: String, in store: ModelContext? = nil) -> [TargetStatsEntity] {
+        let said = IntentNames.key(text)
+        let fixed: TargetStatsEntity?
+        if IntentNames.investment(said: text) == .uninvested {
+            fixed = .noInvestment
+        } else if ["spd", "specialdef", "spdef", "specialbulk", "speciallybulk"].contains(where: said.contains) {
+            fixed = .speciallyBulky
+        } else if ["def", "physicalbulk", "physicallybulk"].contains(where: said.contains) {
+            fixed = .physicallyBulky
+        } else {
+            fixed = nil
+        }
+        return [fixed].compactMap { $0 } + setsNamed(text, in: store).compactMap(targetStatsEntity)
+    }
+
+    static func targetStatsEntities(ids: [String]) -> [TargetStatsEntity] {
+        ids.compactMap { id in
+            if let fixed = TargetStatsEntity.fixed.first(where: { $0.id == id }) { return fixed }
+            guard let identifier = StoredID.set(from: id), let spread = savedSpread(identifier) else { return nil }
+            return targetStatsEntity(spread)
         }
     }
 }

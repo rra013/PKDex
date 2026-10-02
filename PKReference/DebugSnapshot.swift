@@ -55,9 +55,10 @@ enum DebugSnapshot {
 
     /// With `-debugSnippets YES`, renders the App Intents' snippets, which
     /// only Siri and Spotlight show, with the store's data: Garchomp's
-    /// lookup, its Earthquake on Heatran with no investment, and Team Search
-    /// for "Trick Room". Saved like the windows, as `<name>-snippet-lookup`
-    /// and so on.
+    /// lookup, its Earthquake on Heatran with no investment, Team Search
+    /// for "Trick Room", and what beats Incineroar with full HP and
+    /// Defense (its spoken answer printed too). Saved like the windows, as
+    /// `<name>-snippet-lookup` and so on.
     static func renderSnippets(named name: String) async {
         var snippets: [(String, AnyView)] = []
         if let pokemon = try? IntentData.pokemonEntities(ids: [445]).first,
@@ -88,6 +89,13 @@ enum DebugSnapshot {
             if let pokemon = try? IntentData.pokemonEntities(ids: [id]).first,
                let answer = try? IntentData.legality(id, regulation: nil) {
                 snippets.append((kind, AnyView(LegalitySnippetView(answer: answer, pokemon: pokemon))))
+            }
+        }
+        if let pokemon = try? IntentData.pokemonEntities(ids: [727]).first {
+            let open = OpenProblemSolverIntent(pokemon: pokemon, stats: .physicallyBulky)
+            if let request = try? open.request, let answer = try? await IntentData.counters(request) {
+                print("[DebugSnapshot counters] \(answer.spoken)")
+                snippets.append(("counters", AnyView(CountersSnippetView(answer: answer, open: open))))
             }
         }
         if let set = IntentData.savedSetEntities().first, let answer = try? IntentData.setAnswer(set.id) {

@@ -3,8 +3,8 @@
 //  PKReference
 //
 //  The actions Siri, Spotlight and Shortcuts can run: look up a Pokémon,
-//  calculate damage, search tournament teams, compare speeds and check
-//  legality. Each answers in place, with a spoken or shown answer and a
+//  calculate damage, search tournament teams, compare speeds, check
+//  legality and find counters. Each answers in place, with a spoken or shown answer and a
 //  snippet whose "Open in PK Reference" button opens the page through an
 //  Open intent and `AppNavigator`. The answers' wording is in
 //  `IntentAnswers.swift`, the snippets in `IntentSnippets.swift`, and the
@@ -431,6 +431,103 @@ struct LegalitySnippetIntent: SnippetIntent {
     }
 }
 
+// MARK: - Find Counters
+
+struct FindCountersIntent: AppIntent {
+    static let title: LocalizedStringResource = "Find Counters"
+    static let description = IntentDescription(
+        """
+        Answers what beats a Pokémon: how many Pokémon knock it out in one hit, guaranteed, in Pokémon \
+        Champions doubles, and the three that need the fewest stat points, moving first where they can, from \
+        PK Reference's Problem Solver.
+        """,
+        searchKeywords: ["counter", "counters", "what beats", "how do I beat", "check", "OHKO",
+                         "one-hit KO", "problem solver"])
+
+    @Parameter(title: "Pokémon", requestValueDialog: "Which Pokémon do you need to beat?")
+    var pokemon: PokemonEntity
+
+    @Parameter(title: "Its Stats", requestValueDialog: "Which stats for it?",
+               optionsProvider: TargetStatsOptions())
+    var stats: TargetStatsEntity
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("What beats \(\.$pokemon)") {
+            \.$stats
+        }
+    }
+
+    init() {}
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetIntent {
+        let answer = try await IntentData.counters(try request)
+        return .result(dialog: "\(answer.spoken)",
+                       snippetIntent: CountersSnippetIntent(pokemon: pokemon, stats: stats))
+    }
+
+    var request: CountersRequest {
+        get throws { try CountersRequest(pokemon: pokemon, stats: stats) }
+    }
+}
+
+extension CountersRequest {
+    init(pokemon: PokemonEntity, stats: TargetStatsEntity) throws {
+        guard let choice = stats.choice else { throw IntentError.notFound("that saved set") }
+        self.init(pokemonID: pokemon.id, stats: choice)
+    }
+}
+
+struct CountersSnippetIntent: SnippetIntent {
+    static let title: LocalizedStringResource = "Counters"
+    static let isDiscoverable = false
+
+    @Parameter(title: "Pokémon") var pokemon: PokemonEntity
+    @Parameter(title: "Its Stats") var stats: TargetStatsEntity
+
+    init() {}
+
+    init(pokemon: PokemonEntity, stats: TargetStatsEntity) {
+        self.pokemon = pokemon
+        self.stats = stats
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ShowsSnippetView {
+        let open = OpenProblemSolverIntent(pokemon: pokemon, stats: stats)
+        return .result(view: CountersSnippetView(answer: try await IntentData.counters(try open.request), open: open))
+    }
+}
+
+struct OpenProblemSolverIntent: AppIntent {
+    static let title: LocalizedStringResource = "Open Problem Solver"
+    static let description = IntentDescription("Opens PK Reference's Problem Solver on the Pokémon to beat.")
+    static let supportedModes: IntentModes = .foreground
+    static let isDiscoverable = false
+
+    @Parameter(title: "Pokémon") var pokemon: PokemonEntity
+    @Parameter(title: "Its Stats") var stats: TargetStatsEntity
+
+    init() {}
+
+    init(pokemon: PokemonEntity, stats: TargetStatsEntity) {
+        self.pokemon = pokemon
+        self.stats = stats
+    }
+
+    var request: CountersRequest {
+        get throws { try CountersRequest(pokemon: pokemon, stats: stats) }
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        let target = try await IntentData.counterTarget(try request)
+        guard let setup = SideSetup(target) else { throw IntentError.notFound("that Pokémon") }
+        AppNavigator.shared.request = .problemSolver(setup)
+        return .result()
+    }
+}
+
 // MARK: - Search in the app
 
 /// The system's in-app search, which Siri and Spotlight use for "search PK
@@ -508,6 +605,14 @@ struct PKReferenceShortcuts: AppShortcutsProvider {
             "Search \(.applicationName)",
             "\(.applicationName), search the Pokédex",
         ], shortTitle: "Search", systemImageName: "magnifyingglass")
+        AppShortcut(intent: FindCountersIntent(), phrases: [
+            "\(.applicationName), what beats \(\.$pokemon)",
+            "\(.applicationName), what counters \(\.$pokemon)",
+            "\(.applicationName), how do I beat \(\.$pokemon)",
+            "\(.applicationName), find counters",
+            "What beats \(\.$pokemon) in \(.applicationName)",
+            "Find counters in \(.applicationName)",
+        ], shortTitle: "Find Counters", systemImageName: "scope")
         AppShortcut(intent: ShowTeamIntent(), phrases: [
             "\(.applicationName), show my team \(\.$team)",
             "\(.applicationName), show a saved team",
@@ -739,5 +844,152 @@ extension IntentData {
             top: results.prefix(3).map { .init(species: $0.species, teams: $0.teams.count) })
         lastTeamSearch = answer
         return answer
+    }
+
+    /// The last answer, so a snippet shown right after it doesn't solve
+    /// again.
+    private static var lastCounters: (request: CountersRequest, answer: CountersAnswer)?
+
+    /// What beats a Pokémon, as the Problem Solver finds it in the
+    /// regulation chosen in Settings, with tournament usage from Team
+    /// Search's cache when it has the teams.
+    static func counters(_ request: CountersRequest) async throws -> CountersAnswer {
+        if let last = lastCounters, last.request == request { return last.answer }
+        let regulation = ChampionsRegulation.current
+        let answer = try await counters(request, regulation: regulation,
+                                        usage: await cachedUsage(for: regulation), in: storeContext)
+        lastCounters = (request, answer)
+        return answer
+    }
+
+    /// The Problem Solver's answers, one hit, on a plain field, the
+    /// Pokémon's own Intimidate applying. The first three Pokémon come in
+    /// the screen's order (moving first, then fewest points), with usage
+    /// breaking ties: among answers needing nothing, the ones teams bring.
+    static func counters(_ request: CountersRequest, regulation: ChampionsRegulation,
+                         usage: TournamentUsage?, in context: ModelContext) async throws -> CountersAnswer {
+        let target = try counterTarget(request, usage: usage, in: context)
+        guard let defender = target.snapshot() else { throw IntentError.notFound("that Pokémon") }
+        let problem = ProblemSolver.Problem(defender: defender)
+        let candidates = ProblemSolver.candidates(for: regulation, in: context)
+        let found = await solveCounters(problem, candidates)
+
+        var shares: [String: Double] = [:]
+        if let usage {
+            for counter in found where shares[counter.name] == nil { shares[counter.name] = usage.share(of: counter) }
+        }
+        let ordered = found.enumerated().sorted { a, b in
+            (a.element.group, a.element.totalPoints, -(a.element.accuracy ?? 101), a.element.marks.count,
+             -(shares[a.element.name] ?? 0), a.offset)
+                < (b.element.group, b.element.totalPoints, -(b.element.accuracy ?? 101), b.element.marks.count,
+                   -(shares[b.element.name] ?? 0), b.offset)
+        }.map(\.element)
+        let rows = Dictionary(try allPokemon(in: context).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let top = ProblemSolver.byPokemon(ordered).prefix(3).map { answers in
+            let best = answers[0]
+            return CountersAnswer.Pick(
+                name: best.spokenName(row: rows[best.pokemonID]), types: best.attacker.effectiveTypes, move: best.move.name, item: best.itemName,
+                investment: best.spokenInvestment, group: best.group, damage: best.percentLabel, notes: best.notes)
+        }
+
+        let name = target.activeMegaForm?.displayName
+            ?? target.pokemon.map { IntentNames.spoken(name: $0.name, formName: $0.formName) } ?? ""
+        let ability = target.effectiveAbility.map(formatAbilityName)
+        let setName = target.loadedSpreadName
+        var setup = [ability, request.stats.spoken].compactMap { $0 }
+        if setName == nil { setup.append("a neutral nature") }
+        return CountersAnswer(
+            target: setName.map { "your set \($0)" } ?? [ability, name].compactMap { $0 }.joined(separator: " "),
+            setup: setName.map { "\(name): your set \($0)" } ?? "\(name): " + setup.joined(separator: ", "),
+            regulation: regulation.displayName,
+            pokemonCount: Set(found.map(\.name)).count, wayCount: found.count, top: top)
+    }
+
+    /// The Pokémon to beat, as Find Counters and the Problem Solver load it.
+    static func counterTarget(_ request: CountersRequest) async throws -> CalcSide {
+        try counterTarget(request, usage: await cachedUsage(for: .current), in: storeContext)
+    }
+
+    static func counterTarget(_ request: CountersRequest, usage: TournamentUsage?,
+                              in context: ModelContext) throws -> CalcSide {
+        let allPokemon = try allPokemon(in: context)
+        let allMoves = (try? context.fetch(FetchDescriptor<MoveData>())) ?? []
+        // Without a saved set, the ability tournament teams run most.
+        let row = allPokemon.first { $0.id == request.pokemonID }
+        let said = row.flatMap { usage?.mostUsedAbility(of: $0.name) }.map(IntentNames.key)
+        let ability = said.flatMap { said in
+            row?.allAbilities.first { IntentNames.key(formatAbilityName($0)) == said }
+        }
+        let side = CalcSide()
+        guard side.load(pokemonID: request.pokemonID, target: request.stats, ability: ability,
+                        allPokemon: allPokemon, allMoves: allMoves, context: context) else {
+            throw IntentError.notFound("that Pokémon, or that saved set")
+        }
+        return side
+    }
+
+    /// Tournament usage from the teams Team Search has cached; nil without
+    /// them. Never touches the network.
+    static func cachedUsage(for regulation: ChampionsRegulation) async -> TournamentUsage? {
+        guard let corpus = await TeamCorpusStore.shared.cachedCorpus(format: regulation.limitlessFormat),
+              !corpus.teams.isEmpty,
+              let vocabulary = try? TeamSearchVocabulary.bundled(for: regulation) else { return nil }
+        return await usage(corpus, vocabulary)
+    }
+
+    @concurrent
+    nonisolated private static func usage(_ corpus: TeamCorpus,
+                                          _ vocabulary: TeamSearchVocabulary) async -> TournamentUsage {
+        TournamentUsage(corpus: corpus, vocabulary: vocabulary)
+    }
+
+    @concurrent
+    nonisolated private static func solveCounters(_ problem: ProblemSolver.Problem,
+                                                  _ candidates: [ProblemSolver.Candidate]) async -> [ProblemSolver.Counter] {
+        ProblemSolver.solve(problem, candidates: candidates)
+    }
+}
+
+extension TargetStats {
+    /// "full HP and Defense"; nil for a saved set, which says its own name.
+    var spoken: String? {
+        switch self {
+        case .noInvestment: "no investment"
+        case .physicallyBulky: "full HP and Defense"
+        case .speciallyBulky: "full HP and Special Defense"
+        case .savedSet: nil
+        }
+    }
+}
+
+extension ProblemSolver.Counter {
+    /// As people say it, given its Pokédex row: "Alolan Ninetales", not
+    /// "Ninetales-Alola"; a Mega by its own name.
+    func spokenName(row: PKMNStats?) -> String {
+        attacker.megaForm?.displayName
+            ?? row.map { IntentNames.spoken(name: $0.name, formName: $0.formName) } ?? name
+    }
+
+    /// "no investment", "12 Attack points", or "12 Special Attack and 20
+    /// Speed points".
+    var spokenInvestment: String {
+        var parts: [String] = []
+        if let attackStat, attackPoints > 0 { parts.append("\(attackPoints) \(attackStat.spoken)") }
+        if let speedPoints, speedPoints > 0 { parts.append("\(speedPoints) Speed") }
+        return parts.isEmpty ? "no investment" : parts.joined(separator: " and ") + " points"
+    }
+}
+
+extension EVSolver.Stat {
+    /// "Special Attack".
+    var spoken: String {
+        switch self {
+        case .hp: "HP"
+        case .atk: "Attack"
+        case .def: "Defense"
+        case .spAtk: "Special Attack"
+        case .spDef: "Special Defense"
+        case .speed: "Speed"
+        }
     }
 }

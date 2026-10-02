@@ -783,10 +783,14 @@ nonisolated struct TournamentUsage: Sendable {
     /// Teams with each species identity, and with "identity|stone" for a
     /// Mega.
     private let teams: [String: Int]
+    /// How many brought each ability, as Limitless names it, by species
+    /// identity.
+    private let abilities: [String: [String: Int]]
 
     init(corpus: TeamCorpus, vocabulary: TeamSearchVocabulary) {
         let stones = Set(MegaForms.all.compactMap { $0.stone.map { IntentNames.key($0.rawValue) } })
         var teams: [String: Int] = [:]
+        var abilities: [String: [String: Int]] = [:]
         for team in corpus.teams {
             var keys = Set<String>()
             for member in team.members {
@@ -795,10 +799,14 @@ nonisolated struct TournamentUsage: Sendable {
                 if let item = member.item.map(IntentNames.key), stones.contains(item) {
                     keys.insert(identity + "|" + item)
                 }
+                if let ability = member.ability, !ability.isEmpty {
+                    abilities[identity, default: [:]][ability, default: 0] += 1
+                }
             }
             for key in keys { teams[key, default: 0] += 1 }
         }
         self.teams = teams
+        self.abilities = abilities
         self.vocabulary = vocabulary
         teamCount = corpus.teams.count
         eventCount = Set(corpus.teams.map(\.tournament.id)).count
@@ -810,6 +818,14 @@ nonisolated struct TournamentUsage: Sendable {
         var key = vocabulary.identity(name: counter.attacker.species.name, slug: nil).key
         if counter.attacker.megaForm != nil { key += "|" + IntentNames.key(counter.attacker.heldItem.rawValue) }
         return Double(teams[key] ?? 0) / Double(teamCount)
+    }
+
+    /// The ability tournament teams run most on a species or form
+    /// ("Arcanine-Hisui"), as Limitless names it ("Intimidate"); nil when
+    /// none bring it.
+    func mostUsedAbility(of speciesName: String) -> String? {
+        let key = vocabulary.identity(name: speciesName, slug: nil).key
+        return abilities[key]?.max { ($0.value, $1.key) < ($1.value, $0.key) }?.key
     }
 
     /// "14%", or "0.4%" under one percent.

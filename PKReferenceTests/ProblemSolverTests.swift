@@ -868,4 +868,110 @@ struct ProblemSolverTests {
         #expect(usage.teamCount == 4 && usage.eventCount == 1)
         #expect(model.usageStatus == .idle)
     }
+
+    // MARK: Siri: what beats a Pokémon
+
+    @Test("Siri offers three investments for the Pokémon to beat, then its saved sets")
+    func targetChoices() throws {
+        let store = try store()
+        let context = store.container.mainContext
+        let set = SavedSpread(name: "Bulky Roar", pokemonID: 727, abilityName: "intimidate", championsMode: true,
+                              natureID: "careful", evHP: 32, evSpDef: 32)
+        context.insert(set)
+        try context.save()
+
+        let offered = IntentData.targetStatsChoices(for: 727, in: context)
+        #expect(offered.map(\.title) == ["No investment", "Full HP and Defense", "Full HP and Sp. Def", "Bulky Roar"])
+        #expect(offered[3].choice == .savedSet(set.persistentModelID))
+        #expect(IntentData.targetStatsChoices(for: nil, in: context).count == 3)
+
+        for (said, id) in [("max def", "physical"), ("Max Defense", "physical"), ("max SpD", "special"),
+                           ("max special defense", "special"), ("uninvested", "none")] {
+            #expect(IntentData.targetStatsEntities(matching: said, in: context).first?.id == id, "\(said)")
+        }
+        #expect(IntentData.targetStatsEntities(matching: "max speed", in: context).isEmpty)
+        #expect(IntentData.targetStatsEntities(matching: "bulky roar", in: context).first?.title == "Bulky Roar")
+    }
+
+    /// Without a saved set, the Pokémon gets the ability tournament teams
+    /// run most; a mainline set comes over to Champions rules.
+    @Test("The Pokémon to beat is loaded as chosen, with its tournament ability")
+    func targetLoading() throws {
+        let store = try store()
+        let context = store.container.mainContext
+        let bulky = try IntentData.counterTarget(CountersRequest(pokemonID: 727, stats: .physicallyBulky),
+                                                 usage: nil, in: context)
+        #expect(bulky.championsMode && bulky.selectedAbility == "blaze")
+        #expect(bulky.evHP == bulky.evPerStatMax && bulky.evDef == bulky.evPerStatMax && bulky.evSpDef == 0)
+
+        let usage = TournamentUsage(corpus: TeamCorpus(format: "M-C", events: [F.event("e1", [
+            F.standing("a", placing: 1, [F.member("Incineroar", ability: "Intimidate")]),
+            F.standing("b", placing: 2, [F.member("Incineroar", ability: "Intimidate")]),
+            F.standing("c", placing: 3, [F.member("Incineroar", ability: "Blaze")]),
+        ])], listFetchedAt: F.now, missingEvents: []), vocabulary: F.vocabulary)
+        #expect(usage.mostUsedAbility(of: "Incineroar") == "Intimidate")
+        let special = try IntentData.counterTarget(CountersRequest(pokemonID: 727, stats: .speciallyBulky),
+                                                   usage: usage, in: context)
+        #expect(special.selectedAbility == "intimidate")
+        #expect(special.evHP == special.evPerStatMax && special.evSpDef == special.evPerStatMax && special.evDef == 0)
+
+        let mainline = SavedSpread(name: "Old Roar", pokemonID: 727, abilityName: "intimidate", championsMode: false,
+                                   natureID: "careful", evHP: 252, evSpDef: 252)
+        context.insert(mainline)
+        try context.save()
+        let set = try IntentData.counterTarget(CountersRequest(pokemonID: 727, stats: .savedSet(mainline.persistentModelID)),
+                                               usage: nil, in: context)
+        #expect(set.championsMode && set.evHP == set.evPerStatMax && set.nature.id == "careful")
+        #expect(set.loadedSpreadName == "Old Roar")
+        // Another Pokémon's set isn't used for this one.
+        #expect(throws: (any Error).self) {
+            try IntentData.counterTarget(CountersRequest(pokemonID: 485, stats: .savedSet(mainline.persistentModelID)),
+                                         usage: nil, in: context)
+        }
+    }
+
+    @Test("What beats a Pokémon, from the Problem Solver")
+    func countersAnswer() async throws {
+        let store = try store()
+        let answer = try await IntentData.counters(CountersRequest(pokemonID: 485, stats: .physicallyBulky),
+                                                   regulation: .mC, usage: nil, in: store.container.mainContext)
+        let best = try #require(answer.top.first)
+        #expect(best.name == "Garchomp" && best.move == "Earthquake" && best.group == .outspeeds)
+        #expect(answer.target == "Flash Fire Heatran")
+        #expect(answer.setup == "Heatran: Flash Fire, full HP and Defense, a neutral nature")
+        #expect(answer.pokemonCount >= 1 && answer.wayCount >= answer.pokemonCount)
+        #expect(answer.spoken.contains("Garchomp's Earthquake"))
+
+        // Forms are said as people say them, and Megas by their own names.
+        var counter = try #require(ProblemSolver.solve(try problem("Heatran", in: store), candidates: [
+            try candidate("Garchomp", "Earthquake", in: store),
+        ]).first)
+        let alolan = PKMNStats(id: 10104, speciesID: 38, name: "Ninetales-Alola", formName: "alola",
+                               type1: "Ice", type2: "Fairy", baseHP: 73, baseAtk: 67, baseDef: 75,
+                               baseSpAtk: 81, baseSpDef: 100, baseSpeed: 109, ability1: "snow-cloak")
+        #expect(counter.spokenName(row: alolan) == "Alolan Ninetales")
+        #expect(counter.spokenName(row: nil) == "Garchomp")
+        counter.attacker.megaForm = Self.megaGarchomp
+        #expect(counter.spokenName(row: nil) == Self.megaGarchomp.displayName)
+    }
+
+    @Test("How the answer to what beats a Pokémon is said")
+    func countersWording() {
+        func pick(_ name: String, _ move: String, _ investment: String = "no investment",
+                  _ group: ProblemSolver.Group = .outspeeds) -> CountersAnswer.Pick {
+            .init(name: name, types: [], move: move, item: "", investment: investment, group: group,
+                  damage: "", notes: [])
+        }
+        func answer(_ top: [CountersAnswer.Pick], count: Int? = nil) -> String {
+            CountersAnswer(target: "Intimidate Incineroar", setup: "", regulation: "Regulation M-C",
+                           pokemonCount: count ?? top.count, wayCount: top.count, top: top).spoken
+        }
+        #expect(answer([]) == "Nothing in Regulation M-C knocks out Intimidate Incineroar in one hit, guaranteed.")
+        #expect(answer([pick("Milotic", "Scald")])
+                == "One Pokémon in Regulation M-C can knock out Intimidate Incineroar in one hit. The best: Milotic's Scald, with no investment, moving first.")
+        #expect(answer([pick("Milotic", "Scald"), pick("Empoleon", "Surf"), pick("Falinks", "Close Combat")], count: 84)
+                == "84 Pokémon in Regulation M-C can knock out Intimidate Incineroar in one hit. The best three: Milotic's Scald, Empoleon's Surf and Falinks's Close Combat, each with no investment, moving first.")
+        #expect(answer([pick("Garchomp", "Earthquake", "12 Attack points"), pick("Kingambit", "Sucker Punch", "no investment", .priority)])
+                == "2 Pokémon in Regulation M-C can knock out Intimidate Incineroar in one hit. The best two: Garchomp's Earthquake, with 12 Attack points, moving first; and Kingambit's Sucker Punch, with no investment, using priority.")
+    }
 }

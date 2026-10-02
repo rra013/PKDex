@@ -1,7 +1,8 @@
 # Siri, Spotlight and Shortcuts: implementation plan
 
 Status: **Phases 1 and 2 built** (2026-09-30): the foundation, eight actions and
-Spotlight indexing, with their tests. Phase 3's snippets and parameter prompts
+Spotlight indexing, with their tests. A ninth, Find Counters, came with the
+Problem Solver (2026-10-02; ProblemSolver-PLAN.md §8.10). Phase 3's snippets and parameter prompts
 came with Phase 1; what's left of it needs the conversational Siri on the
 owner's devices. The decisions are in §7.
 

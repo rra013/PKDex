@@ -295,6 +295,79 @@ nonisolated struct SpeedAnswer: Sendable {
     }
 }
 
+// MARK: - What beats a Pokémon
+
+nonisolated struct CountersAnswer: Sendable {
+    struct Pick: Sendable {
+        /// As the results name it: "Mega Glimmora".
+        let name: String
+        let types: [String]
+        let move: String
+        let item: String
+        /// "no investment", or "12 Special Attack and 20 Speed points".
+        let investment: String
+        let group: ProblemSolver.Group
+        /// "107.9% – 127.7%".
+        let damage: String
+        /// Accuracy under 100% and drawbacks: "90% accurate".
+        let notes: [String]
+
+        /// "moving first", "using priority" or "moving second".
+        var timing: String {
+            switch group {
+            case .outspeeds: "moving first"
+            case .priority: "using priority"
+            case .slower: "moving second"
+            }
+        }
+    }
+
+    /// As it's said, with the ability it was solved with: "Intimidate
+    /// Incineroar", or "your set Bulky Roar".
+    let target: String
+    /// "Intimidate, full HP and Defense, a neutral nature".
+    let setup: String
+    /// "Regulation M-C".
+    let regulation: String
+    let pokemonCount: Int
+    let wayCount: Int
+    /// The best answer of each of the first three Pokémon.
+    let top: [Pick]
+
+    /// "84 Pokémon in Regulation M-C can knock out Intimidate Incineroar in
+    /// one hit. The best three: Empoleon's Surf, Milotic's Scald and
+    /// Falinks's Close Combat, each with no investment, moving first."
+    var spoken: String {
+        guard pokemonCount > 0 else {
+            return "Nothing in \(regulation) knocks out \(target) in one hit, guaranteed."
+        }
+        let count = pokemonCount == 1 ? "One Pokémon" : "\(pokemonCount) Pokémon"
+        let lead = "\(count) in \(regulation) can knock out \(target) in one hit."
+        let best = top.count == 1 ? "The best" : "The best \(Self.numbers[top.count] ?? "\(top.count)")"
+        let tails = top.map { "with \($0.investment), \($0.timing)" }
+        if Set(tails).count == 1, let tail = tails.first {
+            let each = top.count == 1 ? "" : "each "
+            return "\(lead) \(best): \(Self.list(top.map { "\($0.name)'s \($0.move)" })), \(each)\(tail)."
+        }
+        return "\(lead) \(best): \(Self.list(top.map { "\($0.name)'s \($0.move), with \($0.investment), \($0.timing)" }, separator: "; "))."
+    }
+
+    /// "Intimidate, full HP and Defense, a neutral nature. Regulation M-C,
+    /// doubles, one hit from the lowest roll; 148 ways."
+    var details: String {
+        "\(setup). \(regulation), doubles, one hit from the lowest roll; \(wayCount) ways in all."
+    }
+
+    private static let numbers = [2: "two", 3: "three"]
+
+    /// "A, B and C", or with `separator` "; ", "A; B; and C".
+    private static func list(_ items: [String], separator: String = ", ") -> String {
+        guard items.count > 1 else { return items.first ?? "" }
+        let joiner = separator == ", " ? " and " : "; and "
+        return items.dropLast().joined(separator: separator) + joiner + items.last!
+    }
+}
+
 // MARK: - Legality
 
 nonisolated struct LegalityAnswer: Sendable {
