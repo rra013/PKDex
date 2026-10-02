@@ -2,9 +2,9 @@
 
 Status: **Phases 1 and 2 built** (2026-09-30): the solver
 (`ProblemSolver.swift`) and the Problem Solver tab (`ProblemSolverView.swift`),
-with `ProblemSolverTests`. **Phase 3 in progress,** one PR per feature (§8):
-field options, grouping by Pokémon, the two-hit mode and usage ranking are
-built; the Siri action is next. The owner's decisions are in §8; what
+with `ProblemSolverTests`. **Phase 3 built** (2026-10-02), one PR per
+feature (§8): field options, grouping by Pokémon, the two-hit mode, usage
+ranking and the Siri action. The owner's decisions are in §8; what
 building it showed is in §9.
 
 The goal: a player picks a Pokémon set that's giving them trouble, and the
@@ -232,8 +232,9 @@ and the Mac sidebar, and in More on the iPhone by default.
    - **Built:** a two-hit mode (§8.8).
    - **Built:** ranking by tournament usage (§8.9), from Team Search's
      Limitless teams.
-   - A Siri action: "PK Reference, what beats Incineroar?", answering with
-     the top three in place, like the others (§8.10).
+   - **Built:** a Siri action, Find Counters: "PK Reference, what beats
+     Incineroar?", answering with the top three in place, like the others
+     (§8.10).
 
 ---
 
@@ -372,3 +373,17 @@ Settled for Phase 3, also on 2026-09-30:
   cache (3,970 teams, 71 events), it builds in about 0.1 s; the most used
   answers to bulky Intimidate Incineroar are Archaludon, Milotic and
   Basculegion, each on 14% of teams.
+- **Find Counters** (Phase 3, `FindCountersIntent`): Siri asks which
+  Pokémon and its investment (no investment, full HP and Defense, full HP
+  and Sp. Def, or one of its saved sets; "max def" and "max SpD" are
+  understood). Without a set it gets the ability tournament teams run most,
+  from Team Search's cache (Intimidate for Incineroar), else its first, and
+  the answer names it: "84 Pokémon in Regulation M-C can knock out
+  Intimidate Incineroar in one hit. The best three: Milotic's Scald, Mega
+  Glimmora's Power Gem and Empoleon's Surf, each with no investment,
+  moving first." The order is the screen's (moving first, fewest points),
+  with usage breaking ties, so among answers needing nothing the popular
+  ones come first. One hit, a plain field, the regulation in Settings. The
+  snippet lists the three; Open loads the same set into the Problem
+  Solver. Tried through the Shortcuts app on the simulator, which asks the
+  same questions Siri does.

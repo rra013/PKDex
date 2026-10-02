@@ -38,7 +38,7 @@ and what was checked.
 | [#55](https://github.com/rra013/PKReference/pull/55) | Siri, Spotlight and Shortcuts, Phase 1; the app is named PK Reference |
 | [#56](https://github.com/rra013/PKReference/pull/56) | The Xcode project, targets, module and folders renamed to PKReference |
 
-Full suite with the Problem Solver's usage ranking: 1155 tests, all passing.
+Full suite with Find Counters: 1159 tests, all passing.
 
 ---
 
@@ -364,8 +364,10 @@ Roughly in order of value for effort.
 3. **Siri, Spotlight and Shortcuts.** [`AppIntents-PLAN.md`](AppIntents-PLAN.md):
    App Intents for iPhone, iPad and the Mac. Phases 1 and 2 are built: Look
    Up Pokémon, Calculate Damage, Search Teams, Compare Speed, Check
-   Legality, Show Saved Set, Show Saved Team and Load Set into Damage Calc,
-   answering in place with an Open button; the system's in-app search
+   Legality, Find Counters (the Problem Solver's), Show Saved Set, Show
+   Saved Team and Load Set into Damage Calc, answering in place with an
+   Open button. That's ten App Shortcuts, the most an app can have, so a
+   new one has to replace one; the system's in-app search
    (`.system.search`, which the new Siri looks for); and saved sets and
    teams in Spotlight (`AppIntents.swift`, `SavedIntents.swift`,
    `IntentEntities.swift`, `IntentAnswers.swift`, `IntentSnippets.swift`;
@@ -398,10 +400,10 @@ Roughly in order of value for effort.
    pruned by a heuristic. Phases 1 and 2 are built: the solver
    (`ProblemSolver.swift`) and the tab (`ProblemSolverView.swift`, under
    More on the iPhone), with `ProblemSolverTests`. The whole of M-C, 25,922 candidates, solves in about
-   2 s in a debug build. Phase 3, one PR per feature: field options,
-   grouping by Pokémon, the two-hit mode (fast check, then the battle
-   simulator) and usage ranking (Limitless teams) are built; next is a Siri
-   "what beats X" (decisions in the plan's §8).
+   2 s in a debug build. Phase 3 is built too, one PR per feature: field
+   options, grouping by Pokémon, the two-hit mode (fast check, then the
+   battle simulator), usage ranking (Limitless teams) and Siri's "what
+   beats X" (Find Counters). Decisions in the plan's §8.
 5. **Team Search open risks.**
    - Confirm Limitless's rate limits and terms before corpus builds grow.
    - Early in a regulation there's little data. An "include last

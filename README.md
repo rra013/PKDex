@@ -376,6 +376,12 @@ with a button that opens the page in the app:
 - **Check Legality**: whether a Pokémon, form or Mega is allowed in a
   Champions regulation (the one in Settings unless another is named), and
   why not when it isn't. "PK Reference, is Incineroar legal?"
+- **Find Counters**: what beats a Pokémon, from the Problem Solver: how
+  many Pokémon knock it out in one hit, and the best three (moving first,
+  fewest points). Its investment is asked for (no investment, full HP and
+  Defense, full HP and Sp. Def, or a saved set of that Pokémon); without a
+  set it gets the ability tournament teams run most, and the answer says
+  which. "PK Reference, what beats Incineroar?"
 - **Show Saved Set** and **Show Saved Team**: a set's Pokémon, ability,
   item, nature and moves; a team's Pokémon and, for a Champions team, the
   Battle Sim's legality check. "PK Reference, show my team Sand Offense."
@@ -466,7 +472,7 @@ project has no Swift package dependencies.
    later launches work offline, except for Tournaments. The Mac app is
    sandboxed, with outgoing network access.
 
-**Tests:** 1,155 tests written with Swift Testing. They cover the damage engines
+**Tests:** 1,159 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
 tools, ML parity, the tournament import and data store, Team Search's parser,
