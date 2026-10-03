@@ -106,6 +106,7 @@
 #include <vector>
 #include <cstring>
 #include <thread>
+#include <atomic>
 #include <variant>
 
 // MARK: - Async Search Handle
@@ -547,7 +548,7 @@ extern "C" PFGeneratorState *pf_staticTemplateGenerate3(uint32_t seed,
                                                           int staticType, int staticIndex,
                                                           uint16_t tid, uint16_t sid,
                                                           uint32_t game,
-                                                          uint8_t gender, uint8_t shiny,
+                                                          uint8_t gender, uint8_t ability, uint8_t shiny,
                                                           const uint8_t ivMin[6], const uint8_t ivMax[6],
                                                           const bool natures[25], const bool powers[16],
                                                           int *outCount)
@@ -558,7 +559,7 @@ extern "C" PFGeneratorState *pf_staticTemplateGenerate3(uint32_t seed,
     if (!templates || staticIndex < 0 || staticIndex >= size) return nullptr;
 
     Profile3 profile("", static_cast<Game>(game), tid, sid, false);
-    StateFilter filter = makeFilter(gender, 255, shiny, ivMin, ivMax, natures, powers);
+    StateFilter filter = makeFilter(gender, ability, shiny, ivMin, ivMax, natures, powers);
 
     StaticGenerator3 generator(initialAdvances, maxAdvances, offset,
                                 static_cast<Method>(method), templates[staticIndex], profile, filter);
@@ -642,6 +643,100 @@ extern "C" PFSearcherState *pf_staticSearch3(uint8_t method,
         out[i] = convertSearchState(results[i]);
     }
     return out;
+}
+
+// MARK: - Gen 3 Static Searcher (Async)
+
+// PokéFinder's searcher on its own thread, so results and progress can be
+// read as it goes. With a static encounter's template (staticType 0–7),
+// gender and bugged roamers' IVs follow it; without one (-1), a stand-in
+// like pf_staticSearch3's, whose results are genderless.
+struct PFStaticSearch3 {
+    StaticTemplate3 tmpl;
+    StaticSearcher3 searcher;
+    std::thread thread;
+    std::atomic<bool> done { false };
+
+    PFStaticSearch3(const StaticTemplate3 &tmpl, Method method, const Profile3 &profile, const StateFilter &filter) :
+        tmpl(tmpl), searcher(method, profile, filter)
+    {
+    }
+
+    ~PFStaticSearch3()
+    {
+        if (thread.joinable()) thread.join();
+    }
+};
+
+extern "C" PFStaticSearch3Handle pf_staticSearch3_start(uint8_t method,
+                                                         uint16_t tid, uint16_t sid,
+                                                         uint32_t game,
+                                                         int staticType, int staticIndex,
+                                                         uint8_t gender, uint8_t ability, uint8_t shiny,
+                                                         const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                                         const bool natures[25], const bool powers[16])
+{
+    Profile3 profile("-", static_cast<Game>(game), tid, sid, false);
+    StateFilter filter = makeFilter(gender, ability, shiny, ivMin, ivMax, natures, powers);
+
+    // The stand-in has no game, as pf_staticSearch3's from the Finder had:
+    // species 0 is then genderless, where a Gen 3 game's would say male.
+    StaticTemplate3 tmpl(Game::None, 0, 0, Shiny::Random, 1, false);
+    int size = 0;
+    const StaticTemplate3 *templates = staticType >= 0 ? Encounters3::getStaticEncounters(staticType, &size) : nullptr;
+    if (templates && staticIndex >= 0 && staticIndex < size) tmpl = templates[staticIndex];
+
+    std::array<u8, 6> min, max;
+    std::copy(ivMin, ivMin + 6, min.begin());
+    std::copy(ivMax, ivMax + 6, max.begin());
+
+    // The searcher counts each IV combination it tries; it has no total of
+    // its own, so progress reads as a percentage.
+    u64 total = 1;
+    for (int i = 0; i < 6; i++) total *= min[i] <= max[i] ? static_cast<u64>(max[i] - min[i] + 1) : 0;
+
+    auto *handle = new PFStaticSearch3(tmpl, static_cast<Method>(method), profile, filter);
+    handle->searcher.setMaxProgress(total > 0 ? total : 1);
+    handle->thread = std::thread([handle, min, max]() {
+        handle->searcher.startSearch(min, max, &handle->tmpl);
+        handle->done = true;
+    });
+    return handle;
+}
+
+extern "C" int pf_staticSearch3_progress(PFStaticSearch3Handle h)
+{
+    return static_cast<PFStaticSearch3 *>(h)->searcher.getProgress();
+}
+
+extern "C" bool pf_staticSearch3_done(PFStaticSearch3Handle h)
+{
+    return static_cast<PFStaticSearch3 *>(h)->done;
+}
+
+// The results found since the last call.
+extern "C" PFSearcherState *pf_staticSearch3_getResults(PFStaticSearch3Handle h, int *outCount)
+{
+    auto results = static_cast<PFStaticSearch3 *>(h)->searcher.getResults();
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFSearcherState *>(malloc(sizeof(PFSearcherState) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i] = convertSearchState(results[i]);
+    }
+    return out;
+}
+
+extern "C" void pf_staticSearch3_cancel(PFStaticSearch3Handle h)
+{
+    static_cast<PFStaticSearch3 *>(h)->searcher.cancelSearch();
+}
+
+// Waits for the search's thread, so cancel first to stop early.
+extern "C" void pf_staticSearch3_free(PFStaticSearch3Handle h)
+{
+    delete static_cast<PFStaticSearch3 *>(h);
 }
 
 // MARK: - Gen 4 Static Generator

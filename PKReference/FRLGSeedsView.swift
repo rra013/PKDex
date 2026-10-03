@@ -130,6 +130,8 @@ final class FRLGSeedSearch {
 
     /// The seeds the settings allow; nil until built.
     private(set) var index: FRLGSeedIndex?
+    /// What `index` was built for.
+    private(set) var builtKey: IndexKey?
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -195,12 +197,24 @@ final class FRLGSeedSearch {
         let key = indexKey
         guard let list = await store.list(key.version.sheet) else {
             index = nil
+            builtKey = nil
             return
         }
         let built = await Self.build(list, key.version, key.filter)
         guard key == indexKey else { return }
         index = built
+        builtKey = key
     }
+
+    /// What a target's nearest seed depends on: the seeds, and the advances
+    /// allowed.
+    struct ReachKey: Equatable {
+        let index: IndexKey?
+        let minimum: UInt32
+        let maximum: UInt32
+    }
+
+    var reachKey: ReachKey { ReachKey(index: builtKey, minimum: range.minimum, maximum: range.maximum) }
 
     @concurrent
     nonisolated private static func build(_ list: FRLGSeedList, _ version: FRLGVersion,
@@ -552,6 +566,49 @@ struct FRLGHeldChoice {
             }
         }
         return merged
+    }
+}
+
+// MARK: - Reachable Targets
+
+/// A target the Finder found, and the seed that reaches it in the fewest
+/// advances.
+struct FRLGMatch: Identifiable {
+    let result: StaticSearchResult
+    let seed: FRLGInitialSeed
+    var id: UUID { result.id }
+}
+
+/// The Finder's reachable targets, kept up as results come in: each new
+/// result is checked once, and every one again only when the seeds or the
+/// advances allowed change, so a long search's list doesn't slow down as it
+/// grows.
+final class FRLGMatchCache {
+    private var key: FRLGSeedSearch.ReachKey?
+    private var firstID: UUID?
+    private var checked = 0
+    private var matches: [FRLGMatch] = []
+
+    /// Fewest advances first.
+    func matches(for results: [StaticSearchResult], search: FRLGSeedSearch) -> [FRLGMatch] {
+        let key = search.reachKey
+        // A new search, or new settings.
+        if key != self.key || results.first?.id != firstID || results.count < checked {
+            self.key = key
+            firstID = results.first?.id
+            checked = 0
+            matches = []
+        }
+        guard checked < results.count else { return matches }
+        let found = results[checked...].compactMap { result in
+            search.nearest(reaching: result.seed).map { FRLGMatch(result: result, seed: $0) }
+        }
+        checked = results.count
+        if !found.isEmpty {
+            matches.append(contentsOf: found)
+            matches.sort { $0.seed.advances < $1.seed.advances }
+        }
+        return matches
     }
 }
 

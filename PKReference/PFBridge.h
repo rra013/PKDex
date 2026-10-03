@@ -199,6 +199,21 @@ typedef struct {
 
 // MARK: - Async Searcher Handle
 
+typedef void *PFStaticSearch3Handle;
+
+PFStaticSearch3Handle pf_staticSearch3_start(uint8_t method,
+                                             uint16_t tid, uint16_t sid,
+                                             uint32_t game,
+                                             int staticType, int staticIndex,
+                                             uint8_t gender, uint8_t ability, uint8_t shiny,
+                                             const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                             const bool natures[25], const bool powers[16]);
+int pf_staticSearch3_progress(PFStaticSearch3Handle handle);
+bool pf_staticSearch3_done(PFStaticSearch3Handle handle);
+PFSearcherState *pf_staticSearch3_getResults(PFStaticSearch3Handle handle, int *outCount);
+void pf_staticSearch3_cancel(PFStaticSearch3Handle handle);
+void pf_staticSearch3_free(PFStaticSearch3Handle handle);
+
 typedef void *PFSearchHandle;
 
 PFSearchHandle pf_wildSearch3_start(uint8_t method, uint8_t lead,
@@ -538,7 +553,7 @@ PFGeneratorState *pf_staticTemplateGenerate3(uint32_t seed,
                                               int staticType, int staticIndex,
                                               uint16_t tid, uint16_t sid,
                                               uint32_t game,
-                                              uint8_t gender, uint8_t shiny,
+                                              uint8_t gender, uint8_t ability, uint8_t shiny,
                                               const uint8_t ivMin[6], const uint8_t ivMax[6],
                                               const bool natures[25], const bool powers[16],
                                               int *outCount);

@@ -1005,6 +1005,8 @@ nonisolated func staticGenerateGen3Streaming(
     sid: UInt16,
     shinyOnly: Bool,
     method: FinderMethod,
+    game: PFGame = .none,
+    template: PFStaticTemplateRef? = nil,
     filterGender: UInt8 = 255,
     filterAbility: UInt8 = 255,
     hiddenPowers: [Bool] = Array(repeating: false, count: 16),
@@ -1015,11 +1017,21 @@ nonisolated func staticGenerateGen3Streaming(
     for n in natures { natArr[Int(n)] = true }
     let shinyFilter: UInt8 = shinyOnly ? 1 : 255
 
-    let results = PFBridge.staticGenerate3(
-        seed: seed, initialAdvances: initialAdvance, maxAdvances: maxAdvance,
-        method: pfMethod, tid: tid, sid: sid,
-        filterGender: filterGender, filterAbility: filterAbility,
-        filterShiny: shinyFilter, natures: natArr, powers: hiddenPowers)
+    // The encounter's template gives its gender; without one, every result
+    // is genderless.
+    let results = if let template {
+        PFBridge.staticTemplateGenerate3(
+            seed: seed, initialAdvances: initialAdvance, maxAdvances: maxAdvance,
+            method: pfMethod, template: template, tid: tid, sid: sid, game: game,
+            filterGender: filterGender, filterAbility: filterAbility,
+            filterShiny: shinyFilter, natures: natArr, powers: hiddenPowers)
+    } else {
+        PFBridge.staticGenerate3(
+            seed: seed, initialAdvances: initialAdvance, maxAdvances: maxAdvance,
+            method: pfMethod, tid: tid, sid: sid,
+            filterGender: filterGender, filterAbility: filterAbility,
+            filterShiny: shinyFilter, natures: natArr, powers: hiddenPowers)
+    }
 
     for r in results {
         if Task.isCancelled { return }
@@ -1058,6 +1070,10 @@ nonisolated func staticSearchGen3(
     return results
 }
 
+/// The search runs on its own thread and is read every tenth of a second,
+/// so results and progress come in as it goes. `template` is the static
+/// encounter's, for its gender and bugged roamers' IVs; without one, every
+/// result is genderless.
 nonisolated func staticSearchGen3Streaming(
     minIVs: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8),
     maxIVs: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8),
@@ -1066,9 +1082,12 @@ nonisolated func staticSearchGen3Streaming(
     sid: UInt16,
     shinyOnly: Bool,
     method: FinderMethod,
+    game: PFGame = .none,
+    template: PFStaticTemplateRef? = nil,
     filterGender: UInt8 = 255,
     filterAbility: UInt8 = 255,
     hiddenPowers: [Bool] = Array(repeating: false, count: 16),
+    onProgress: (Double) -> Void = { _ in },
     onResult: (StaticSearchResult) -> Void
 ) {
     let pfMethod = finderMethodToPF(method)
@@ -1078,24 +1097,38 @@ nonisolated func staticSearchGen3Streaming(
     let ivMin = [minIVs.0, minIVs.1, minIVs.2, minIVs.3, minIVs.4, minIVs.5]
     let ivMax = [maxIVs.0, maxIVs.1, maxIVs.2, maxIVs.3, maxIVs.4, maxIVs.5]
 
-    let results = PFBridge.staticSearch3(
-        method: pfMethod, tid: tid, sid: sid,
+    let handle = PFBridge.staticSearch3Start(
+        method: pfMethod, tid: tid, sid: sid, game: game, template: template,
         filterGender: filterGender, filterAbility: filterAbility,
         filterShiny: shinyFilter, ivMin: ivMin, ivMax: ivMax,
         natures: natArr, powers: hiddenPowers)
+    defer { PFBridge.staticSearch3Free(handle) }
 
-    for r in results {
-        if Task.isCancelled { return }
-        onResult(StaticSearchResult(
-            seed: r.seed, pid: r.pid,
-            ivHP: r.ivs[0], ivAtk: r.ivs[1], ivDef: r.ivs[2],
-            ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
-            nature: r.nature, ability: r.ability,
-            gender: r.gender, shiny: r.shiny > 0,
-            advances: 0, method: method,
-            hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength
-        ))
+    func send(_ results: [PFSearcherStateSwift]) {
+        for r in results {
+            onResult(StaticSearchResult(
+                seed: r.seed, pid: r.pid,
+                ivHP: r.ivs[0], ivAtk: r.ivs[1], ivDef: r.ivs[2],
+                ivSpA: r.ivs[3], ivSpD: r.ivs[4], ivSpe: r.ivs[5],
+                nature: r.nature, ability: r.ability,
+                gender: r.gender, shiny: r.shiny > 0,
+                advances: 0, method: method,
+                hiddenPower: r.hiddenPower, hiddenPowerStrength: r.hiddenPowerStrength
+            ))
+        }
     }
+
+    while !PFBridge.staticSearch3Done(handle) {
+        if Task.isCancelled {
+            PFBridge.staticSearch3Cancel(handle)
+            return
+        }
+        send(PFBridge.staticSearch3Results(handle))
+        onProgress(Double(PFBridge.staticSearch3Progress(handle)))
+        Thread.sleep(forTimeInterval: 0.1)
+    }
+    send(PFBridge.staticSearch3Results(handle))
+    onProgress(100)
 }
 
 // ============================================================================
@@ -3434,6 +3467,7 @@ struct FinderRootView: View {
 
     /// FireRed and LeafGreen initial seeds.
     @State private var frlg = FRLGSeedSearch()
+    @State private var frlgMatches = FRLGMatchCache()
 
     // State — separate results for searcher and generator
     @State private var searcherResults: [StaticSearchResult] = []
@@ -3799,6 +3833,12 @@ struct FinderRootView: View {
                             Text("Female").tag(UInt8(1))
                             Text("Genderless").tag(UInt8(2))
                         }
+                        if generation == .gen3, encounterMode == .static_, selectedEncounter == nil,
+                           filterGender == 0 || filterGender == 1 {
+                            Text("Gender comes from the Pokémon: choose it under Encounter, or every result is genderless.")
+                                .font(.caption).foregroundStyle(.orange)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
 
                         Picker("Ability", selection: $filterAbility) {
                             Text("Any").tag(UInt8(255))
@@ -3976,10 +4016,7 @@ struct FinderRootView: View {
 
     /// The search's targets that a seed the player can hit reaches in range,
     /// fewest advances first.
-    private var frlgResults: [(result: StaticSearchResult, seed: FRLGInitialSeed)] {
-        searcherResults.compactMap { r in frlg.nearest(reaching: r.seed).map { (r, $0) } }
-            .sorted { $0.seed.advances < $1.seed.advances }
-    }
+    private var frlgResults: [FRLGMatch] { frlgMatches.matches(for: searcherResults, search: frlg) }
 
     @ViewBuilder
     private var frlgResultsSection: some View {
@@ -3987,6 +4024,10 @@ struct FinderRootView: View {
         SectionCard(title: "Reachable (\(matches.count.formatted()) of \(searcherResults.count.formatted()))", icon: "list.bullet") {
             if frlg.index == nil {
                 ProgressView("Loading the seed list…")
+            } else if matches.isEmpty, isSearching {
+                Text("None of the targets found so far is \(frlg.minimumAdvances.formatted())–\(frlg.maximumAdvances.formatted()) advances from a seed you can hit. Still searching.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             } else if matches.isEmpty {
                 Text("None of these targets is \(frlg.minimumAdvances.formatted())–\(frlg.maximumAdvances.formatted()) advances from a seed you can hit with these settings. Widen the range, loosen the settings, or relax the filters.")
                     .font(.subheadline).foregroundStyle(.secondary)
@@ -4833,6 +4874,11 @@ struct FinderRootView: View {
             return findLocationID(pfGame: pfGameVal, pfEnc: pfEncVal,
                                   isGen3: isGen3, locationName: encLocation)
         }()
+        // A Gen 3 static encounter's template, for its gender.
+        let gen3Template: PFStaticTemplateRef? = gen == .gen3 && encMode == .static_
+            ? selectedEncounter.flatMap {
+                PFBridge.staticTemplate3(species: $0.species, game: pfGameVal, preferring: $0.category.pfStaticType3)
+            } : nil
         let slotSpecies: [UInt16]
         if let route = PFEncounterDataProvider.wildEncounter(for: selectedGame,
                                                               location: encLocation,
@@ -4993,8 +5039,10 @@ struct FinderRootView: View {
                         maxIVs: (hpMax, atkMax, defMax, spaMax, spdMax, speMax),
                         natures: natFilter, tid: tID, sid: sID,
                         shinyOnly: shiny, method: meth,
+                        game: pfGameVal, template: gen3Template,
                         filterGender: genderFilter, filterAbility: abilityFilter,
-                        hiddenPowers: hpFilter
+                        hiddenPowers: hpFilter,
+                        onProgress: { continuation.yield(.progress($0)) }
                     ) { continuation.yield(.result($0)) }
                 } else {
                     staticSearchGen4Streaming(
@@ -5016,6 +5064,7 @@ struct FinderRootView: View {
                         maxAdvance: maxAdv,
                         natures: natFilter, tid: tID, sid: sID,
                         shinyOnly: shiny, method: meth,
+                        game: pfGameVal, template: gen3Template,
                         filterGender: genderFilter, filterAbility: abilityFilter,
                         hiddenPowers: hpFilter
                     ) { continuation.yield(.result($0)) }

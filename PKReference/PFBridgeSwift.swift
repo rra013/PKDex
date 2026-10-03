@@ -481,14 +481,15 @@ nonisolated enum PFBridge {
     static func staticTemplateGenerate3(seed: UInt32, initialAdvances: UInt32, maxAdvances: UInt32, offset: UInt32 = 0,
                                          method: PFMethod, template: PFStaticTemplateRef,
                                          tid: UInt16, sid: UInt16, game: PFGame,
-                                         filterGender: UInt8 = 255, filterShiny: UInt8 = 255,
+                                         filterGender: UInt8 = 255, filterAbility: UInt8 = 255, filterShiny: UInt8 = 255,
                                          ivMin: [UInt8] = [0,0,0,0,0,0], ivMax: [UInt8] = [31,31,31,31,31,31],
                                          natures: [Bool] = Array(repeating: false, count: 25),
                                          powers: [Bool] = Array(repeating: false, count: 16)) -> [PFGeneratorStateSwift] {
         var count: Int32 = 0
         let ptr = pf_staticTemplateGenerate3(seed, initialAdvances, maxAdvances, offset, method.rawValue,
                                              template.type, template.index, tid, sid, game.rawValue,
-                                             filterGender, filterShiny, ivMin, ivMax, natures, powers, &count)
+                                             filterGender, filterAbility, filterShiny, ivMin, ivMax, natures, powers,
+                                             &count)
         guard let ptr else { return [] }
         defer { pf_freeResults(ptr) }
 
@@ -521,6 +522,56 @@ nonisolated enum PFBridge {
     }
 
     // MARK: Gen 3 Searcher
+
+    /// Starts PokéFinder's Gen 3 static searcher on its own thread: poll
+    /// `staticSearch3Results` and `staticSearch3Progress` until
+    /// `staticSearch3Done`, then `staticSearch3Free`. With the encounter's
+    /// `template`, gender and bugged roamers' IVs follow it; without one,
+    /// every result is genderless.
+    static func staticSearch3Start(method: PFMethod, tid: UInt16, sid: UInt16, game: PFGame,
+                                   template: PFStaticTemplateRef?,
+                                   filterGender: UInt8 = 255, filterAbility: UInt8 = 255, filterShiny: UInt8 = 255,
+                                   ivMin: [UInt8] = [0,0,0,0,0,0], ivMax: [UInt8] = [31,31,31,31,31,31],
+                                   natures: [Bool] = Array(repeating: false, count: 25),
+                                   powers: [Bool] = Array(repeating: false, count: 16)) -> UnsafeMutableRawPointer {
+        pf_staticSearch3_start(method.rawValue, tid, sid, game.rawValue,
+                               template?.type ?? -1, template?.index ?? -1,
+                               filterGender, filterAbility, filterShiny, ivMin, ivMax, natures, powers)
+    }
+
+    /// 0–100.
+    static func staticSearch3Progress(_ handle: UnsafeMutableRawPointer) -> Int {
+        Int(pf_staticSearch3_progress(handle))
+    }
+
+    static func staticSearch3Done(_ handle: UnsafeMutableRawPointer) -> Bool {
+        pf_staticSearch3_done(handle)
+    }
+
+    /// What the search has found since the last call.
+    static func staticSearch3Results(_ handle: UnsafeMutableRawPointer) -> [PFSearcherStateSwift] {
+        var count: Int32 = 0
+        guard let ptr = pf_staticSearch3_getResults(handle, &count) else { return [] }
+        defer { pf_freeResults(ptr) }
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            let ivs = [r.ivs.0, r.ivs.1, r.ivs.2, r.ivs.3, r.ivs.4, r.ivs.5]
+            return PFSearcherStateSwift(seed: r.seed, pid: r.pid, ivs: ivs,
+                                         nature: r.nature, ability: r.ability,
+                                         gender: r.gender, shiny: r.shiny,
+                                         hiddenPower: r.hiddenPower,
+                                         hiddenPowerStrength: r.hiddenPowerStrength)
+        }
+    }
+
+    static func staticSearch3Cancel(_ handle: UnsafeMutableRawPointer) {
+        pf_staticSearch3_cancel(handle)
+    }
+
+    /// Waits for the search to end, so cancel first to stop it early.
+    static func staticSearch3Free(_ handle: UnsafeMutableRawPointer) {
+        pf_staticSearch3_free(handle)
+    }
 
     static func staticSearch3(method: PFMethod,
                                tid: UInt16, sid: UInt16,
