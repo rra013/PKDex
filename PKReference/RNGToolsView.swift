@@ -2196,6 +2196,9 @@ final class FinderTimerBridge {
     static let shared = FinderTimerBridge()
     var pendingGen: TimerGeneration?
     var pendingTargetFrame: Int?
+    /// FireRed and LeafGreen: the seed time, as the Gen 3 pre-timer.
+    var pendingPreTimer: Int?
+    var pendingConsole: RNGConsole?
     var pendingTargetDelay: Int?
     var pendingTargetSecond: Int?
     var shouldSwitchToTimer: Bool = false
@@ -2205,6 +2208,8 @@ final class FinderTimerBridge {
     func clear() {
         pendingGen = nil
         pendingTargetFrame = nil
+        pendingPreTimer = nil
+        pendingConsole = nil
         pendingTargetDelay = nil
         pendingTargetSecond = nil
         shouldSwitchToTimer = false
@@ -2749,6 +2754,13 @@ struct RNGTimerView: View {
                 generation = gen
                 if gen == .gen3, let frame = bridge.pendingTargetFrame {
                     gen3TargetFrame = frame
+                }
+                if gen == .gen3, let preTimer = bridge.pendingPreTimer {
+                    gen3Mode = .standard
+                    gen3PreTimer = preTimer
+                }
+                if let console = bridge.pendingConsole {
+                    consoleType = console
                 }
                 if gen == .gen4 {
                     if let delay = bridge.pendingTargetDelay {
@@ -3412,6 +3424,9 @@ struct FinderRootView: View {
     @State private var callSearchRange: Int = 200
     @State private var roamerCount: UInt8 = 0
 
+    /// FireRed and LeafGreen initial seeds.
+    @State private var frlg = FRLGSeedSearch()
+
     // State — separate results for searcher and generator
     @State private var searcherResults: [StaticSearchResult] = []
     @State private var generatorResults: [StaticSearchResult] = []
@@ -3787,6 +3802,10 @@ struct FinderRootView: View {
                     }
                 }
 
+                if frlgApplies {
+                    FRLGInitialSeedSection(search: frlg, fireRed: selectedGame == .fireRed)
+                }
+
                 // Search / Stop button
                 if isSearching {
                     VStack(spacing: 8) {
@@ -3819,7 +3838,9 @@ struct FinderRootView: View {
                     .buttonStyle(.primaryAction)
                 }
 
-                if !activeResults.isEmpty {
+                if frlgFiltering {
+                    if !searcherResults.isEmpty { frlgResultsSection }
+                } else if !activeResults.isEmpty {
                     SectionCard(title: "Results (\(activeResults.count))", icon: "list.bullet") {
                         ForEach(activeResults.prefix(500)) { r in
                             Button { selectedResult = r } label: {
@@ -3839,10 +3860,10 @@ struct FinderRootView: View {
         #endif
         .navigationDestination(item: $selectedResult) { result in
             SeedToTimeView(result: result, generation: generation,
-                           tid: tid, sid: sid, method: method) { seed in
+                           tid: tid, sid: sid, method: method, onUseInGenerator: { seed in
                 genSeedText = String(format: "%08X", seed)
                 mode = .generator
-            }
+            }, frlg: frlgFiltering ? frlg : nil)
         }
         .alert("Save Profile", isPresented: $showSaveAlert) {
             TextField("Profile name", text: $newProfileName)
@@ -3934,12 +3955,54 @@ struct FinderRootView: View {
     // MARK: Result Row View
 
     @ViewBuilder
-    private func resultRowView(_ r: StaticSearchResult) -> some View {
+    /// FireRed and LeafGreen searches can be narrowed to targets reachable
+    /// from a seed the player can hit.
+    private var frlgApplies: Bool {
+        generation == .gen3 && (selectedGame == .fireRed || selectedGame == .leafGreen)
+            && mode == .searcher && encounterMode != .id
+    }
+
+    private var frlgFiltering: Bool { frlgApplies && frlg.enabled }
+
+    /// The search's targets that a seed the player can hit reaches in range,
+    /// fewest advances first.
+    private var frlgResults: [(result: StaticSearchResult, seed: FRLGInitialSeed)] {
+        searcherResults.compactMap { r in frlg.nearest(reaching: r.seed).map { (r, $0) } }
+            .sorted { $0.seed.advances < $1.seed.advances }
+    }
+
+    @ViewBuilder
+    private var frlgResultsSection: some View {
+        let matches = frlgResults
+        SectionCard(title: "Reachable (\(matches.count.formatted()) of \(searcherResults.count.formatted()))", icon: "list.bullet") {
+            if frlg.index == nil {
+                ProgressView("Loading the seed list…")
+            } else if matches.isEmpty {
+                Text("None of these targets is \(frlg.minimumAdvances.formatted())–\(frlg.maximumAdvances.formatted()) advances from a seed you can hit with these settings. Widen the range, loosen the settings, or relax the filters.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(matches.prefix(500), id: \.result.id) { match in
+                Button { selectedResult = match.result } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        resultRowView(match.result, showAdvances: false)
+                        FRLGMatchLine(seed: match.seed, search: frlg)
+                    }
+                }
+                .buttonStyle(.plain)
+                Divider()
+            }
+        }
+    }
+
+    /// `showAdvances` is off for a FireRed or LeafGreen target, whose
+    /// advances come from its initial seed instead.
+    private func resultRowView(_ r: StaticSearchResult, showAdvances: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             if r.resultTID != nil {
                 idResultRow(r)
             } else {
-                standardResultRow(r)
+                standardResultRow(r, showAdvances: showAdvances)
             }
         }
         .contentShape(Rectangle())
@@ -3971,7 +4034,7 @@ struct FinderRootView: View {
     }
 
     @ViewBuilder
-    private func standardResultRow(_ r: StaticSearchResult) -> some View {
+    private func standardResultRow(_ r: StaticSearchResult, showAdvances: Bool = true) -> some View {
         HStack {
             if let name = r.specieName {
                 Text(name).font(.caption).bold()
@@ -3980,7 +4043,9 @@ struct FinderRootView: View {
                 }
             }
             Spacer()
-            if let ivAdv = r.ivAdvances {
+            if !showAdvances {
+                EmptyView()
+            } else if let ivAdv = r.ivAdvances {
                 Text("Adv: \(r.advances)/\(ivAdv)")
                     .font(.system(.caption, design: .monospaced))
             } else {
@@ -5026,6 +5091,9 @@ struct SeedToTimeView: View {
     let sid: UInt16
     let method: FinderMethod
     var onUseInGenerator: ((UInt32) -> Void)?
+    /// FireRed and LeafGreen: the seeds the player can hit, in place of
+    /// Ruby and Sapphire's clock times.
+    var frlg: FRLGSeedSearch? = nil
 
     @State private var timeResults3: [SeedToTimeResult3] = []
     @State private var timeResults4: [SeedToTimeResult4] = []
@@ -5050,13 +5118,19 @@ struct SeedToTimeView: View {
         ScrollView {
             CardStack {
                 targetSummary
-                timeResultsSection
+                if let frlg {
+                    FRLGInitialSeedList(target: result.seed, search: frlg) { seed, preTimer, frame in
+                        sendToTimerFRLG(seed, preTimer: preTimer, frame: frame)
+                    }
+                } else {
+                    timeResultsSection
+                }
                 verifySection
             }
             .padding()
         }
-        .navigationTitle("Seed to Time")
-        .task { await computeTimes() }
+        .navigationTitle(frlg == nil ? "Seed to Time" : "Initial Seeds")
+        .task { if frlg == nil { await computeTimes() } }
     }
 
     private var targetSummary: some View {
@@ -5084,7 +5158,9 @@ struct SeedToTimeView: View {
                 LabeledContent("IVs", value: result.ivSummary)
                     .font(.system(.body, design: .monospaced))
                 LabeledContent("Nature", value: result.natureName)
-                LabeledContent("Advances", value: "\(result.advances)")
+                if frlg == nil {
+                    LabeledContent("Advances", value: "\(result.advances)")
+                }
                 if result.shiny {
                     HStack {
                         Text("Shiny")
@@ -5106,7 +5182,7 @@ struct SeedToTimeView: View {
                 }
             }
 
-            if generation == .gen3 {
+            if generation == .gen3 && frlg == nil {
                 SectionCard(title: "Origin Seed", icon: "arrow.uturn.backward") {
                     LabeledContent("16-bit Seed", value: String(format: "%04X", originSeed))
                         .font(.system(.body, design: .monospaced))
@@ -5235,6 +5311,20 @@ struct SeedToTimeView: View {
         bridge.pendingGen = .gen3
         bridge.pendingTargetFrame = Int(advances)
         bridge.selectedTime = timeText
+        bridge.selectedSeed = result.seedHex
+        bridge.shouldSwitchToTimer = true
+        dismiss()
+    }
+
+    /// Two phases on the Gen 3 timer: the seed time, then the target frame.
+    private func sendToTimerFRLG(_ seed: FRLGInitialSeed, preTimer: Int, frame: UInt32) {
+        let bridge = FinderTimerBridge.shared
+        bridge.pendingGen = .gen3
+        bridge.pendingPreTimer = preTimer
+        bridge.pendingTargetFrame = Int(frame)
+        // Switch FireRed and LeafGreen run at the GBA's frame rate.
+        bridge.pendingConsole = .gba
+        bridge.selectedTime = "initial seed \(String(format: "%04X", seed.seed)), \(seed.settingsName)"
         bridge.selectedSeed = result.seedHex
         bridge.shouldSwitchToTimer = true
         dismiss()
@@ -5526,6 +5616,18 @@ struct RNGCreditsView: View {
                             .font(.caption).foregroundStyle(.secondary)
                         Link("github.com/Admiral-Fish/PokeFinder",
                              destination: URL(string: "https://github.com/Admiral-Fish/PokeFinder")!)
+                            .font(.caption)
+                    }
+                }
+
+                SectionCard(title: "FireRed and LeafGreen Initial Seeds", icon: "power") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Ported from Ten Lines").font(.headline)
+                        Text("by Lincoln-LM (GPLv3)").foregroundStyle(.secondary)
+                        Text("The Finder's initial seeds for FireRed and LeafGreen: how each farmed seed list is laid out, the held-button offsets, seed times per console, Teachy TV, and finding the seeds that reach a target by advances. The seed lists are the RNG community's, farmed on each version and shared as public sheets.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Link("github.com/Lincoln-LM/ten-lines",
+                             destination: URL(string: "https://github.com/Lincoln-LM/ten-lines")!)
                             .font(.caption)
                     }
                 }
