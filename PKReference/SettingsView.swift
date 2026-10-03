@@ -265,7 +265,7 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        Text("Data from PokeAPI, Serebii and Limitless. The damage calculator is ported from Smogon's, and the RNG tools from PokéFinder and EonTimer.")
+                        Text("Data from PokeAPI, Serebii and Limitless. The damage calculator is ported from Smogon's, and the RNG tools from PokéFinder, EonTimer and Ten Lines.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 

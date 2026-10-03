@@ -58,6 +58,11 @@ struct Acknowledgement: Identifiable {
             name: "Smogon", credit: "Smogon University",
             use: "Ladder usage statistics, for Team Search's teammate suggestions",
             url: URL(string: "https://www.smogon.com/stats/")!, license: nil, licenseFiles: []),
+        Acknowledgement(
+            name: "FireRed and LeafGreen seed lists", credit: "The Pokémon RNG community's seed farmers",
+            use: "The seeds each FireRed and LeafGreen version can hit, for the Finder's initial seeds",
+            url: URL(string: "https://docs.google.com/spreadsheets/d/1mbn2-XAtmV7HZ1p4esgvUG710VX6FlfhN_HYL_zLJSk")!,
+            license: nil, licenseFiles: []),
     ]
 
     static let code: [Acknowledgement] = [
@@ -77,6 +82,11 @@ struct Acknowledgement: Identifiable {
             use: "The RNG tools' generators, searchers and encounter data",
             url: URL(string: "https://github.com/Admiral-Fish/PokeFinder")!,
             license: "GPL-3.0-or-later", licenseFiles: ["COPYING"]),
+        Acknowledgement(
+            name: "Ten Lines", credit: "Lincoln-LM",
+            use: "FireRed and LeafGreen initial seeds: the seed lists' layouts, held buttons, timing and Teachy TV",
+            url: URL(string: "https://github.com/Lincoln-LM/ten-lines")!,
+            license: "GPL-3.0", licenseFiles: ["License-GPL-3.0.txt"]),
         Acknowledgement(
             name: "EonTimer", credit: "DasAmpharos",
             use: "The RNG timer",

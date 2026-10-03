@@ -38,7 +38,7 @@ and what was checked.
 | [#55](https://github.com/rra013/PKReference/pull/55) | Siri, Spotlight and Shortcuts, Phase 1; the app is named PK Reference |
 | [#56](https://github.com/rra013/PKReference/pull/56) | The Xcode project, targets, module and folders renamed to PKReference |
 
-Full suite with Sturdy, Focus Sash and Disguise: 1164 tests, all passing.
+Full suite with FireRed/LeafGreen initial seeds: 1173 tests, all passing.
 
 ---
 
@@ -414,7 +414,27 @@ Roughly in order of value for effort.
 6. **Gen 9 in the Showdown port.** Only Champions is ported; other
    generations use the legacy engine, and `calculateShowdown` stops with a
    clear error for them. See [`PKReference/ShowdownPort-NOTES.md`](PKReference/ShowdownPort-NOTES.md).
-7. **App Store.** Blocked on the GPL until PokéFinder's authors give
+7. **FireRed and LeafGreen initial seeds** (built 2026-10-03), ported from
+   [Ten Lines](https://github.com/Lincoln-LM/ten-lines) (GPL-3.0, no "or
+   later"; see `THIRD_PARTY_NOTICES.md`). In the Finder's Gen 3 FireRed or
+   LeafGreen search, Initial Seed narrows the targets to those a seed you
+   can hit reaches in your advance range, for every version Ten Lines knows
+   (GBA ENG/EU/JPN, mGBA, Switch ENG/EU and JPN), by sound, button mode,
+   seed button and held button, with Teachy TV on GBA. The options start on
+   the game's own (Mono, Help, A, nothing held), which every list farms;
+   settings a version's list hasn't farmed are marked "(not farmed)", the
+   card says what the list covers, and warns when the choices find nothing.
+   A target's page lists
+   its seeds with seed times per console, and Send to Timer sets the Gen 3
+   timer's pre-timer and target frame. `FRLGSeeds.swift` is the engine,
+   `FRLGSeedsView.swift` the screens; the farmed lists are bundled
+   (`PKReference/frlg-seeds-*.csv`, refreshed by `tools/update_frlg_seeds.sh`)
+   and Update Seed Lists downloads newer ones in the app. Left, as decided:
+   Ten Lines' calibration tab (which seed you hit, from the Pokémon you got,
+   with its IV calculation). Also open: Teachy TV on Switch, which Ten Lines
+   hasn't worked out either, and the Switch lists' settings nobody has farmed
+   yet (Ten Lines leaves those columns out, and so does the app).
+8. **App Store.** Blocked on the GPL until PokéFinder's authors give
    permission, or the RNG core is rewritten per
    [`RNGRewrite-PLAN.md`](RNGRewrite-PLAN.md) (on hold).
 
