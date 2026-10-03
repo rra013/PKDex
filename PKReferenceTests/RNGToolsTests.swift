@@ -805,7 +805,17 @@ struct FinderTypesTests {
         #expect(pfNatureNames.count == 25)
         #expect(pfNatureNames[0] == "Hardy")
         #expect(pfNatureNames[3] == "Adamant")
-        #expect(pfNatureNames[15] == "Calm")
+        #expect(pfNatureNames[10] == "Timid")
+        #expect(pfNatureNames[15] == "Modest")
+        #expect(pfNatureNames[24] == "Quirky")
+    }
+
+    /// The names follow PokéFinder's, so a result's nature (pid % 25) is
+    /// named as the game names it.
+    @Test func pfNatureNames_matchPokeFinder() {
+        #expect(pfNatureNames == PFBridge.allNatureNames())
+        // PID 45CA66AF: 1,170,892,463 % 25 is 13, a Jolly Pokémon.
+        #expect(pfNatureNames[Int(0x45CA66AF % 25)] == "Jolly")
     }
 }
 
@@ -818,13 +828,13 @@ func pfComputeStatPublic(baseStat: UInt16, iv: UInt8, nature: UInt8, level: UInt
         [1.1, 1.0, 1.0, 0.9, 1.0], [0.9, 1.1, 1.0, 1.0, 1.0],
         [1.0, 1.0, 1.0, 1.0, 1.0], [1.0, 1.1, 1.0, 1.0, 0.9],
         [1.0, 1.1, 0.9, 1.0, 1.0], [1.0, 1.1, 1.0, 0.9, 1.0],
-        [0.9, 1.0, 1.1, 1.0, 1.0], [1.0, 0.9, 1.1, 1.0, 1.0],
-        [1.0, 1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.1, 1.0, 0.9],
-        [1.0, 1.0, 1.1, 0.9, 1.0], [0.9, 1.0, 1.0, 1.1, 1.0],
-        [1.0, 0.9, 1.0, 1.1, 1.0], [1.0, 1.0, 0.9, 1.1, 1.0],
-        [1.0, 1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.1, 0.9],
         [0.9, 1.0, 1.0, 1.0, 1.1], [1.0, 0.9, 1.0, 1.0, 1.1],
-        [1.0, 1.0, 0.9, 1.0, 1.1], [1.0, 1.0, 1.0, 0.9, 1.1],
+        [1.0, 1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 0.9, 1.0, 1.1],
+        [1.0, 1.0, 1.0, 0.9, 1.1], [0.9, 1.0, 1.1, 1.0, 1.0],
+        [1.0, 0.9, 1.1, 1.0, 1.0], [1.0, 1.0, 1.1, 1.0, 0.9],
+        [1.0, 1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.1, 0.9, 1.0],
+        [0.9, 1.0, 1.0, 1.1, 1.0], [1.0, 0.9, 1.0, 1.1, 1.0],
+        [1.0, 1.0, 1.0, 1.1, 0.9], [1.0, 1.0, 0.9, 1.1, 1.0],
         [1.0, 1.0, 1.0, 1.0, 1.0],
     ]
     let stat = ((2 * baseStat + UInt16(iv)) * UInt16(level)) / 100

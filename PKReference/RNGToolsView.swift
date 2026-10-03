@@ -599,13 +599,15 @@ nonisolated enum LCRNGReverse {
 // MARK: - PokeFinder Port: Finder Types & Models
 // ============================================================================
 
-/// Nature names in game-engine index order (pid % 25). Matches pfNatureModifiers.
+/// Nature names in game-engine index order (pid % 25), PokéFinder's order.
+/// Matches pfNatureModifiers. As a 5×5 grid, rows raise Attack, Defense,
+/// Speed, Sp. Atk, Sp. Def and columns lower them, in that order.
 let pfNatureNames: [String] = [
     "Hardy", "Lonely", "Brave", "Adamant", "Naughty",
     "Bold", "Docile", "Relaxed", "Impish", "Lax",
-    "Modest", "Mild", "Bashful", "Quiet", "Rash",
-    "Calm", "Gentle", "Careful", "Quirky", "Sassy",
-    "Timid", "Hasty", "Jolly", "Naive", "Serious"
+    "Timid", "Hasty", "Serious", "Jolly", "Naive",
+    "Modest", "Mild", "Quiet", "Bashful", "Rash",
+    "Calm", "Gentle", "Sassy", "Careful", "Quirky"
 ]
 
 enum FinderGeneration: String, CaseIterable, Identifiable {
@@ -2235,21 +2237,21 @@ private let pfNatureModifiers: [[Float]] = [
     [1.0, 1.1, 1.0, 1.0, 0.9], // Relaxed
     [1.0, 1.1, 0.9, 1.0, 1.0], // Impish
     [1.0, 1.1, 1.0, 0.9, 1.0], // Lax
+    [0.9, 1.0, 1.0, 1.0, 1.1], // Timid
+    [1.0, 0.9, 1.0, 1.0, 1.1], // Hasty
+    [1.0, 1.0, 1.0, 1.0, 1.0], // Serious
+    [1.0, 1.0, 0.9, 1.0, 1.1], // Jolly
+    [1.0, 1.0, 1.0, 0.9, 1.1], // Naive
     [0.9, 1.0, 1.1, 1.0, 1.0], // Modest
     [1.0, 0.9, 1.1, 1.0, 1.0], // Mild
-    [1.0, 1.0, 1.0, 1.0, 1.0], // Bashful
     [1.0, 1.0, 1.1, 1.0, 0.9], // Quiet
+    [1.0, 1.0, 1.0, 1.0, 1.0], // Bashful
     [1.0, 1.0, 1.1, 0.9, 1.0], // Rash
     [0.9, 1.0, 1.0, 1.1, 1.0], // Calm
     [1.0, 0.9, 1.0, 1.1, 1.0], // Gentle
+    [1.0, 1.0, 1.0, 1.1, 0.9], // Sassy
     [1.0, 1.0, 0.9, 1.1, 1.0], // Careful
     [1.0, 1.0, 1.0, 1.0, 1.0], // Quirky
-    [1.0, 1.0, 1.0, 1.1, 0.9], // Sassy
-    [0.9, 1.0, 1.0, 1.0, 1.1], // Timid
-    [1.0, 0.9, 1.0, 1.0, 1.1], // Hasty
-    [1.0, 1.0, 0.9, 1.0, 1.1], // Jolly
-    [1.0, 1.0, 1.0, 0.9, 1.1], // Naive
-    [1.0, 1.0, 1.0, 1.0, 1.0], // Serious
 ]
 
 /// Compute stat matching PokeFinder's Nature::computeStat
