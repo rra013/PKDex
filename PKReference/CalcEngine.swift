@@ -40,12 +40,57 @@ nonisolated enum CalcEngine {
         defender: CalcSnapshot,
         field: FieldSnapshot
     ) -> CalcOutcome {
-        if let champions = evaluateChampions(move: move, attacker: attacker,
-                                            defender: defender, field: field) {
-            return champions
+        var outcome = evaluateChampions(move: move, attacker: attacker, defender: defender, field: field)
+            ?? evaluateLegacy(move: move, attacker: attacker, defender: defender, field: field)
+        outcome.survival = oneHitSurvival(move: move, attacker: attacker, defender: defender, field: field)
+        return outcome
+    }
+
+    // MARK: - Living through one hit
+
+    /// Abilities that ignore the target's Sturdy and Disguise.
+    static let abilityBreakers: Set<String> = ["mold-breaker", "teravolt", "turboblaze"]
+    /// Moves that ignore the target's ability, as `BattleSimSeed.normalize`
+    /// spells them.
+    static let abilityIgnoringMoves: Set<String> = ["sunsteelstrike", "moongeistbeam", "photongeyser"]
+
+    /// What the defender has that lives through one hit, in the order they
+    /// act: Sturdy, then Focus Sash, both only from full HP; Disguise, taken
+    /// to be intact. Focus Sash does nothing under Klutz or Magic Room.
+    static func survivalEffects(of defender: CalcSnapshot, field: FieldSnapshot) -> [SurvivalEffect] {
+        let ability = defender.effectiveAbility
+        if ability == "disguise" { return [.disguise] }
+        guard defender.currentHPPercent >= 100 else { return [] }
+        var effects: [SurvivalEffect] = []
+        if ability == "sturdy" { effects.append(.sturdy) }
+        if defender.effectiveHeldItem == .focusSash, ability != "klutz", !field.magicRoom {
+            effects.append(.focusSash)
         }
-        return evaluateLegacy(move: move, attacker: attacker,
-                              defender: defender, field: field)
+        return effects
+    }
+
+    /// Whether `move` gets past `effect`. A move that hits more than once,
+    /// or Parental Bond, gets past Focus Sash and Sturdy: the first hit
+    /// leaves 1 HP and the next takes it. Mold Breaker and its kind, or a
+    /// move that ignores abilities, get past Sturdy and Disguise.
+    static func getsPast(_ effect: SurvivalEffect, move: MoveSnapshot, attacker: CalcSnapshot) -> Bool {
+        let multiHit = (move.minHits ?? 1) >= 2 || attacker.effectiveAbility == "parental-bond"
+        let ignoresAbility = abilityBreakers.contains(attacker.effectiveAbility ?? "")
+            || abilityIgnoringMoves.contains(BattleSimSeed.normalize(move.name))
+        switch effect {
+        case .focusSash: return multiHit
+        case .sturdy: return multiHit || ignoresAbility
+        case .disguise: return ignoresAbility
+        }
+    }
+
+    /// What keeps `defender` alive through one hit of `move` that would
+    /// knock it out; nil when nothing does.
+    static func oneHitSurvival(move: MoveSnapshot, attacker: CalcSnapshot, defender: CalcSnapshot,
+                               field: FieldSnapshot) -> SurvivalEffect? {
+        guard !move.isStatus else { return nil }
+        return survivalEffects(of: defender, field: field)
+            .first { !getsPast($0, move: move, attacker: attacker) }
     }
 
     // MARK: - Legacy engine

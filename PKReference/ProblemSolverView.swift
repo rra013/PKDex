@@ -356,7 +356,8 @@ struct ProblemSolverView: View {
 
     private func resultsCard(wide: Bool) -> some View {
         CountersCard(model: model, problemName: problem.effectiveDisplayName,
-                     regulation: regulation, trickRoom: trickRoom, twoHits: twoHits, wide: wide, selected: $selected)
+                     regulation: regulation, trickRoom: trickRoom, twoHits: twoHits,
+                     survival: rules?.survival, wide: wide, selected: $selected)
     }
 }
 
@@ -375,6 +376,9 @@ private struct CountersCard: View {
     let regulation: ChampionsRegulation
     let trickRoom: Bool
     let twoHits: Bool
+    /// The target's Sturdy, Focus Sash or Disguise, which only some answers
+    /// get past in one hit.
+    let survival: SurvivalEffect?
     let wide: Bool
     @Binding var selected: ProblemSolver.Counter?
 
@@ -412,6 +416,11 @@ private struct CountersCard: View {
                 }
             case .solved:
                 SimulatorProgress(model: model)
+                if let survival, !twoHits {
+                    Label(Self.survivalNote(survival, problemName), systemImage: "shield.lefthalf.filled")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if model.counters.isEmpty {
                     Text("Nothing in \(regulation.displayName) knocks out \(problemName) in \(hitsPhrase), guaranteed.")
                         .font(.subheadline).foregroundStyle(.secondary)
@@ -493,6 +502,18 @@ private struct CountersCard: View {
     }
 
     private var hitsPhrase: String { twoHits ? "two hits" : "one hit" }
+
+    /// Why one hit isn't enough, and what gets through.
+    static func survivalNote(_ survival: SurvivalEffect, _ name: String) -> String {
+        switch survival {
+        case .focusSash:
+            "Focus Sash: from full HP, \(name) lives through any one hit with 1 HP. Only moves that hit more than once get past it here; Two hits shows the rest."
+        case .sturdy:
+            "Sturdy: from full HP, \(name) lives through any one hit with 1 HP. Only moves that hit more than once, and Mold Breaker or its like, get past it here; Two hits shows the rest."
+        case .disguise:
+            "Disguise: \(name)'s first hit is blocked. Only Mold Breaker or its like gets past it here; Two hits shows the rest."
+        }
+    }
 
     /// A Pokémon's best answer, then its others when opened.
     @ViewBuilder
@@ -799,11 +820,14 @@ extension ProblemSolver.Counter {
         let target = problem.defender
         let item = target.effectiveHeldItem
         var effects: [String] = []
+        let survival = CalcEngine.oneHitSurvival(move: move, attacker: attacker, defender: target, field: problem.field)
+        if let survival { effects.append("\(targetName)'s \(survival.rawValue)") }
         if [.sitrusBerry, .oranBerry, .leftovers].contains(item)
             || typeResistBerryMap[item] == move.type || item == .chilanBerry && move.type == "Normal" {
             effects.append("\(targetName)'s \(item.rawValue)")
         }
-        if let ability = target.effectiveAbility, ProblemSolver.betweenHitAbilities.contains(ability) {
+        if let ability = target.effectiveAbility, ProblemSolver.betweenHitAbilities.contains(ability),
+           survival != .disguise {
             effects.append("\(targetName)'s \(formatAbilityName(ability))")
         }
         if problem.field.terrain == .grassy, problem.targetIsGrounded { effects.append("Grassy Terrain healing it") }
@@ -851,6 +875,7 @@ extension ProblemSolver.Counter {
             (.speedTie, "Can only tie on Speed"),
         ]
         notes += order.filter { marks.contains($0.0) }.map(\.1)
+        for case .getsPast(let effect) in marks { notes.append("Gets past \(effect.rawValue)") }
         return notes
     }
 

@@ -656,7 +656,7 @@ extension IntentData {
             minDamage: Int(result.damageMin), maxDamage: Int(result.damageMax),
             attackerSetup: setup(vm.side1, request.attackerStats),
             defenderSetup: setup(vm.side2, request.defenderStats),
-            championsRules: vm.side1.championsMode)
+            championsRules: vm.side1.championsMode, survival: result.survival)
     }
 
     /// "Sand Veil, no investment", "Intimidate, full investment, Adamant
@@ -902,7 +902,8 @@ extension IntentData {
             target: setName.map { "your set \($0)" } ?? [ability, name].compactMap { $0 }.joined(separator: " "),
             setup: setName.map { "\(name): your set \($0)" } ?? "\(name): " + setup.joined(separator: ", "),
             regulation: regulation.displayName,
-            pokemonCount: Set(found.map(\.name)).count, wayCount: found.count, top: top)
+            pokemonCount: Set(found.map(\.name)).count, wayCount: found.count, top: top,
+            survival: problem.survival)
     }
 
     /// The Pokémon to beat, as Find Counters and the Problem Solver load it.

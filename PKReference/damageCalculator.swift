@@ -432,6 +432,9 @@ struct MoveResult: Identifiable {
     let effectivenessLabel: String
     let effectivenessColor: Color
     let isSTAB: Bool
+    /// What lets the defender live through the hit: Focus Sash or Sturdy
+    /// from full HP, or Disguise.
+    var survival: SurvivalEffect? = nil
 }
 
 // MARK: - View Model
@@ -510,7 +513,8 @@ class DamageCalcVM {
             effectiveness: outcome.effectiveness,
             effectivenessLabel: outcome.effectivenessLabel,
             effectivenessColor: effectivenessColor(outcome.effectiveness),
-            isSTAB: outcome.isSTAB
+            isSTAB: outcome.isSTAB,
+            survival: outcome.survival
         )
     }
 

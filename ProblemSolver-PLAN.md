@@ -389,3 +389,15 @@ Settled for Phase 3, also on 2026-09-30:
   snippet lists the three; Open loads the same set into the Problem
   Solver. Tried through the Shortcuts app on the simulator, which asks the
   same questions Siri does.
+- **Sturdy, Focus Sash and Disguise** (found 2026-10-02): the calc's
+  "guaranteed OHKO" didn't know them, so a Sturdy Archaludon or a Focus
+  Sash lead showed dozens of one-hit KOs that would leave it at 1 HP.
+  `CalcEngine` now marks a hit that one of them takes (`survival`): Sturdy
+  or Focus Sash from full HP, or Disguise. A move that hits more than once,
+  or Parental Bond, gets past Sturdy and Focus Sash; Mold Breaker and its
+  kind get past Sturdy and Disguise. The solver lists only those in one
+  hit, marked "Gets past Sturdy", with a note pointing to two hits, where a
+  would-be KO leaves 1 HP (or Disguise costs an eighth). The calc screen's
+  KO label ("2HKO (Sturdy)") and Siri's damage and counters answers follow,
+  and the battle simulator now has Sturdy (and Mold Breaker against it and
+  Disguise). For Sturdy Archaludon, 6 Pokémon get past it in one hit.

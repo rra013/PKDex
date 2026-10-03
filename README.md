@@ -173,7 +173,9 @@ Champions regulation that knocks it out in one hit, or in two:
 
 - **Guaranteed:** the lowest damage roll must KO, under doubles rules
   (spread moves do 0.75×) and after the set's own ability, including its
-  Intimidate, which a switch can turn off.
+  Intimidate, which a switch can turn off. Sturdy and Focus Sash (from full
+  HP) and Disguise take a hit, so against them only moves that hit more
+  than once, or Mold Breaker, count; two hits shows the rest.
 - **Every candidate is checked by the calc:** each legal Pokémon, form and
   Mega, with each of its abilities and legal damaging moves, holding the
   move's type-boosting item. The whole regulation takes a second or two.
@@ -472,7 +474,7 @@ project has no Swift package dependencies.
    later launches work offline, except for Tournaments. The Mac app is
    sandboxed, with outgoing network access.
 
-**Tests:** 1,161 tests written with Swift Testing. They cover the damage engines
+**Tests:** 1,164 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
 tools, ML parity, the tournament import and data store, Team Search's parser,

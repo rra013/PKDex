@@ -189,16 +189,26 @@ nonisolated struct DamageAnswer: Sendable {
     let attackerSetup: String
     let defenderSetup: String
     let championsRules: Bool
+    /// What lets the defender live through the hit: Focus Sash or Sturdy
+    /// from full HP, or Disguise.
+    var survival: SurvivalEffect? = nil
 
     /// "a guaranteed one-hit KO", "a two- to three-hit KO", or nil when it
-    /// does no damage.
+    /// does no damage. When Sturdy or the like takes the first hit: "a
+    /// guaranteed two-hit KO, since Sturdy leaves it at 1 HP from full HP".
     var knockOut: String? {
         guard maxPercent > 0 else { return nil }
-        let fewest = Int((100 / maxPercent).rounded(.up))
-        let most = minPercent > 0 ? Int((100 / minPercent).rounded(.up)) : 0
-        if fewest == most { return "a guaranteed \(Self.spell(fewest))-hit KO" }
-        if most == 0 { return "a possible \(Self.spell(fewest))-hit KO" }
-        return "a \(Self.spell(fewest))- to \(Self.spell(most))-hit KO"
+        var fewest = Int((100 / maxPercent).rounded(.up))
+        var most = minPercent > 0 ? Int((100 / minPercent).rounded(.up)) : 0
+        var reason = ""
+        if let survival, fewest == 1 {
+            fewest = 2
+            if most > 0 { most = max(most, 2) }
+            reason = ", since \(survival.rawValue) \(survival.effect)"
+        }
+        if fewest == most { return "a guaranteed \(Self.spell(fewest))-hit KO\(reason)" }
+        if most == 0 { return "a possible \(Self.spell(fewest))-hit KO\(reason)" }
+        return "a \(Self.spell(fewest))- to \(Self.spell(most))-hit KO\(reason)"
     }
 
     /// "Garchomp's Earthquake does 161.4% to 195.2% to Heatran: a
@@ -333,16 +343,21 @@ nonisolated struct CountersAnswer: Sendable {
     let wayCount: Int
     /// The best answer of each of the first three Pokémon.
     let top: [Pick]
+    /// The target's Sturdy, Focus Sash or Disguise, which only some answers
+    /// get past in one hit.
+    var survival: SurvivalEffect? = nil
 
     /// "84 Pokémon in Regulation M-C can knock out Intimidate Incineroar in
     /// one hit. The best three: Empoleon's Surf, Milotic's Scald and
     /// Falinks's Close Combat, each with no investment, moving first."
     var spoken: String {
         guard pokemonCount > 0 else {
-            return "Nothing in \(regulation) knocks out \(target) in one hit, guaranteed."
+            let reason = survival.map { ": its \($0.rawValue) \($0.effect)" } ?? ""
+            return "Nothing in \(regulation) knocks out \(target) in one hit, guaranteed\(reason)."
         }
         let count = pokemonCount == 1 ? "One Pokémon" : "\(pokemonCount) Pokémon"
-        let lead = "\(count) in \(regulation) can knock out \(target) in one hit."
+        let past = survival.map { ", getting past its \($0.rawValue)" } ?? ""
+        let lead = "\(count) in \(regulation) can knock out \(target) in one hit\(past)."
         let best = top.count == 1 ? "The best" : "The best \(Self.numbers[top.count] ?? "\(top.count)")"
         let tails = top.map { "with \($0.investment), \($0.timing)" }
         if Set(tails).count == 1, let tail = tails.first {
