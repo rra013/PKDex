@@ -76,6 +76,7 @@ nonisolated enum FRLGVersion: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
     var isFireRed: Bool { rawValue.hasPrefix("fr") }
+    var game: PFGame { isFireRed ? .fireRed : .leafGreen }
     var isSwitch: Bool { rawValue.hasSuffix("nx") }
 
     var name: String {
@@ -567,5 +568,167 @@ nonisolated struct FRLGSeedIndex: Sendable {
             if seeds[middle].fromZero <= value { low = middle + 1 } else { high = middle }
         }
         return low
+    }
+}
+
+// MARK: - Calibration
+
+/// What was caught, for calibration, filtered as Ten Lines filters it.
+nonisolated struct FRLGCatch: Sendable, Equatable {
+    /// Nil searches every nature, with any IVs: Ten Lines' "Any", which
+    /// turns its IV calculation off.
+    var nature: UInt8?
+    var ivMin: [UInt8] = Array(repeating: 0, count: 6)
+    var ivMax: [UInt8] = Array(repeating: 31, count: 6)
+    /// PokéFinder's gender filter: 255 any, 0 male, 1 female.
+    var gender: UInt8 = 255
+    /// PokéFinder's shiny filter: 255 any, 1 star, 2 square, 3 either.
+    var shiny: UInt8 = 255
+}
+
+/// A level and the six stats seen at it, for the IV calculator. Nil is a
+/// stat not entered yet.
+nonisolated struct FRLGStatsLine: Hashable, Identifiable, Sendable {
+    var id = UUID()
+    var level: Int?
+    var stats: [Int?] = Array(repeating: nil, count: 6)
+
+    var isBlank: Bool { stats.allSatisfy { $0 == nil } }
+}
+
+/// Ten Lines' IV calculator (IvCalculator.tsx, iv_calc.cpp): the IVs a
+/// static encounter's stats allow with its nature, through PokéFinder's IV
+/// checker and the template's base stats.
+nonisolated enum FRLGIVCalculator {
+    static let statNames = ["HP", "Attack", "Defense", "Special Attack", "Special Defense", "Speed"]
+    /// Ten Lines' limits on what can be entered.
+    static let statMaximums = [651, 437, 545, 435, 545, 479]
+
+    enum Outcome: Equatable {
+        /// Per stat, the lowest and highest IV that fits every line.
+        case ivs(min: [UInt8], max: [UInt8])
+        /// What's missing or wrong, as Ten Lines words it.
+        case error(String)
+    }
+
+    /// Lines after the first with no stats yet are left out, so adding one
+    /// doesn't stop a search.
+    static func calculate(_ lines: [FRLGStatsLine], template: PFStaticTemplateRef, nature: UInt8) -> Outcome {
+        var parsed: [(level: UInt8, stats: [UInt16])] = []
+        for (number, line) in zip(1..., lines) where number == 1 || !line.isBlank {
+            let name = lines.count > 1 ? "Line \(number): " : ""
+            guard let level = line.level else { return .error(name + "Enter its level.") }
+            guard (1...100).contains(level) else { return .error(name + "Level must be 1–100.") }
+            var stats: [UInt16] = []
+            for (index, stat) in line.stats.enumerated() {
+                guard let stat else { return .error(name + "Enter its \(statNames[index]).") }
+                guard (1...statMaximums[index]).contains(stat) else {
+                    return .error(name + "\(statNames[index]) must be 1–\(statMaximums[index]).")
+                }
+                stats.append(UInt16(stat))
+            }
+            parsed.append((UInt8(level), stats))
+        }
+        guard let ranges = PFBridge.calcIVsStatic3(template: template, lines: parsed, nature: nature) else {
+            return .error("This encounter isn't in PokéFinder's tables.")
+        }
+        if let index = ranges.firstIndex(where: { $0 == nil }) {
+            return .error("No possible \(statNames[index]) IV. Check the nature, level and stats.")
+        }
+        let found = ranges.compactMap { $0 }
+        return .ivs(min: found.map(\.lowerBound), max: found.map(\.upperBound))
+    }
+}
+
+/// A press and advance that make what was caught.
+nonisolated struct FRLGCalibrationHit: Hashable, Sendable {
+    var seed: UInt16
+    /// When that press is, in sixteenths of a frame from startup.
+    var seedTime: Int
+    /// Presses later in the list than the one aimed for; earlier ones are
+    /// negative.
+    var seedOffset: Int
+    /// Advances from the seed to the Pokémon.
+    var advances: UInt32
+    /// Frames spent in the Teachy TV, when it's used.
+    var teachyTVFrames: UInt32
+    var pid: UInt32
+    var ivs: [UInt8]
+    var nature: UInt8
+    var gender: UInt8
+    var shiny: UInt8
+
+    /// The frame of the final press: the advances, less the Teachy TV's
+    /// 313 a frame.
+    var finalFrame: UInt32 { advances - teachyTVFrames * TeachyTV.advancesPerFrame + teachyTVFrames }
+}
+
+extension FRLGSeedList {
+    /// The seeds a setting gives press by press, in time order, shifted by
+    /// a held button.
+    func timeline(_ setting: FRLGSetting, offset: Int16) -> [(seed: UInt16, seedTime: Int)] {
+        entries.filter { $0.setting == setting }
+            .map { (UInt16(truncatingIfNeeded: Int($0.seed) + Int(offset)), $0.seedTime) }
+    }
+}
+
+/// Which seed and frame an attempt actually hit, from what was caught.
+/// Ported from Ten Lines' calibration (calibration.cpp, check_seeds_static).
+nonisolated enum FRLGCalibration {
+    /// Every press `seedLeeway` either side of the one attempted (same
+    /// setting and held button) and final frame in `frames` that makes
+    /// `caught` from the encounter's `template`, nearest the attempt first.
+    /// With Teachy TV, the frames spent there range over `teachyTVFrames`,
+    /// 313 advances each.
+    static func search(list: FRLGSeedList, version: FRLGVersion, attempted: FRLGInitialSeed, targetFrame: UInt32,
+                       seedLeeway: Int, frames: ClosedRange<UInt32>, teachyTVFrames: ClosedRange<UInt32>? = nil,
+                       method: PFMethod, template: PFStaticTemplateRef, tid: UInt16, sid: UInt16,
+                       caught: FRLGCatch, limit: Int = 200) -> [FRLGCalibrationHit] {
+        guard let offset = FRLGHeldButtons.offsets(for: version)
+            .first(where: { $0.mode == attempted.setting.buttonMode && $0.held == attempted.held })?.offset
+        else { return [] }
+        let timeline = list.timeline(attempted.setting, offset: offset)
+        guard let index = timeline.firstIndex(where: { $0.seed == attempted.seed && $0.seedTime == attempted.seedTime })
+        else { return [] }
+        var natures = Array(repeating: caught.nature == nil, count: 25)
+        if let nature = caught.nature { natures[Int(nature)] = true }
+        let anyIVs = caught.nature == nil
+        var hits: [FRLGCalibrationHit] = []
+        for place in max(0, index - seedLeeway)...min(timeline.count - 1, index + seedLeeway) {
+            let (seed, seedTime) = timeline[place]
+            for ttv in teachyTVFrames ?? 0...0 where ttv <= frames.upperBound {
+                // The final frame is the frames in the Teachy TV plus the
+                // advances outside it.
+                let start = frames.lowerBound > ttv ? frames.lowerBound - ttv : 0
+                let end = frames.upperBound - ttv
+                let states = PFBridge.staticTemplateGenerate3(
+                    seed: UInt32(seed), initialAdvances: start + ttv * TeachyTV.advancesPerFrame,
+                    maxAdvances: end - start, method: method, template: template,
+                    tid: tid, sid: sid, game: version.game,
+                    filterGender: caught.gender, filterShiny: caught.shiny,
+                    ivMin: anyIVs ? Array(repeating: 0, count: 6) : caught.ivMin,
+                    ivMax: anyIVs ? Array(repeating: 31, count: 6) : caught.ivMax,
+                    natures: natures, powers: Array(repeating: true, count: 16))
+                for state in states {
+                    hits.append(FRLGCalibrationHit(seed: seed, seedTime: seedTime, seedOffset: place - index,
+                                                   advances: state.advances, teachyTVFrames: ttv, pid: state.pid,
+                                                   ivs: state.ivs, nature: state.nature,
+                                                   gender: state.gender, shiny: state.shiny))
+                }
+                // A loose filter matches nearly every frame: keep the
+                // nearest as it goes.
+                if hits.count > limit * 8 { hits = nearest(hits, to: targetFrame, limit: limit) }
+            }
+        }
+        return nearest(hits, to: targetFrame, limit: limit)
+    }
+
+    /// The `limit` hits nearest the attempt: fewest seeds away, then fewest
+    /// frames.
+    private static func nearest(_ hits: [FRLGCalibrationHit], to targetFrame: UInt32, limit: Int) -> [FRLGCalibrationHit] {
+        Array(hits.sorted {
+            (abs($0.seedOffset), abs(Int($0.finalFrame) - Int(targetFrame)), $0.seedOffset)
+                < (abs($1.seedOffset), abs(Int($1.finalFrame) - Int(targetFrame)), $1.seedOffset)
+        }.prefix(limit))
     }
 }

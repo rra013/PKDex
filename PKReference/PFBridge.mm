@@ -1,6 +1,7 @@
 #import "PFBridge.h"
 
 #include <Core/Util/IVToPIDCalculator.hpp>
+#include <Core/Util/IVChecker.hpp>
 #include <Core/Gen3/Tools/PIDToIVCalculator.hpp>
 #include <Core/Gen3/Tools/SeedToTimeCalculator3.hpp>
 #include <Core/Gen4/Tools/SeedToTimeCalculator4.hpp>
@@ -101,6 +102,7 @@
 #include <Core/Gen8/States/UndergroundState.hpp>
 #include <Core/Gen8/Filters/UndergroundFilter.hpp>
 
+#include <algorithm>
 #include <vector>
 #include <cstring>
 #include <thread>
@@ -531,6 +533,80 @@ extern "C" PFGeneratorState *pf_staticGenerate3(uint32_t seed,
         out[i] = convertGenState(results[i]);
     }
     return out;
+}
+
+// MARK: - Gen 3 Static Template Generator and IV Calculator
+
+// Ten Lines' check_seeds_static generator (calibration.cpp): a static
+// encounter's own template, so gender comes from its species.
+extern "C" PFGeneratorState *pf_staticTemplateGenerate3(uint32_t seed,
+                                                          uint32_t initialAdvances,
+                                                          uint32_t maxAdvances,
+                                                          uint32_t offset,
+                                                          uint8_t method,
+                                                          int staticType, int staticIndex,
+                                                          uint16_t tid, uint16_t sid,
+                                                          uint32_t game,
+                                                          uint8_t gender, uint8_t shiny,
+                                                          const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                                          const bool natures[25], const bool powers[16],
+                                                          int *outCount)
+{
+    *outCount = 0;
+    int size = 0;
+    const StaticTemplate3 *templates = Encounters3::getStaticEncounters(staticType, &size);
+    if (!templates || staticIndex < 0 || staticIndex >= size) return nullptr;
+
+    Profile3 profile("", static_cast<Game>(game), tid, sid, false);
+    StateFilter filter = makeFilter(gender, 255, shiny, ivMin, ivMax, natures, powers);
+
+    StaticGenerator3 generator(initialAdvances, maxAdvances, offset,
+                                static_cast<Method>(method), templates[staticIndex], profile, filter);
+
+    auto results = generator.generate(seed);
+    *outCount = static_cast<int>(results.size());
+    if (results.empty()) return nullptr;
+
+    auto *out = static_cast<PFGeneratorState *>(malloc(sizeof(PFGeneratorState) * results.size()));
+    for (size_t i = 0; i < results.size(); i++) {
+        out[i] = convertGenState(results[i]);
+    }
+    return out;
+}
+
+// Ten Lines' calc_ivs_static (iv_calc.cpp): the IVs a static encounter's
+// stats allow, from its template's base stats, per stat as min and max.
+// A stat no IV fits gives min 32, max 0.
+extern "C" bool pf_calcIVsStatic3(int staticType, int staticIndex,
+                                   const uint8_t *levels, const uint16_t *stats, int count,
+                                   uint8_t nature, uint8_t outMin[6], uint8_t outMax[6])
+{
+    int size = 0;
+    const StaticTemplate3 *templates = Encounters3::getStaticEncounters(staticType, &size);
+    if (!templates || staticIndex < 0 || staticIndex >= size || count <= 0) return false;
+
+    const std::array<u8, 6> baseStats = templates[staticIndex].getInfo()->getStats();
+    std::vector<u8> parsedLevels;
+    std::vector<std::array<u16, 6>> parsedStats;
+    for (int i = 0; i < count; i++) {
+        parsedLevels.push_back(levels[i]);
+        parsedStats.push_back({ stats[i * 6], stats[i * 6 + 1], stats[i * 6 + 2],
+                                stats[i * 6 + 3], stats[i * 6 + 4], stats[i * 6 + 5] });
+    }
+
+    auto possible = IVChecker::calculateIVRange(baseStats, parsedStats, parsedLevels, nature, 255, 255);
+    for (int i = 0; i < 6; i++) {
+        auto minElement = std::min_element(possible[i].begin(), possible[i].end());
+        auto maxElement = std::max_element(possible[i].begin(), possible[i].end());
+        if (minElement == possible[i].end() || maxElement == possible[i].end()) {
+            outMin[i] = 32;
+            outMax[i] = 0;
+        } else {
+            outMin[i] = *minElement;
+            outMax[i] = *maxElement;
+        }
+    }
+    return true;
 }
 
 // MARK: - Gen 3 Static Searcher

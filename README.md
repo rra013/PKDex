@@ -227,7 +227,7 @@ Objective-C++ bridge (`PFBridge.mm`).
 | Sub-tab | What it does |
 |---|---|
 | **Timer** | Precise multi-phase timers for Gen 3/4/5 and custom setups, with calibration and console-specific frame rates, ported from EonTimer. |
-| **Finder** | Seed searching and generators, including Method 1 / 1R / 2 / 4, XD/Colo, Channel and Cute Charm. Also has Gen 4 Elm/Irwin calls, Chatot pitches and Pokétch coin flips, and Gen 5 keypresses and SHA-1 seeds. For FireRed and LeafGreen (GBA, mGBA and Switch), it narrows a search to targets reachable from a seed you can hit, by your sound, button mode and held buttons and the advances you can wait, with each seed's time, Teachy TV, and Send to Timer; ported from Ten Lines, with the community's farmed seed lists bundled and updatable. |
+| **Finder** | Seed searching and generators, including Method 1 / 1R / 2 / 4, XD/Colo, Channel and Cute Charm. Also has Gen 4 Elm/Irwin calls, Chatot pitches and Pokétch coin flips, and Gen 5 keypresses and SHA-1 seeds. For FireRed and LeafGreen (GBA, mGBA and Switch), it narrows a search to targets reachable from a seed you can hit, by your sound, button mode and held buttons and the advances you can wait, with each seed's time, Teachy TV, and Send to Timer. After an attempt, Calibrate works out the IVs from the caught Pokémon's stats and nature, finds which seed and frame you hit, and corrects the timer. Ported from Ten Lines, with the community's farmed seed lists bundled and updatable. |
 | **Routes** | Wild encounter tables by game and location, with slot rates and levels. |
 | **Statics** | Static and gift encounters. |
 | **Eggs** | Egg generation with parents, Everstone, Destiny Knot, Power items and compatibility. |
@@ -474,7 +474,7 @@ project has no Swift package dependencies.
    later launches work offline, except for Tournaments. The Mac app is
    sandboxed, with outgoing network access.
 
-**Tests:** 1,173 tests written with Swift Testing. They cover the damage engines
+**Tests:** 1,180 tests written with Swift Testing. They cover the damage engines
 and the port, the battle engine by mechanic tier, the EV and two-hit solvers,
 speed tiers, paste parsing and import, Champions filters and legality, RNG
 tools, ML parity, the tournament import and data store, Team Search's parser,
@@ -544,7 +544,7 @@ PK Reference is built on the work of many people and projects. Thank you all.
 | [**Pokémon Showdown**](https://github.com/smogon/pokemon-showdown) | Guangcong Luo and contributors | MIT | Vendored under `tools/vendor` as the reference for Champions mechanics and data |
 | [**PokéFinder**](https://github.com/Admiral-Fish/PokeFinder) | Admiral_Fish, bumba and EzPzStreamz | **GPL-3.0-or-later** | The RNG core in `PKReference/Core` (generators, searchers, encounter data), and the algorithms behind the IV calculator, IV→PID and seed recovery |
 | [**EonTimer**](https://github.com/DasAmpharos/EonTimer) | DasAmpharos | MIT | The RNG timer: phase calculations, calibration, console frame rates and rounding |
-| [**Ten Lines**](https://github.com/Lincoln-LM/ten-lines) | Lincoln-LM | GPL-3.0 | FireRed and LeafGreen initial seeds: the seed lists' layouts, held-button offsets, timing and Teachy TV |
+| [**Ten Lines**](https://github.com/Lincoln-LM/ten-lines) | Lincoln-LM | GPL-3.0 | FireRed and LeafGreen initial seeds and calibration: the seed lists' layouts, held-button offsets, timing, Teachy TV, and the calibration search with its IV calculator |
 | [**nlohmann/json**](https://github.com/nlohmann/json) 3.12.0 | Niels Lohmann | MIT | JSON parsing in the C++ core (bundled with PokéFinder) |
 | [**Flash Perfect Hash Table**](https://github.com/renzibei/fph-table) (fph) | renzibei (includes code derived from robin-hood-hashing and Abseil) | Apache-2.0 | Perfect hash maps in the C++ core (bundled with PokéFinder) |
 | [**Zstandard**](https://github.com/facebook/zstd) | Meta Platforms, Inc. and affiliates | BSD (dual-licensed BSD / GPLv2; used under BSD) | Decompressing PokéFinder's embedded resources |

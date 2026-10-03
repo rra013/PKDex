@@ -38,7 +38,7 @@ and what was checked.
 | [#55](https://github.com/rra013/PKReference/pull/55) | Siri, Spotlight and Shortcuts, Phase 1; the app is named PK Reference |
 | [#56](https://github.com/rra013/PKReference/pull/56) | The Xcode project, targets, module and folders renamed to PKReference |
 
-Full suite with FireRed/LeafGreen initial seeds: 1173 tests, all passing.
+Full suite with FireRed/LeafGreen calibration: 1180 tests, all passing.
 
 ---
 
@@ -429,11 +429,23 @@ Roughly in order of value for effort.
    timer's pre-timer and target frame. `FRLGSeeds.swift` is the engine,
    `FRLGSeedsView.swift` the screens; the farmed lists are bundled
    (`PKReference/frlg-seeds-*.csv`, refreshed by `tools/update_frlg_seeds.sh`)
-   and Update Seed Lists downloads newer ones in the app. Left, as decided:
-   Ten Lines' calibration tab (which seed you hit, from the Pokémon you got,
-   with its IV calculation). Also open: Teachy TV on Switch, which Ten Lines
-   hasn't worked out either, and the Switch lists' settings nobody has farmed
-   yet (Ten Lines leaves those columns out, and so does the app).
+   and Update Seed Lists downloads newer ones in the app. On Switch the
+   overworld advances twice a frame, so the timer's target is the continue
+   screen's frame (advances less twice the Overworld Frames). Calibrate, on
+   each seed of a static target, is Ten Lines' calibration form: shininess,
+   nature (Any turns the IV calculation off and searches every nature) and
+   gender, then the stats from the summary screen, a line per level, which
+   PokéFinder's IV checker turns into editable IV ranges with the
+   encounter's own template's base stats (`pf_calcIVsStatic3`). The search
+   (`FRLGCalibration`, generating from that template with
+   `pf_staticTemplateGenerate3`) lists the presses and frames that make it,
+   nearest first, and Calibrate from This corrects the seed press and final
+   press, saved for every seed after. Still open: wild calibration (Ten Lines' check_seeds_wild),
+   Teachy TV on Switch, which Ten Lines hasn't worked out either, and the
+   Switch lists' settings nobody has farmed yet (Ten Lines leaves those
+   columns out, and so does the app). The Finder also lists a FireRed and
+   LeafGreen Mew that PokéFinder has only on Emerald, so it can't be
+   calibrated.
 8. **App Store.** Blocked on the GPL until PokéFinder's authors give
    permission, or the RNG core is rewritten per
    [`RNGRewrite-PLAN.md`](RNGRewrite-PLAN.md) (on hold).

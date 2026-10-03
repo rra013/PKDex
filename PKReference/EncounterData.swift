@@ -81,6 +81,19 @@ enum StaticEncounterCategory: String, CaseIterable, Identifiable, Hashable {
     case roamers = "Roamers"
 
     var id: String { rawValue }
+
+    /// PokéFinder's Gen 3 table for the category (`Encounters3`).
+    var pfStaticType3: Int32 {
+        switch self {
+        case .starters: 0
+        case .fossils: 1
+        case .gifts: 2
+        case .gameCorner: 3
+        case .stationary: 4
+        case .legends: 5
+        case .roamers: 7
+        }
+    }
 }
 
 struct StaticEncounter: Identifiable, Hashable {

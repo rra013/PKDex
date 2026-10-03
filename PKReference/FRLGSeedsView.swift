@@ -120,6 +120,13 @@ final class FRLGSeedSearch {
     var maximumAdvances: Int { didSet { defaults.set(maximumAdvances, forKey: "frlg_maximum") } }
     var teachyTV: Bool { didSet { defaults.set(teachyTV, forKey: "frlg_teachyTV") } }
     var teachyTVMinimumOutside: Int { didSet { defaults.set(teachyTVMinimumOutside, forKey: "frlg_teachyTVOutside") } }
+    /// On Switch, the frames spent in the overworld before the press that
+    /// gets the Pokémon, where the RNG advances twice a frame.
+    var overworldFrames: Int { didSet { defaults.set(overworldFrames, forKey: "frlg_overworldFrames") } }
+    /// From calibrating: added to each seed time sent to the timer, and the
+    /// timer's calibration for the final press, both in milliseconds.
+    var seedCalibrationMS: Int { didSet { defaults.set(seedCalibrationMS, forKey: "frlg_seedCalibration") } }
+    var frameCalibrationMS: Int { didSet { defaults.set(frameCalibrationMS, forKey: "frlg_frameCalibration") } }
 
     /// The seeds the settings allow; nil until built.
     private(set) var index: FRLGSeedIndex?
@@ -140,6 +147,9 @@ final class FRLGSeedSearch {
         maximumAdvances = defaults.object(forKey: "frlg_maximum") as? Int ?? 100_000
         teachyTV = defaults.bool(forKey: "frlg_teachyTV")
         teachyTVMinimumOutside = defaults.object(forKey: "frlg_teachyTVOutside") as? Int ?? 3600
+        overworldFrames = defaults.object(forKey: "frlg_overworldFrames") as? Int ?? 600
+        seedCalibrationMS = defaults.integer(forKey: "frlg_seedCalibration")
+        frameCalibrationMS = defaults.integer(forKey: "frlg_frameCalibration")
         // The first time, start on what the list covers.
         if defaults.object(forKey: "frlg_buttonMode") == nil { applyDefaults() }
     }
@@ -198,13 +208,17 @@ final class FRLGSeedSearch {
         FRLGSeedIndex(list: list, version: version, filter: filter)
     }
 
-    /// Teachy TV mode needs that many advances outside it, so they're the
-    /// least a seed can be from its target.
+    /// Teachy TV mode needs that many advances outside it, and on Switch
+    /// the overworld takes two a frame, so they're the least a seed can be
+    /// from its target.
     private var range: (minimum: UInt32, maximum: UInt32) {
         var minimum = max(0, minimumAdvances)
-        if teachyTV, version.supportsTeachyTV { minimum = max(minimum, teachyTVMinimumOutside) }
+        if usesTeachyTV { minimum = max(minimum, teachyTVMinimumOutside) }
+        if version.isSwitch { minimum = max(minimum, 2 * max(0, overworldFrames)) }
         return (UInt32(clamping: minimum), UInt32(clamping: max(0, maximumAdvances)))
     }
+
+    var usesTeachyTV: Bool { teachyTV && version.supportsTeachyTV }
 
     /// The fewest-advances seed that reaches `target` in range.
     func nearest(reaching target: UInt32) -> FRLGInitialSeed? {
@@ -220,13 +234,46 @@ final class FRLGSeedSearch {
         console.milliseconds(frames: Double(seed.seedTime) / 16)
     }
 
-    /// The frame to press on after the seed is set: its advances, or with
-    /// Teachy TV the frames spent there and the advances outside it.
+    /// The pre-timer: the seed time, with the seed press's calibration.
+    func preTimerMS(_ seed: FRLGInitialSeed) -> Int { seedTimeMS(seed) + seedCalibrationMS }
+
+    /// The frame to press on after the seed is set. On GBA it's the final
+    /// press: the advances, or with Teachy TV the frames spent there plus
+    /// the advances outside it. On Switch it's the continue screen's press,
+    /// the overworld frames after it taking two advances each (Ten Lines'
+    /// "Continue Screen Frames").
     func targetFrame(_ seed: FRLGInitialSeed) -> (frame: UInt32, teachyTVFrames: UInt32) {
-        guard teachyTV, version.supportsTeachyTV else { return (seed.advances, 0) }
+        if version.isSwitch {
+            return (seed.advances - min(seed.advances, UInt32(clamping: 2 * max(0, overworldFrames))), 0)
+        }
+        guard usesTeachyTV else { return (seed.advances, 0) }
         let split = TeachyTV.split(advances: seed.advances,
                                    minimumOutside: UInt32(clamping: max(0, teachyTVMinimumOutside)))
         return (split.ttvFrames + split.regularAdvances, split.ttvFrames)
+    }
+
+    /// The same frame for a calibration hit.
+    func hitFrame(_ hit: FRLGCalibrationHit) -> UInt32 {
+        if version.isSwitch { return hit.advances - min(hit.advances, UInt32(clamping: 2 * max(0, overworldFrames))) }
+        return hit.finalFrame
+    }
+
+    /// Corrects the timer from an attempt that hit `hit` instead: the seed
+    /// press by the difference in seed times, the final press by the
+    /// frames it was off, as the Gen 3 timer's own calibration does.
+    func calibrate(attempted: FRLGInitialSeed, hit: FRLGCalibrationHit) {
+        let hitSeed = FRLGInitialSeed(seed: hit.seed, setting: attempted.setting, held: attempted.held,
+                                      seedTime: hit.seedTime)
+        seedCalibrationMS -= seedTimeMS(hitSeed) - seedTimeMS(attempted)
+        let settings = CalibratorSettings(console: .gba, customFramerate: 60, precisionCalibration: false,
+                                          minimumLength: EONTIMER_MINIMUM_LENGTH)
+        frameCalibrationMS += calibrateGen3(settings, targetFrame: Int(targetFrame(attempted).frame),
+                                            frameHit: Int(hitFrame(hit)))
+    }
+
+    func resetCalibration() {
+        seedCalibrationMS = 0
+        frameCalibrationMS = 0
     }
 }
 
@@ -295,6 +342,20 @@ struct FRLGInitialSeedSection: View {
                 coverageNote
                 RNGIntField(label: "Minimum Advances", value: $search.minimumAdvances)
                 RNGIntField(label: "Maximum Advances", value: $search.maximumAdvances)
+                if search.version.isSwitch {
+                    RNGIntField(label: "Overworld Frames", value: $search.overworldFrames)
+                    Text("The frames you spend in the overworld before the press that gets the Pokémon. On Switch the RNG advances twice a frame there, so the timer's target is the press on the continue screen.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if search.seedCalibrationMS != 0 || search.frameCalibrationMS != 0 {
+                    HStack {
+                        Text("Calibration: seed press \(signed(search.seedCalibrationMS)) ms, final press \(signed(search.frameCalibrationMS)) ms")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Reset") { search.resetCalibration() }.font(.caption)
+                    }
+                }
                 if search.version.supportsTeachyTV {
                     Toggle("Teachy TV", isOn: $search.teachyTV)
                     if search.teachyTV {
@@ -330,6 +391,8 @@ struct FRLGInitialSeedSection: View {
         let known = Set(FRLGHeldButtons.offsets(for: search.version).map(\.held))
         return FRLGHeldButton.allCases.filter(known.contains)
     }
+
+    private func signed(_ value: Int) -> String { value > 0 ? "+\(value)" : "\(value)" }
 
     /// An option the version's list has no seeds for says so.
     private func marked(_ name: String, _ farmed: Bool) -> String {
@@ -399,15 +462,17 @@ struct FRLGMatchLine: View {
 
 /// A target's reachable seeds, for its detail page.
 struct FRLGInitialSeedList: View {
-    let target: UInt32
+    let target: StaticSearchResult
     let search: FRLGSeedSearch
+    /// What calibrating needs; nil where it can't (wild encounters).
+    var calibration: FRLGCalibrationContext?
     /// Sends a seed's timing to the Timer: pre-timer (ms), target frame.
     var onSendToTimer: (FRLGInitialSeed, Int, UInt32) -> Void
 
     private static let shown = 100
 
     var body: some View {
-        let seeds = FRLGHeldChoice.merged(search.seeds(reaching: target, limit: Self.shown))
+        let seeds = FRLGHeldChoice.merged(search.seeds(reaching: target.seed, limit: Self.shown))
         SectionCard(title: "Initial Seeds", icon: "power") {
             if seeds.isEmpty {
                 Text("No seed you can hit with these settings reaches this target in \(search.minimumAdvances.formatted())–\(search.maximumAdvances.formatted()) advances.")
@@ -436,12 +501,24 @@ struct FRLGInitialSeedList: View {
             }
             Text(choice.settingsName).font(.caption)
             Text("Seed time \(seedTime.formatted()) ms · target frame \(target.frame.formatted())"
-                 + (target.teachyTVFrames > 0 ? " (\(target.teachyTVFrames.formatted()) in Teachy TV)" : ""))
+                 + (target.teachyTVFrames > 0 ? " (\(target.teachyTVFrames.formatted()) in Teachy TV)" : "")
+                 + (search.version.isSwitch ? " on the continue screen, then \(search.overworldFrames.formatted()) in the overworld" : ""))
                 .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
-            Button {
-                onSendToTimer(seed, seedTime, target.frame)
-            } label: {
-                Label("Send to Timer", systemImage: "timer")
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 16) {
+                Button {
+                    onSendToTimer(seed, search.preTimerMS(seed), target.frame)
+                } label: {
+                    Label("Send to Timer", systemImage: "timer")
+                }
+                if let calibration {
+                    NavigationLink {
+                        FRLGCalibrationView(target: self.target, attempted: seed, search: search, context: calibration,
+                                            onSendToTimer: onSendToTimer)
+                    } label: {
+                        Label("Calibrate", systemImage: "scope")
+                    }
+                }
             }
             .font(.caption)
             .buttonStyle(.borderless)
@@ -476,4 +553,328 @@ struct FRLGHeldChoice {
         }
         return merged
     }
+}
+
+// MARK: - Calibrating
+
+/// What calibrating a target needs from the Finder: the search's method and
+/// trainer, and the encounter, for its template.
+struct FRLGCalibrationContext {
+    let method: FinderMethod
+    let tid: UInt16
+    let sid: UInt16
+    let encounter: StaticEncounter?
+}
+
+/// After an attempt: what was caught says which seed and frame it hit, and
+/// the timer is corrected for the next one. Ten Lines' calibration form,
+/// with its IV calculator: the stats work out the IVs with the nature.
+struct FRLGCalibrationView: View {
+    let target: StaticSearchResult
+    let attempted: FRLGInitialSeed
+    let search: FRLGSeedSearch
+    let context: FRLGCalibrationContext
+    var onSendToTimer: (FRLGInitialSeed, Int, UInt32) -> Void
+
+    @State private var template: PFStaticTemplateRef?
+    /// Ten Lines' defaults: any shininess, nature and gender.
+    @State private var shiny: UInt8 = 255
+    @State private var nature: UInt8?
+    @State private var gender: UInt8 = 255
+    @State private var lines = [FRLGStatsLine()]
+    @State private var ivMin: [UInt8] = Array(repeating: 0, count: 6)
+    @State private var ivMax: [UInt8] = Array(repeating: 31, count: 6)
+    @State private var calculatorError: String?
+    @State private var seedLeeway = 20
+    @State private var frameLeeway = 100
+    @State private var teachyTVLeeway = 15
+    @State private var hits: [FRLGCalibrationHit]?
+    @State private var searchedAnyNature = false
+    @State private var searching = false
+    @State private var applied: FRLGCalibrationHit?
+
+    private static let ivNames = ["HP", "Attack", "Defense", "Sp. Atk", "Sp. Def", "Speed"]
+
+    var body: some View {
+        ScrollView {
+            CardStack {
+                attemptCard
+                caughtCard
+                searchCard
+                if let hits { resultsCard(hits) }
+            }
+            .padding()
+        }
+        .navigationTitle("Calibrate")
+        .onAppear {
+            guard template == nil, let encounter = context.encounter else { return }
+            template = PFBridge.staticTemplate3(species: encounter.species, game: search.version.game,
+                                                preferring: encounter.category.pfStaticType3)
+            lines[0].level = Int(encounter.level)
+        }
+        .onChange(of: lines) { recalculate() }
+        .onChange(of: nature) { recalculate() }
+    }
+
+    private var attemptCard: some View {
+        let frame = search.targetFrame(attempted)
+        return SectionCard(title: "Your Attempt", icon: "target") {
+            LabeledContent("Seed", value: String(format: "%04X", attempted.seed))
+                .font(.system(.body, design: .monospaced))
+            LabeledContent("Settings", value: attempted.settingsName)
+            LabeledContent("Seed time", value: "\(search.seedTimeMS(attempted).formatted()) ms")
+            LabeledContent("Target frame", value: frame.frame.formatted())
+            LabeledContent("Target", value: "\(target.ivSummary) · \(target.natureName)")
+                .font(.system(.body, design: .monospaced))
+        }
+    }
+
+    /// Ten Lines' IV calculator: with a nature, valid stats fill the IV
+    /// ranges, which stay editable.
+    private func recalculate() {
+        guard let nature, let template, lines.contains(where: { !$0.isBlank }) else {
+            calculatorError = nil
+            return
+        }
+        switch FRLGIVCalculator.calculate(lines, template: template, nature: nature) {
+        case .ivs(let min, let max):
+            ivMin = min
+            ivMax = max
+            calculatorError = nil
+        case .error(let message):
+            calculatorError = message
+        }
+    }
+
+    private var ivRangesValid: Bool {
+        (0..<6).allSatisfy { ivMin[$0] <= ivMax[$0] && ivMax[$0] <= 31 }
+    }
+
+    private var caught: FRLGCatch {
+        FRLGCatch(nature: nature, ivMin: ivMin, ivMax: ivMax, gender: gender, shiny: shiny)
+    }
+
+    private var caughtCard: some View {
+        SectionCard(title: "What You Caught", icon: "checkmark.shield") {
+            if context.encounter != nil, template == nil {
+                Text("This encounter isn't in PokéFinder's tables, so it can't be calibrated.")
+                    .font(.caption).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            pickerRow("Shininess", selection: $shiny) {
+                Text("Any").tag(UInt8(255))
+                Text("Star").tag(UInt8(1))
+                Text("Square").tag(UInt8(2))
+                Text("Star or Square").tag(UInt8(3))
+            }
+            pickerRow("Nature", selection: $nature) {
+                Text("Any").tag(UInt8?.none)
+                ForEach(0..<25, id: \.self) { Text(pfNatureNames[$0]).tag(UInt8?.some(UInt8($0))) }
+            }
+            pickerRow("Gender", selection: $gender) {
+                Text("Any").tag(UInt8(255))
+                Text("Male").tag(UInt8(0))
+                Text("Female").tag(UInt8(1))
+            }
+            if nature == nil {
+                Text("IV calculation is off: searching every nature, with any IVs. Pick its nature to work out its IVs from its stats.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                statsEntry
+                Text("IVs").font(.subheadline.bold()).padding(.top, 4)
+                ForEach(0..<6, id: \.self) { index in
+                    FinderIVRangeRow(label: Self.ivNames[index], min: $ivMin[index], max: $ivMax[index])
+                }
+                if !ivRangesValid {
+                    Text("Each IV range runs from 0 to 31, lowest first.")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+            }
+        }
+    }
+
+    /// The stats from its summary screen, a line per level: more lines,
+    /// after levelling up, narrow the IVs down.
+    @ViewBuilder
+    private var statsEntry: some View {
+        Text("Enter its stats from the summary screen. The IVs below are worked out from them, with its nature and base stats; you can still edit them.")
+            .font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        ForEach($lines) { $line in
+            if lines.count > 1 {
+                HStack {
+                    Text("Line \((lines.firstIndex { $0.id == line.id } ?? 0) + 1)").font(.subheadline.bold())
+                    Spacer()
+                    Button(role: .destructive) {
+                        lines.removeAll { $0.id == line.id }
+                    } label: {
+                        Label("Remove", systemImage: "minus.circle")
+                    }
+                    .font(.caption)
+                    .buttonStyle(.borderless)
+                }
+                .padding(.top, 4)
+            }
+            RNGOptIntField(label: "Level", value: $line.level)
+            ForEach(0..<6, id: \.self) { stat in
+                RNGOptIntField(label: FRLGIVCalculator.statNames[stat], value: $line.stats[stat])
+            }
+        }
+        if let calculatorError {
+            Text(calculatorError)
+                .font(.caption).foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        Button {
+            lines.append(FRLGStatsLine(level: lines.last?.level.map { min($0 + 1, 100) }))
+        } label: {
+            Label("Add Stats at Another Level", systemImage: "plus.circle")
+        }
+        .font(.caption)
+        .buttonStyle(.borderless)
+    }
+
+    private func pickerRow<Value: Hashable, Content: View>(_ title: String, selection: Binding<Value>,
+                                                         @ViewBuilder content: () -> Content) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Picker(title, selection: selection, content: content)
+                .labelsHidden()
+        }
+    }
+
+    private var searchCard: some View {
+        SectionCard(title: "Search", icon: "magnifyingglass") {
+            RNGIntField(label: "Seeds Either Side", value: $seedLeeway)
+            RNGIntField(label: "Frames Either Side", value: $frameLeeway)
+            if search.usesTeachyTV {
+                RNGIntField(label: "Teachy TV Frames Either Side", value: $teachyTVLeeway)
+            }
+            Button {
+                Task { await runSearch() }
+            } label: {
+                if searching { ProgressView() } else { Label("Find What I Hit", systemImage: "magnifyingglass") }
+            }
+            .buttonStyle(.primaryAction)
+            .disabled(searching || template == nil
+                      || (nature != nil && (!ivRangesValid || calculatorError != nil)))
+        }
+    }
+
+    private func runSearch() async {
+        guard let template, let list = await FRLGSeedStore.shared.list(search.version.sheet) else { return }
+        searching = true
+        defer { searching = false }
+        applied = nil
+        let center = attempted.advances
+        let ttvCenter = search.targetFrame(attempted).teachyTVFrames
+        let finalCenter = search.usesTeachyTV ? search.targetFrame(attempted).frame : center
+        let leeway = UInt32(clamping: max(0, frameLeeway))
+        let frames = (finalCenter > leeway ? finalCenter - leeway : 0)...(finalCenter &+ leeway)
+        let ttvLeeway = UInt32(clamping: max(0, teachyTVLeeway))
+        let ttv: ClosedRange<UInt32>? = search.usesTeachyTV
+            ? (ttvCenter > ttvLeeway ? ttvCenter - ttvLeeway : 0)...(ttvCenter + ttvLeeway) : nil
+        searchedAnyNature = nature == nil
+        hits = await Self.search(list: list, version: search.version, attempted: attempted, targetFrame: finalCenter,
+                                 seedLeeway: max(0, seedLeeway), frames: frames, teachyTVFrames: ttv,
+                                 method: finderMethodToPF(context.method), template: template,
+                                 tid: context.tid, sid: context.sid, caught: caught)
+    }
+
+    @concurrent
+    nonisolated private static func search(list: FRLGSeedList, version: FRLGVersion, attempted: FRLGInitialSeed,
+                                           targetFrame: UInt32, seedLeeway: Int, frames: ClosedRange<UInt32>,
+                                           teachyTVFrames: ClosedRange<UInt32>?, method: PFMethod,
+                                           template: PFStaticTemplateRef, tid: UInt16, sid: UInt16,
+                                           caught: FRLGCatch) async -> [FRLGCalibrationHit] {
+        FRLGCalibration.search(list: list, version: version, attempted: attempted, targetFrame: targetFrame,
+                               seedLeeway: seedLeeway, frames: frames, teachyTVFrames: teachyTVFrames,
+                               method: method, template: template, tid: tid, sid: sid, caught: caught)
+    }
+
+    @ViewBuilder
+    private func resultsCard(_ hits: [FRLGCalibrationHit]) -> some View {
+        SectionCard(title: "What You Hit", icon: "scope") {
+            if let applied {
+                Label("Calibration updated from seed \(String(format: "%04X", applied.seed)): seed press \(signed(search.seedCalibrationMS)) ms, final press \(signed(search.frameCalibrationMS)) ms.",
+                      systemImage: "checkmark.circle")
+                    .font(.caption).foregroundStyle(.green)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    onSendToTimer(attempted, search.preTimerMS(attempted), search.targetFrame(attempted).frame)
+                } label: {
+                    Label("Send to Timer Again", systemImage: "timer")
+                }
+                .buttonStyle(.primaryAction)
+            }
+            if hits.isEmpty {
+                Text("Nothing within \(seedLeeway) seeds and \(frameLeeway) frames of your attempt makes this Pokémon. Check the nature, gender and stats, or widen the search.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if searchedAnyNature {
+                Text("With any nature and IVs, nearly every frame matches. Pick its nature and enter its stats to find what you hit.")
+                    .font(.caption).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Nearest your attempt first. More than one can fit: pick the one closest to how your presses felt.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(hits.prefix(50), id: \.self) { hit in
+                hitRow(hit)
+                Divider()
+            }
+        }
+    }
+
+    private func hitRow(_ hit: FRLGCalibrationHit) -> some View {
+        let hitSeed = FRLGInitialSeed(seed: hit.seed, setting: attempted.setting, held: attempted.held, seedTime: hit.seedTime)
+        let seedMS = search.seedTimeMS(hitSeed) - search.seedTimeMS(attempted)
+        let frames = Int(search.hitFrame(hit)) - Int(search.targetFrame(attempted).frame)
+        let exact = hit.seedOffset == 0 && frames == 0
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("Seed \(String(format: "%04X", hit.seed))").font(.system(.subheadline, design: .monospaced).bold())
+                Spacer()
+                Text(exact ? "Your target" : "\(placeName(hit.seedOffset)) · frame \(signed(frames))")
+                    .font(.caption).foregroundStyle(exact ? .green : .primary)
+            }
+            Text("Seed press \(signed(seedMS)) ms · advance \(hit.advances.formatted())"
+                 + (hit.teachyTVFrames > 0 ? " (\(hit.teachyTVFrames) Teachy TV frames)" : ""))
+                .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+            Text((["IVs " + hit.ivs.map(String.init).joined(separator: "/"), pfNatureNames[Int(hit.nature)],
+                   genderName(hit.gender)] + (hit.shiny > 0 ? ["Shiny"] : [])).compactMap { $0 }.joined(separator: " · "))
+                .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+            if !exact {
+                Button("Calibrate from This") {
+                    search.calibrate(attempted: attempted, hit: hit)
+                    applied = hit
+                }
+                .font(.caption)
+                .buttonStyle(.borderless)
+            }
+        }
+    }
+
+    private func genderName(_ gender: UInt8) -> String? {
+        switch gender {
+        case 0: "Male"
+        case 1: "Female"
+        default: nil
+        }
+    }
+
+    /// "Same seed", "3 seeds later", "1 seed earlier".
+    private func placeName(_ offset: Int) -> String {
+        switch offset {
+        case 0: "Same seed"
+        case 1: "1 seed later"
+        case -1: "1 seed earlier"
+        default: offset > 0 ? "\(offset) seeds later" : "\(-offset) seeds earlier"
+        }
+    }
+
+    private func signed(_ value: Int) -> String { value > 0 ? "+\(value)" : "\(value)" }
 }
