@@ -68,7 +68,7 @@ final class ProblemSolverModel {
             guard download else { return }
             usageStatus = .loading(completed: 0, total: 0)
             do {
-                corpus = try await corpusStore.corpus(for: regulation) { progress in
+                corpus = try await corpusStore.corpus(for: regulation) { [weak self] progress in
                     Task { @MainActor [weak self] in
                         guard let self, case .loading = self.usageStatus else { return }
                         self.usageStatus = .loading(completed: progress.completed, total: progress.total)

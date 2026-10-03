@@ -2630,6 +2630,11 @@ struct RNGToolsView: View {
             }
             .cardPage()
             .navigationTitle("RNG Tools")
+            #if DEBUG && os(macOS)
+            // `-debugOpenSheet frlgCalibration`: the Finder, then a FireRed
+            // Eevee target, then its first seed's Calibrate.
+            .task { await DebugSnapshot.openSheet("frlgCalibration") { selectedTool = RNGToolTab.finder.rawValue } }
+            #endif
             .onChange(of: FinderTimerBridge.shared.shouldSwitchToTimer) {
                 if FinderTimerBridge.shared.shouldSwitchToTimer {
                     selectedTool = 0
@@ -3913,7 +3918,8 @@ struct FinderRootView: View {
                 mode = .generator
             }, frlg: frlgFiltering ? frlg : nil,
                encounter: encounterMode == .static_ ? selectedEncounter : nil,
-               calibrates: frlgFiltering && encounterMode == .static_)
+               calibrates: frlgFiltering && encounterMode == .static_,
+               close: { selectedResult = nil })
         }
         .alert("Save Profile", isPresented: $showSaveAlert) {
             TextField("Profile name", text: $newProfileName)
@@ -3934,6 +3940,20 @@ struct FinderRootView: View {
             Text(verbatim: "Save profile for \(selectedGame.rawValue) TID \(tid) / SID \(sid)")
         }
         .leaveWarning(isSearching ? "The search in progress will stop." : nil)
+        #if DEBUG && os(macOS)
+        // With `-finder_game FireRed -finder_encounterCategory Gifts`: opens
+        // a reachable Eevee target.
+        .task {
+            await DebugSnapshot.openSheet("frlgCalibration") {
+                guard let eevee = StaticEncounterData.encounters(for: selectedGame, category: encounterCategory)
+                    .first(where: { $0.species == 133 }) else { return }
+                selectedEncounter = eevee
+                let targets = staticSearchGen3(minIVs: (31, 31, 31, 31, 25, 0), maxIVs: (31, 31, 31, 31, 31, 31),
+                                               natures: [], tid: tid, sid: sid, shinyOnly: false, method: .method1)
+                selectedResult = targets.first { frlg.nearest(reaching: $0.seed) != nil }
+            }
+        }
+        #endif
     }
 
     // MARK: Encounter Helpers
@@ -5157,14 +5177,16 @@ struct SeedToTimeView: View {
     /// timer; nil for wild ones.
     var encounter: StaticEncounter? = nil
     var calibrates = false
+    /// Goes back to the Finder. Not the environment's dismiss: on the Mac,
+    /// with a screen pushed on top of this one, it changed on every update,
+    /// and the page redrew until the window gave up and crashed.
+    var close: () -> Void = {}
 
     @State private var timeResults3: [SeedToTimeResult3] = []
     @State private var timeResults4: [SeedToTimeResult4] = []
     @State private var originSeed: UInt16 = 0
     @State private var advances: UInt32 = 0
     @State private var isComputing = false
-
-    @Environment(\.dismiss) private var dismiss
 
     // Verification
     @State private var showVerify = false
@@ -5177,14 +5199,20 @@ struct SeedToTimeView: View {
     @State private var verifyNature: UInt8 = 0
     @State private var verificationResult: SeedVerificationResult?
 
+    /// The FireRed or LeafGreen seed being calibrated.
+    @State private var calibrating: FRLGInitialSeed?
+
+    private var calibration: FRLGCalibrationContext? {
+        calibrates ? FRLGCalibrationContext(method: method, tid: tid, sid: sid, encounter: encounter) : nil
+    }
+
     var body: some View {
         ScrollView {
             CardStack {
                 targetSummary
                 if let frlg {
-                    FRLGInitialSeedList(target: result, search: frlg,
-                                        calibration: calibrates ? FRLGCalibrationContext(method: method, tid: tid, sid: sid,
-                                                                                         encounter: encounter) : nil) { seed, preTimer, frame in
+                    FRLGInitialSeedList(target: result, search: frlg, calibration: calibration,
+                                        calibrating: $calibrating) { seed, preTimer, frame in
                         sendToTimerFRLG(seed, preTimer: preTimer, frame: frame)
                     }
                 } else {
@@ -5196,6 +5224,16 @@ struct SeedToTimeView: View {
             .padding()
         }
         .navigationTitle(frlg == nil ? "Seed to Time" : "Initial Seeds")
+        .navigationDestination(item: $calibrating) { seed in
+            if let frlg, let calibration {
+                FRLGCalibrationView(target: result, attempted: seed, search: frlg, context: calibration) {
+                    seed, preTimer, frame in
+                    // Back past this page too, to the Timer.
+                    calibrating = nil
+                    sendToTimerFRLG(seed, preTimer: preTimer, frame: frame)
+                }
+            }
+        }
         .task { if frlg == nil { await computeTimes() } }
     }
 
@@ -5238,7 +5276,7 @@ struct SeedToTimeView: View {
                 if onUseInGenerator != nil {
                     Button {
                         onUseInGenerator?(result.seed)
-                        dismiss()
+                        close()
                     } label: {
                         Label("Use in Generator", systemImage: "arrow.right.circle")
                             .frame(maxWidth: .infinity).padding(8)
@@ -5379,7 +5417,7 @@ struct SeedToTimeView: View {
         bridge.selectedTime = timeText
         bridge.selectedSeed = result.seedHex
         bridge.shouldSwitchToTimer = true
-        dismiss()
+        close()
     }
 
     /// Two phases on the Gen 3 timer: the seed time, then the target frame.
@@ -5394,7 +5432,7 @@ struct SeedToTimeView: View {
         bridge.selectedTime = "initial seed \(String(format: "%04X", seed.seed)), \(seed.settingsName)"
         bridge.selectedSeed = result.seedHex
         bridge.shouldSwitchToTimer = true
-        dismiss()
+        close()
     }
 
     private func sendToTimerGen4(delay: Int, second: Int, timeText: String) {
@@ -5405,7 +5443,7 @@ struct SeedToTimeView: View {
         bridge.selectedTime = timeText
         bridge.selectedSeed = result.seedHex
         bridge.shouldSwitchToTimer = true
-        dismiss()
+        close()
     }
 }
 

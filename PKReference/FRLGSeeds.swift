@@ -663,7 +663,7 @@ nonisolated struct FRLGCalibrationHit: Hashable, Sendable {
     var finalFrame: UInt32 { advances - teachyTVFrames * TeachyTV.advancesPerFrame + teachyTVFrames }
 }
 
-extension FRLGSeedList {
+nonisolated extension FRLGSeedList {
     /// The seeds a setting gives press by press, in time order, shifted by
     /// a held button.
     func timeline(_ setting: FRLGSetting, offset: Int16) -> [(seed: UInt16, seedTime: Int)] {
