@@ -774,8 +774,7 @@ extension ProblemSolver {
 /// How often each Pokémon is brought to tournaments: the share of Team
 /// Search's Limitless teams that have it. A Mega counts where it holds its
 /// stone; any other answer counts its species or form however it's held.
-/// Megas are found by the app's own stones (`MegaForms`), which list some
-/// the Team Search vocabulary doesn't.
+/// Megas are found by the app's own stones (`MegaForms`).
 nonisolated struct TournamentUsage: Sendable {
     let teamCount: Int
     let eventCount: Int

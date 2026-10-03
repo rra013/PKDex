@@ -365,8 +365,10 @@ Settled for Phase 3, also on 2026-09-30:
 - **Usage** (Phase 3): the share of Team Search's Limitless teams for the
   regulation that bring each Pokémon (`TournamentUsage`). Species and forms
   are matched through Team Search's vocabulary; a Mega counts where its
-  species holds its stone, found by the app's own stones, since the
-  vocabulary's list lacks some (Dragoninite). Rows show usage whenever Team
+  species holds its stone, found by the app's own stones. (The regulation
+  files lacked Dragoninite, so Team Search and the validator didn't know
+  Mega Dragonite; added since, with a test that every listed Mega has its
+  stone.) Rows show usage whenever Team
   Search has the teams cached; "Most used" fetches them from Limitless when
   it doesn't, with progress. Within each group the most used Pokémon come
   first, each still led by its fewest-points answer. Against the simulator's

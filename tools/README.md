@@ -193,6 +193,12 @@ cfg=json.load(open('champions-m-d.json')); ln=json.load(open('champions-m-d-lear
 wl=set(cfg['species_whitelist']); sp=ln['species']
 assert not [s for s in wl if s not in sp], 'whitelisted species missing a learnset'
 vals=list(cfg['mega_stones'].values()); assert len(vals)==len(set(vals)), 'duplicate stone name'
+# Every Mega the learnsets list needs its stone in mega_stones: the validator's
+# legal items and Team Search's Megas both come from it (Dragoninite was missing
+# from M-A to M-C). RegulationRulesTests checks this too.
+stone={f['display_name']:f.get('stone') for f in json.load(open('PKReference/mega_forms.json'))['forms']}
+megas=[m['name'] for e in sp.values() for m in e.get('megas') or []]
+print('Megas without their stone (should be []):', sorted(m for m in megas if stone.get(m) not in set(vals)))
 prev=set(json.load(open('champions-m-c.json'))['species_whitelist'])
 print('dropped from prior reg (should be []):', sorted(prev-wl))
 print('counts — species', len(sp), 'whitelist', len(wl), 'items', len(cfg['items_whitelist']))
