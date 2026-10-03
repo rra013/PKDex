@@ -138,6 +138,100 @@ struct FRLGSeedsTests {
         #expect(made.pid == target.pid && made.ivs == [31, 31, 31, 31, 31, 31])
     }
 
+    // MARK: Finder Search
+
+    /// The Finder's Gen 3 static search streams: results and progress come
+    /// in as PokéFinder's searcher goes, the same results its one-shot
+    /// search gives.
+    @Test("The Gen 3 static search streams the one-shot search's results, with progress")
+    func streamingSearch() {
+        var progress: [Double] = []
+        var streamed: [StaticSearchResult] = []
+        staticSearchGen3Streaming(minIVs: (31, 31, 31, 31, 0, 0), maxIVs: (31, 31, 31, 31, 31, 31),
+                                  natures: [], tid: 0, sid: 0, shinyOnly: false, method: .method1,
+                                  onProgress: { progress.append($0) }) { streamed.append($0) }
+        let oneShot = PFBridge.staticSearch3(method: .method1, tid: 0, sid: 0,
+                                             ivMin: [31, 31, 31, 31, 0, 0], ivMax: [31, 31, 31, 31, 31, 31],
+                                             natures: Array(repeating: true, count: 25),
+                                             powers: Array(repeating: true, count: 16))
+        #expect(!streamed.isEmpty)
+        #expect(Set(streamed.map(\.pid)) == Set(oneShot.map(\.pid)) && streamed.count == oneShot.count)
+        #expect(progress.last == 100 && progress == progress.sorted())
+    }
+
+    /// Without the Pokémon, PokéFinder's searcher has no gender ratio and
+    /// every result is genderless; with its template, gender follows it, so
+    /// a gender filter finds something.
+    @Test("The Gen 3 static search and generator take gender from the encounter")
+    func searchGender() throws {
+        let eevee = try #require(PFBridge.staticTemplate3(species: 133, game: .fireRed, preferring: 2))
+        func search(template: PFStaticTemplateRef?, gender: UInt8 = 255) -> [StaticSearchResult] {
+            var results: [StaticSearchResult] = []
+            staticSearchGen3Streaming(minIVs: (31, 31, 31, 31, 31, 0), maxIVs: (31, 31, 31, 31, 31, 31),
+                                      natures: [], tid: 0, sid: 0, shinyOnly: false, method: .method1,
+                                      game: .fireRed, template: template, filterGender: gender) { results.append($0) }
+            return results
+        }
+        #expect(Set(search(template: nil).map(\.gender)) == [2])
+        #expect(search(template: nil, gender: 1).isEmpty)
+        let all = search(template: eevee)
+        #expect(Set(all.map(\.gender)) == [0, 1])
+        let female = search(template: eevee, gender: 1)
+        #expect(!female.isEmpty && female.allSatisfy { $0.gender == 1 } && female.count < all.count)
+
+        var generated: [StaticSearchResult] = []
+        staticGenerateGen3Streaming(seed: 0x11C7, initialAdvance: 0, maxAdvance: 200, natures: [],
+                                    tid: 0, sid: 0, shinyOnly: false, method: .method1,
+                                    game: .fireRed, template: eevee) { generated.append($0) }
+        #expect(Set(generated.map(\.gender)) == [0, 1])
+    }
+
+    /// Stopping a search stops PokéFinder's searcher too.
+    @Test("Cancelling the Gen 3 static search stops it")
+    func cancelSearch() async {
+        let started = ContinuousClock.now
+        let task = Task.detached {
+            var count = 0
+            staticSearchGen3Streaming(minIVs: (0, 0, 0, 0, 0, 0), maxIVs: (31, 31, 31, 31, 31, 31),
+                                      natures: [], tid: 0, sid: 0, shinyOnly: true, method: .method1) { _ in count += 1 }
+            return count
+        }
+        try? await Task.sleep(for: .milliseconds(300))
+        task.cancel()
+        _ = await task.value
+        // The whole search takes minutes.
+        #expect(ContinuousClock.now - started < .seconds(3))
+    }
+
+    /// The reachable list checks each result once as results come in, and
+    /// gives what checking them all at once does.
+    @Test("Reachable targets keep up with a search's results")
+    func reachableCache() async throws {
+        let suite = "FRLGSeedsTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let search = FRLGSeedSearch(defaults: defaults)
+        search.maximumAdvances = 200_000
+        await search.rebuildIndex()
+        #expect(search.index != nil)
+        let results = staticSearchGen3(minIVs: (31, 31, 31, 31, 31, 25), maxIVs: (31, 31, 31, 31, 31, 31),
+                                       natures: [], tid: 0, sid: 0, shinyOnly: false, method: .method1)
+        func all(_ results: [StaticSearchResult]) -> [UUID] {
+            results.compactMap { r in search.nearest(reaching: r.seed).map { (r.id, $0.advances) } }
+                .sorted { $0.1 < $1.1 }.map(\.0)
+        }
+        let cache = FRLGMatchCache()
+        let half = Array(results.prefix(results.count / 2))
+        #expect(cache.matches(for: half, search: search).map(\.id) == all(half))
+        let matches = cache.matches(for: results, search: search)
+        #expect(!matches.isEmpty && matches.map(\.id) == all(results))
+        // New settings check every result again.
+        search.maximumAdvances = 50_000
+        #expect(cache.matches(for: results, search: search).map(\.id) == all(results))
+        // A new search starts over.
+        #expect(cache.matches(for: [], search: search).isEmpty)
+    }
+
     @Test("Timing and Teachy TV follow Ten Lines")
     func timing() {
         // 59.7275 frames a second; Switch 2 is 750 ms earlier than Switch.

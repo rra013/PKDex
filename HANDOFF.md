@@ -38,7 +38,7 @@ and what was checked.
 | [#55](https://github.com/rra013/PKReference/pull/55) | Siri, Spotlight and Shortcuts, Phase 1; the app is named PK Reference |
 | [#56](https://github.com/rra013/PKReference/pull/56) | The Xcode project, targets, module and folders renamed to PKReference |
 
-Full suite with FireRed/LeafGreen calibration: 1180 tests, all passing.
+Full suite with the streaming Gen 3 static search: 1184 tests, all passing.
 
 ---
 
@@ -440,12 +440,20 @@ Roughly in order of value for effort.
    (`FRLGCalibration`, generating from that template with
    `pf_staticTemplateGenerate3`) lists the presses and frames that make it,
    nearest first, and Calibrate from This corrects the seed press and final
-   press, saved for every seed after. Still open: wild calibration (Ten Lines' check_seeds_wild),
-   Teachy TV on Switch, which Ten Lines hasn't worked out either, and the
-   Switch lists' settings nobody has farmed yet (Ten Lines leaves those
-   columns out, and so does the app). The Finder also lists a FireRed and
-   LeafGreen Mew that PokéFinder has only on Emerald, so it can't be
-   calibrated.
+   press, saved for every seed after. The Finder's Gen 3 static search
+   streams: PokéFinder's searcher runs on its own thread
+   (`pf_staticSearch3_start`), read every tenth of a second for results and
+   progress, and Stop cancels it. It and the Generator use the chosen
+   encounter's template, so gender follows the species; with no Pokémon
+   chosen every result is genderless, and the gender filter says so. The
+   reachable list (`FRLGMatchCache`) checks each new result once. Still
+   open: wild calibration (Ten Lines' check_seeds_wild), Teachy TV on
+   Switch, which Ten Lines hasn't worked out either, and the Switch lists'
+   settings nobody has farmed yet (Ten Lines leaves those columns out, and
+   so does the app). Gen 4's static search still runs all at once with a
+   stand-in template. The Finder's FireRed and LeafGreen Mew event has no
+   PokéFinder template (it has Mew only on Emerald), so it can't be
+   calibrated yet.
 8. **App Store.** Blocked on the GPL until PokéFinder's authors give
    permission, or the RNG core is rewritten per
    [`RNGRewrite-PLAN.md`](RNGRewrite-PLAN.md) (on hold).
