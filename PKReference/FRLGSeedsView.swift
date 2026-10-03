@@ -480,6 +480,8 @@ struct FRLGInitialSeedList: View {
     let search: FRLGSeedSearch
     /// What calibrating needs; nil where it can't (wild encounters).
     var calibration: FRLGCalibrationContext?
+    /// The seed being calibrated, which the target's page pushes.
+    @Binding var calibrating: FRLGInitialSeed?
     /// Sends a seed's timing to the Timer: pre-timer (ms), target frame.
     var onSendToTimer: (FRLGInitialSeed, Int, UInt32) -> Void
 
@@ -501,6 +503,9 @@ struct FRLGInitialSeedList: View {
                 }
             }
         }
+        #if DEBUG && os(macOS)
+        .task { await DebugSnapshot.openSheet("frlgCalibration") { calibrating = seeds.first?.seed } }
+        #endif
     }
 
     private func row(_ choice: FRLGHeldChoice) -> some View {
@@ -525,10 +530,9 @@ struct FRLGInitialSeedList: View {
                 } label: {
                     Label("Send to Timer", systemImage: "timer")
                 }
-                if let calibration {
-                    NavigationLink {
-                        FRLGCalibrationView(target: self.target, attempted: seed, search: search, context: calibration,
-                                            onSendToTimer: onSendToTimer)
+                if calibration != nil {
+                    Button {
+                        calibrating = seed
                     } label: {
                         Label("Calibrate", systemImage: "scope")
                     }

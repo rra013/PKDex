@@ -284,6 +284,10 @@ xcodebuild build -project PKReference.xcodeproj -scheme PKReference -destination
     Search.
   - `-debugOpenSheet <name>`: `save`, `paste` or `load` (the calc), `newSet`
     (Sets). A presenter adds a name with `DebugSnapshot.openSheet`.
+    `frlgCalibration`, with `-defaultTab rngTools -finder_generation "Gen 3"
+    -finder_mode Searcher -finder_game FireRed -finder_encounterMode Static
+    -finder_encounterCategory Gifts -frlg_version fr_nx`, goes from the
+    Finder to an Eevee target and its first seed's Calibrate.
   - `-debugOpenSettings YES`: the Settings window, as `<name>-Settings`.
   - `-debugMenus YES` prints the menu bar with shortcuts, as `[menu]` lines.
 
@@ -291,6 +295,14 @@ xcodebuild build -project PKReference.xcodeproj -scheme PKReference -destination
   views. For a screen reached by hand, Debug › Save Window Snapshot (⇧⌘S)
   saves the window into the container and plays a sound; ask the owner to
   share it.
+- **A page that pushes another mustn't read `@Environment(\.dismiss)`.**
+  On the Mac, once a screen was pushed on top of the Finder's target page,
+  the dismiss action changed on every update, so the page redrew until
+  AppKit threw "more Update Constraints in Window passes than there are
+  views" and the app crashed. The page now takes a `close` closure from
+  the Finder instead. If a Mac window hangs or throws that, sample the
+  process (`sample <pid> 3`) and add `let _ = Self._printChanges()` to the
+  bodies in the loop: it names what keeps changing.
 - **If every Mac window opens blank**, a layout blew up once and the window
   saved it as its sidebar's divider position (widths in the billions under
   `NSSplitView Subview Frames` in the app's preferences). Delete those
