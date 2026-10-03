@@ -193,7 +193,10 @@ final class FRLGSeedSearch {
         IndexKey(version: version, filter: filter, downloadedAt: FRLGSeedStore.shared.downloadedAt)
     }
 
-    func rebuildIndex(store: FRLGSeedStore = .shared) async {
+    /// `store` defaults to the shared one (a default argument can't name
+    /// it: those are evaluated off the main actor).
+    func rebuildIndex(store: FRLGSeedStore? = nil) async {
+        let store = store ?? .shared
         let key = indexKey
         guard let list = await store.list(key.version.sheet) else {
             index = nil
