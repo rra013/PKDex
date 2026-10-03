@@ -60,6 +60,11 @@ nonisolated enum ProblemSolver {
         /// Psychic Terrain stops priority moves hitting a grounded target.
         var blocksPriority: Bool { field.terrain == .psychic && targetIsGrounded }
 
+        /// What lets the target live through any one hit: Sturdy or Focus
+        /// Sash from full HP, or Disguise. Only answers that get past it
+        /// knock it out in one hit.
+        var survival: SurvivalEffect? { CalcEngine.survivalEffects(of: defender, field: field).first }
+
         /// Not Flying type, Levitating or holding Air Balloon.
         var targetIsGrounded: Bool {
             !defender.effectiveTypes.contains("Flying")
@@ -114,6 +119,9 @@ nonisolated enum ProblemSolver {
         case movesLast
         /// It can only tie the problem set's Speed, not beat it.
         case speedTie
+        /// It gets past the target's Sturdy, Focus Sash or Disguise, with a
+        /// move that hits more than once or with Mold Breaker.
+        case getsPast(SurvivalEffect)
     }
 
     struct Counter: Identifiable, Equatable, Hashable, Sendable {
@@ -355,6 +363,9 @@ nonisolated enum ProblemSolver {
         if let weather = candidate.chargeSkipWeather, weather == problem.field.weather {
             marks.remove(.chargesFirst)
         }
+        if let effect = problem.survival, CalcEngine.getsPast(effect, move: candidate.move, attacker: solved) {
+            marks.insert(.getsPast(effect))
+        }
         let speedOf = { (side: CalcSnapshot) in speed(side, problem.field) }
         let group: Group
         var speedPoints: Int?
@@ -470,10 +481,17 @@ nonisolated enum ProblemSolver {
         // has already been eaten by then.
         let endOfTurnHeal = (item == .leftovers && !knockedOff ? max(1, maxHP / 16) : 0)
             + (problem.field.terrain == .grassy && problem.targetIsGrounded ? max(1, maxHP / 16) : 0)
+        // Sturdy or Focus Sash leaves 1 HP from full; Disguise takes the
+        // first hit, costing an eighth of the target's HP.
+        var firstHits = Set(first.rolls ?? [Int(first.damageMin), Int(first.damageMax)])
+        if first.survival == .disguise { firstHits = [max(1, maxHP / 8)] }
         var worst: (hp: Int, damage: Int)?
-        for damage in Set(first.rolls ?? [Int(first.damageMin), Int(first.damageMax)]).sorted() {
+        for damage in firstHits.sorted() {
             var hp = startHP - damage
-            guard hp > 0 else { continue }
+            if hp <= 0 {
+                guard first.survival == .sturdy || first.survival == .focusSash else { continue }
+                hp = 1
+            }
             if hp * 2 <= maxHP, item == .sitrusBerry { hp += max(1, maxHP / 4) }
             if hp * 2 <= maxHP, item == .oranBerry { hp += 10 }
             if hp < maxHP { hp += endOfTurnHeal }
@@ -704,7 +722,8 @@ extension ProblemSolver {
         guard problem.twoHits, !problem.helpingHand else { return false }
         let item = problem.defender.effectiveHeldItem
         let key = BattleSimSeed.normalize(counter.move.name)
-        return [.sitrusBerry, .oranBerry, .leftovers].contains(item)
+        return [.sitrusBerry, .oranBerry, .leftovers, .focusSash].contains(item)
+            || problem.survival != nil
             || typeResistBerryMap[item] == counter.move.type
             || item == .chilanBerry && counter.move.type == "Normal"
             || betweenHitAbilities.contains(problem.defender.effectiveAbility ?? "")
@@ -827,9 +846,10 @@ nonisolated struct TournamentUsage: Sendable {
         return abilities[key]?.max { ($0.value, $1.key) < ($1.value, $0.key) }?.key
     }
 
-    /// "14%", or "0.4%" under one percent.
+    /// "14%", "0.4%" under one percent, or "<0.1%" for the few under that.
     static func percent(_ share: Double) -> String {
         let percent = share * 100
+        if percent > 0 && percent < 0.05 { return "<0.1%" }
         return percent > 0 && percent < 1 ? String(format: "%.1f%%", percent) : "\(Int(percent.rounded()))%"
     }
 

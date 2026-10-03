@@ -2376,7 +2376,7 @@ final class BattleEngine {
             // sliver of chip (1/8 max HP) and busts the form. Subsequent hits
             // resolve normally.
             if defender.disguiseIntact, defender.activeAbility == "disguise",
-               damage > 0, hitsLanded == 0 {
+               damage > 0, hitsLanded == 0, !Self.ignoresAbilities(attacker, move) {
                 defender.disguiseIntact = false
                 damage = max(1, defender.maxHP / 8)
                 log.append(BattleLogEntry(text: "\(defender.displayName)'s disguise was busted!"))
@@ -2417,10 +2417,15 @@ final class BattleEngine {
                 }
             }
 
-            // Focus Sash / Focus Band — survive a would-be OHKO at 1 HP. Only the
-            // first hit can be at full HP, so the sash only applies there.
+            // Sturdy / Focus Sash / Focus Band — survive a would-be OHKO at 1
+            // HP. Only the first hit can be at full HP, so Sturdy and the sash
+            // only apply there; Sturdy acts first, keeping the sash.
             if defender.currentHP == 0 {
-                if wasFullHP && hitsLanded == 0 && defender.effectiveHeldItem == .focusSash {
+                if wasFullHP && hitsLanded == 0 && defender.activeAbility == "sturdy"
+                    && !Self.ignoresAbilities(attacker, move) {
+                    defender.currentHP = 1
+                    log.append(BattleLogEntry(text: "\(defender.displayName) endured the hit with Sturdy!"))
+                } else if wasFullHP && hitsLanded == 0 && defender.effectiveHeldItem == .focusSash {
                     defender.currentHP = 1
                     defender.consumedItem = true
                     log.append(BattleLogEntry(text: "\(defender.displayName) hung on with its Focus Sash!"))
@@ -4167,6 +4172,13 @@ final class BattleEngine {
 
     // MARK: Tier 5 — OHKO + fixed-damage
 
+    /// Mold Breaker and its kind, or a move that ignores abilities, get past
+    /// the target's Sturdy and Disguise, as in `CalcEngine.getsPast`.
+    private static func ignoresAbilities(_ attacker: BattleParticipant, _ move: MoveData) -> Bool {
+        CalcEngine.abilityBreakers.contains(attacker.activeAbility ?? "")
+            || CalcEngine.abilityIgnoringMoves.contains(BattleSimSeed.normalize(move.name))
+    }
+
     /// One-hit KO moves. Accuracy uses the canon formula:
     ///   acc = 30 + (attackerLevel - defenderLevel)
     /// Type immunity: Sheer Cold doesn't affect Ice-types (Gen VII+);
@@ -4195,6 +4207,10 @@ final class BattleEngine {
         let acc = 30 + (attacker.slot.level - defender.slot.level)
         if accuracyRoll() > acc {
             log.append(BattleLogEntry(text: "\(attacker.displayName)'s \(move.name) missed!"))
+            return
+        }
+        if defender.activeAbility == "sturdy", !Self.ignoresAbilities(attacker, move) {
+            log.append(BattleLogEntry(text: "\(defender.displayName) is unaffected thanks to Sturdy!"))
             return
         }
         defender.currentHP = 0

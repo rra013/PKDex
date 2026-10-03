@@ -59,6 +59,9 @@ nonisolated struct MoveSnapshot: Equatable, Sendable, Identifiable {
     var damageClass: String
     var power: Int?
     var makesContact: Bool
+    /// The fewest times it hits, when it hits more than once (Bullet Seed,
+    /// Surging Strikes).
+    var minHits: Int? = nil
 
     var isPhysical: Bool { damageClass == "physical" }
     var isStatus: Bool { damageClass == "status" }
@@ -259,6 +262,21 @@ nonisolated struct FieldSnapshot: Equatable, Sendable {
 /// `MoveResult` exists for the UI and carries a `hitsToKO` *String* plus
 /// SwiftUI `Color`s, neither of which a solver can compare. This is the
 /// numeric equivalent; `MoveResult` will be derived from it in 2.1b.
+/// What lets a Pokémon live through one hit that would knock it out.
+nonisolated enum SurvivalEffect: String, Hashable, Sendable {
+    /// From full HP, it's left at 1 HP.
+    case focusSash = "Focus Sash"
+    /// From full HP, it's left at 1 HP.
+    case sturdy = "Sturdy"
+    /// Mimikyu's first hit is blocked, costing it an eighth of its HP.
+    case disguise = "Disguise"
+
+    /// "leaves it at 1 HP from full HP", or "blocks the first hit".
+    var effect: String {
+        self == .disguise ? "blocks the first hit" : "leaves it at 1 HP from full HP"
+    }
+}
+
 nonisolated struct CalcOutcome: Equatable, Sendable {
     /// Damage floor and ceiling. `Double` rather than `Int` to match the
     /// engines' own arithmetic exactly — both paths `floor()` a Double product
@@ -281,6 +299,11 @@ nonisolated struct CalcOutcome: Equatable, Sendable {
     /// full HP, so outcomes built without it behave exactly as before.
     var defenderCurrentHP: Int? = nil
 
+    /// What keeps the defender alive through this hit if it would knock it
+    /// out (`CalcEngine.oneHitSurvival`): Focus Sash or Sturdy from full
+    /// HP, or Disguise. nil when nothing does, or the move gets past it.
+    var survival: SurvivalEffect? = nil
+
     /// HP the hit has to get through: current HP when known, else max HP.
     /// Percentages stay relative to max HP, as the calc displays them; only
     /// the KO / survival checks use this.
@@ -293,17 +316,21 @@ nonisolated struct CalcOutcome: Equatable, Sendable {
         defenderHP > 0 ? min(damageMax / Double(defenderHP) * 100, 999) : 0
     }
 
-    /// True when even the lowest roll KOs from the defender's current HP.
+    /// True when even the lowest roll KOs from the defender's current HP,
+    /// and nothing (`survival`) keeps it standing.
     var isGuaranteedOHKO: Bool {
-        hpBeforeHit > 0 && damageMin >= Double(hpBeforeHit)
+        survival == nil && hpBeforeHit > 0 && damageMin >= Double(hpBeforeHit)
     }
-    /// True when even the highest roll leaves the defender standing.
+    /// True when even the highest roll leaves the defender standing, or
+    /// `survival` does.
     var isGuaranteedSurvival: Bool {
-        hpBeforeHit > 0 && damageMax < Double(hpBeforeHit)
+        hpBeforeHit > 0 && (survival != nil || damageMax < Double(hpBeforeHit))
     }
 
-    /// Fraction of rolls that KO from current HP. nil without rolls.
+    /// Fraction of rolls that KO from current HP: none when `survival`
+    /// takes the hit. nil without rolls.
     var ohkoChance: Double? {
+        if survival != nil { return 0 }
         guard let rolls, !rolls.isEmpty, hpBeforeHit > 0 else { return nil }
         return Double(rolls.filter { $0 >= hpBeforeHit }.count) / Double(rolls.count)
     }
@@ -315,10 +342,17 @@ nonisolated struct CalcOutcome: Equatable, Sendable {
         let maxPct = maxPercent
         let minPct = minPercent
         guard maxPct > 0 else { return "--" }
-        let minHits = Int(ceil(100.0 / maxPct))
-        let maxHits = minPct > 0 ? Int(ceil(100.0 / minPct)) : 0
-        if minHits == maxHits { return "\(minHits)HKO" }
-        return "\(minHits)-\(maxHits)HKO"
+        var minHits = Int(ceil(100.0 / maxPct))
+        var maxHits = minPct > 0 ? Int(ceil(100.0 / minPct)) : 0
+        // Focus Sash, Sturdy or Disguise take the first hit: "2HKO (Sturdy)".
+        var note = ""
+        if let survival, minHits == 1 {
+            minHits = 2
+            if maxHits > 0 { maxHits = max(maxHits, 2) }
+            note = " (\(survival.rawValue))"
+        }
+        if minHits == maxHits { return "\(minHits)HKO\(note)" }
+        return "\(minHits)-\(maxHits)HKO\(note)"
     }
 }
 
@@ -329,7 +363,7 @@ extension MoveData {
     @MainActor
     func snapshot() -> MoveSnapshot {
         MoveSnapshot(id: id, name: name, type: type, damageClass: damageClass,
-                     power: power, makesContact: makesContact)
+                     power: power, makesContact: makesContact, minHits: minHits)
     }
 }
 

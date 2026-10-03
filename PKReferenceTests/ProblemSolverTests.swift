@@ -849,6 +849,7 @@ struct ProblemSolverTests {
                     == ["Garchomp", "Kingambit", mega.name, "Incineroar"])
         #expect(TournamentUsage.percent(0.141) == "14%")
         #expect(TournamentUsage.percent(0.004) == "0.4%")
+        #expect(TournamentUsage.percent(0.0003) == "<0.1%")
         #expect(TournamentUsage.percent(0) == "0%")
     }
 
@@ -973,5 +974,102 @@ struct ProblemSolverTests {
                 == "84 Pokémon in Regulation M-C can knock out Intimidate Incineroar in one hit. The best three: Milotic's Scald, Empoleon's Surf and Falinks's Close Combat, each with no investment, moving first.")
         #expect(answer([pick("Garchomp", "Earthquake", "12 Attack points"), pick("Kingambit", "Sucker Punch", "no investment", .priority)])
                 == "2 Pokémon in Regulation M-C can knock out Intimidate Incineroar in one hit. The best two: Garchomp's Earthquake, with 12 Attack points, moving first; and Kingambit's Sucker Punch, with no investment, using priority.")
+    }
+
+    // MARK: Sturdy, Focus Sash and Disguise
+
+    private func evaluate(_ attacker: CalcSide, _ move: MoveSnapshot, _ defender: CalcSide,
+                          field: FieldSnapshot = FieldSnapshot()) throws -> CalcOutcome {
+        CalcEngine.evaluate(move: move, attacker: try #require(attacker.snapshot()),
+                            defender: try #require(defender.snapshot()), field: field)
+    }
+
+    /// Earthquake does four times damage to Heatran, far more than its HP,
+    /// yet Focus Sash or Sturdy leaves it at 1 HP from full HP.
+    @Test("The calc lets Focus Sash, Sturdy and Disguise take one hit")
+    func survivalInCalc() throws {
+        let store = try store()
+        let quake = try #require(store.moves["Earthquake"]).snapshot()
+        let chomp = try side("Garchomp", in: store, ability: "rough-skin")
+        let sash = try side("Heatran", in: store) { $0.heldItem = .focusSash }
+
+        let blocked = try evaluate(chomp, quake, sash)
+        #expect(blocked.damageMin > Double(blocked.defenderHP))
+        #expect(blocked.survival == .focusSash && !blocked.isGuaranteedOHKO && blocked.isGuaranteedSurvival)
+        #expect(blocked.ohkoChance == 0)
+        #expect(blocked.hitsToKOText == "2HKO (Focus Sash)")
+        sash.currentHPPercent = 99
+        #expect(try evaluate(chomp, quake, sash).isGuaranteedOHKO)
+        sash.currentHPPercent = 100
+        var magicRoom = FieldSnapshot()
+        magicRoom.magicRoom = true
+        #expect(try evaluate(chomp, quake, sash, field: magicRoom).isGuaranteedOHKO)
+
+        // A move that hits more than once gets past Focus Sash and Sturdy.
+        var twice = quake
+        twice.minHits = 2
+        #expect(try evaluate(chomp, twice, sash).survival == nil)
+
+        let sturdy = try side("Heatran", in: store, ability: "sturdy")
+        #expect(try evaluate(chomp, quake, sturdy).survival == .sturdy)
+        #expect(try evaluate(chomp, twice, sturdy).survival == nil)
+        let breaker = try side("Garchomp", in: store, ability: "mold-breaker")
+        #expect(try evaluate(breaker, quake, sturdy).isGuaranteedOHKO)
+
+        // Disguise blocks the first hit at any HP; only Mold Breaker gets past it.
+        let disguised = try side("Heatran", in: store, ability: "disguise") { $0.currentHPPercent = 50 }
+        #expect(try evaluate(chomp, twice, disguised).survival == .disguise)
+        #expect(try evaluate(breaker, quake, disguised).survival == nil)
+
+        let answer = DamageAnswer(attacker: "Garchomp", defender: "Heatran", move: "Earthquake",
+                                  minPercent: 300, maxPercent: 350, minDamage: 0, maxDamage: 0,
+                                  attackerSetup: "", defenderSetup: "", championsRules: true, survival: .sturdy)
+        #expect(answer.knockOut == "a guaranteed two-hit KO, since Sturdy leaves it at 1 HP from full HP")
+    }
+
+    @Test("Only answers that get past Focus Sash or Sturdy count in one hit; two hits do")
+    func survivalInSolver() throws {
+        let store = try store()
+        let quake = try candidate("Garchomp", "Earthquake", in: store, ability: "rough-skin")
+        let sash = try problem("Heatran", in: store) { $0.heldItem = .focusSash }
+        #expect(sash.survival == .focusSash)
+        #expect(ProblemSolver.solve(sash, candidates: [quake]).isEmpty)
+
+        let twoHits = ProblemSolver.Problem(defender: sash.defender, twoHits: true)
+        let counter = try #require(ProblemSolver.solve(twoHits, candidates: [quake]).first)
+        #expect(counter.twoHits?.hpBeforeSecond == 1)
+        expectTwoHitMinimal(counter, twoHits)
+        #expect(ProblemSolver.needsSimulation(counter, twoHits))
+        #expect(counter.twoHitNotes(twoHits, targetName: "Heatran").first == "Allows for Heatran's Focus Sash.")
+
+        let sturdy = try problem("Heatran", in: store, ability: "sturdy")
+        #expect(ProblemSolver.solve(sturdy, candidates: [quake]).isEmpty)
+        let breaker = try #require(ProblemSolver.solve(sturdy, candidates: [
+            try candidate("Garchomp", "Earthquake", in: store, ability: "mold-breaker"),
+        ]).first)
+        #expect(breaker.marks.contains(.getsPast(.sturdy)) && breaker.notes.contains("Gets past Sturdy"))
+        expectMinimal(breaker, sturdy)
+
+        let none = CountersAnswer(target: "Sturdy Heatran", setup: "", regulation: "Regulation M-C",
+                                  pokemonCount: 0, wayCount: 0, top: [], survival: .sturdy)
+        #expect(none.spoken == "Nothing in Regulation M-C knocks out Sturdy Heatran in one hit, guaranteed: its Sturdy leaves it at 1 HP from full HP.")
+    }
+
+    @Test("The battle simulator keeps a Sturdy Pokémon at 1 HP from full, unless Mold Breaker")
+    func survivalInSimulator() throws {
+        let store = try store()
+        let quake = try #require(store.moves["Earthquake"])
+        let vm = DamageCalcVM()
+        let sturdy = try side("Heatran", in: store, ability: "sturdy")
+        let chomp = try side("Garchomp", in: store, ability: "rough-skin")
+        let once = TwoHitSolver.simulate(vm: vm, attacker: chomp, defender: sturdy, move: quake,
+                                         rolls: (.max, .max), hits: 1)
+        let hp = try evaluate(chomp, quake.snapshot(), sturdy).defenderHP
+        #expect(!once.defenderFainted && once.defenderHPLost == hp - 1)
+        #expect(TwoHitSolver.simulate(vm: vm, attacker: chomp, defender: sturdy, move: quake,
+                                      rolls: (.max, .max)).defenderFainted)
+        let breaker = try side("Garchomp", in: store, ability: "mold-breaker")
+        #expect(TwoHitSolver.simulate(vm: vm, attacker: breaker, defender: sturdy, move: quake,
+                                      rolls: (.min, .min), hits: 1).defenderFainted)
     }
 }
