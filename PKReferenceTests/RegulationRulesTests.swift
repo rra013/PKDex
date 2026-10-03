@@ -6,7 +6,8 @@
 //  regulation decodes it, its values are the ones the app used before they
 //  were read from the JSON, the stat-point caps and IV lock follow it, and
 //  so do the validator (from an edited copy of a regulation file) and Mega
-//  Evolution in the calc and in battles.
+//  Evolution in the calc and in battles. Every Mega a regulation's
+//  learnsets list has its stone in the regulation's `mega_stones`.
 //
 
 import Testing
@@ -193,5 +194,45 @@ struct RegulationRulesTests {
         let editedCategories = categories(edited.validate(team: team))
         #expect(editedCategories.isDisjoint(with: [.wrongTeamSize, .speciesClause]))
         #expect(editedCategories.contains(.itemClause))
+    }
+
+    // MARK: Mega Stones
+
+    private func bundledJSON(_ name: String) throws -> [String: Any] {
+        let url = try #require(Bundle.main.url(forResource: name, withExtension: "json"))
+        return try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+    }
+
+    /// The validator's legal items and Team Search's Megas both come from
+    /// `mega_stones`. Dragoninite was missing from all three regulations,
+    /// so Mega Dragonite was an illegal item and unknown to Team Search.
+    @Test("Every Mega a regulation lists has its stone", arguments: ChampionsRegulation.allCases)
+    func megaStonesListed(regulation: ChampionsRegulation) throws {
+        let stones = Set((try bundledJSON(regulation.bundleResourceName)["mega_stones"]
+            as? [String: String] ?? [:]).values)
+        let species = try #require(try bundledJSON(regulation.learnsetBundleResourceName)["species"]
+            as? [String: [String: Any]])
+        let megas = species.values.flatMap { entry in
+            (entry["megas"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
+        }
+        #expect(!megas.isEmpty)
+        let missing = megas.filter { name in
+            guard let stone = MegaForms.all.first(where: { $0.displayName == name })?.stone else { return true }
+            return !stones.contains(stone.rawValue)
+        }
+        #expect(missing.isEmpty, "Megas without their stone in \(regulation.displayName): \(missing.sorted())")
+    }
+
+    @Test("Dragonite can hold Dragoninite, and Team Search knows Mega Dragonite",
+          arguments: ChampionsRegulation.allCases)
+    func dragoninite(regulation: ChampionsRegulation) throws {
+        let validator = try #require(ChampionsValidator(regulation: regulation))
+        let dragonite = PokemonSet(species: "Dragonite", ability: "Multiscale", item: "Dragoninite",
+                                   nature: "Adamant", teraType: nil,
+                                   moves: ["Extreme Speed", "Scale Shot", "Earthquake", "Protect"],
+                                   statPoints: .init(hp: 2, atk: 32, def: 0, spa: 0, spd: 0, spe: 32), role: nil)
+        #expect(categories(validator.validate(set: dragonite)).isDisjoint(with: [.illegalItem, .wrongMegaStone]))
+        let vocabulary = try TeamSearchVocabulary.bundled(for: regulation)
+        #expect(vocabulary.mega(heldItem: "Dragoninite", speciesID: "dragonite") != nil)
     }
 }
