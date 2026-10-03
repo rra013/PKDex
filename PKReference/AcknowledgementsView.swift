@@ -84,7 +84,7 @@ struct Acknowledgement: Identifiable {
             license: "GPL-3.0-or-later", licenseFiles: ["COPYING"]),
         Acknowledgement(
             name: "Ten Lines", credit: "Lincoln-LM",
-            use: "FireRed and LeafGreen initial seeds: the seed lists' layouts, held buttons, timing and Teachy TV",
+            use: "FireRed and LeafGreen initial seeds and calibration: the seed lists' layouts, held buttons, timing, Teachy TV and the IV calculator",
             url: URL(string: "https://github.com/Lincoln-LM/ten-lines")!,
             license: "GPL-3.0", licenseFiles: ["License-GPL-3.0.txt"]),
         Acknowledgement(

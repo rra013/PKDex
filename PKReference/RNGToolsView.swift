@@ -2200,6 +2200,8 @@ final class FinderTimerBridge {
     var pendingTargetFrame: Int?
     /// FireRed and LeafGreen: the seed time, as the Gen 3 pre-timer.
     var pendingPreTimer: Int?
+    /// FireRed and LeafGreen: the final press's calibration, in ms.
+    var pendingCalibration: Int?
     var pendingConsole: RNGConsole?
     var pendingTargetDelay: Int?
     var pendingTargetSecond: Int?
@@ -2211,6 +2213,7 @@ final class FinderTimerBridge {
         pendingGen = nil
         pendingTargetFrame = nil
         pendingPreTimer = nil
+        pendingCalibration = nil
         pendingConsole = nil
         pendingTargetDelay = nil
         pendingTargetSecond = nil
@@ -2760,6 +2763,9 @@ struct RNGTimerView: View {
                 if gen == .gen3, let preTimer = bridge.pendingPreTimer {
                     gen3Mode = .standard
                     gen3PreTimer = preTimer
+                }
+                if gen == .gen3, let calibration = bridge.pendingCalibration {
+                    gen3Calibration = calibration
                 }
                 if let console = bridge.pendingConsole {
                     consoleType = console
@@ -3865,7 +3871,9 @@ struct FinderRootView: View {
                            tid: tid, sid: sid, method: method, onUseInGenerator: { seed in
                 genSeedText = String(format: "%08X", seed)
                 mode = .generator
-            }, frlg: frlgFiltering ? frlg : nil)
+            }, frlg: frlgFiltering ? frlg : nil,
+               encounter: encounterMode == .static_ ? selectedEncounter : nil,
+               calibrates: frlgFiltering && encounterMode == .static_)
         }
         .alert("Save Profile", isPresented: $showSaveAlert) {
             TextField("Profile name", text: $newProfileName)
@@ -5096,6 +5104,10 @@ struct SeedToTimeView: View {
     /// FireRed and LeafGreen: the seeds the player can hit, in place of
     /// Ruby and Sapphire's clock times.
     var frlg: FRLGSeedSearch? = nil
+    /// The static encounter searched for, so its catch can calibrate the
+    /// timer; nil for wild ones.
+    var encounter: StaticEncounter? = nil
+    var calibrates = false
 
     @State private var timeResults3: [SeedToTimeResult3] = []
     @State private var timeResults4: [SeedToTimeResult4] = []
@@ -5121,13 +5133,16 @@ struct SeedToTimeView: View {
             CardStack {
                 targetSummary
                 if let frlg {
-                    FRLGInitialSeedList(target: result.seed, search: frlg) { seed, preTimer, frame in
+                    FRLGInitialSeedList(target: result, search: frlg,
+                                        calibration: calibrates ? FRLGCalibrationContext(method: method, tid: tid, sid: sid,
+                                                                                         encounter: encounter) : nil) { seed, preTimer, frame in
                         sendToTimerFRLG(seed, preTimer: preTimer, frame: frame)
                     }
                 } else {
                     timeResultsSection
+                    // FireRed and LeafGreen calibrate from each seed instead.
+                    verifySection
                 }
-                verifySection
             }
             .padding()
         }
@@ -5324,6 +5339,7 @@ struct SeedToTimeView: View {
         bridge.pendingGen = .gen3
         bridge.pendingPreTimer = preTimer
         bridge.pendingTargetFrame = Int(frame)
+        bridge.pendingCalibration = frlg?.frameCalibrationMS
         // Switch FireRed and LeafGreen run at the GBA's frame rate.
         bridge.pendingConsole = .gba
         bridge.selectedTime = "initial seed \(String(format: "%04X", seed.seed)), \(seed.settingsName)"
@@ -5626,7 +5642,7 @@ struct RNGCreditsView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Ported from Ten Lines").font(.headline)
                         Text("by Lincoln-LM (GPLv3)").foregroundStyle(.secondary)
-                        Text("The Finder's initial seeds for FireRed and LeafGreen: how each farmed seed list is laid out, the held-button offsets, seed times per console, Teachy TV, and finding the seeds that reach a target by advances. The seed lists are the RNG community's, farmed on each version and shared as public sheets.")
+                        Text("The Finder's initial seeds for FireRed and LeafGreen: how each farmed seed list is laid out, the held-button offsets, seed times per console, Teachy TV, and finding the seeds that reach a target by advances. Calibration too: which seed and frame an attempt hit, from the Pokémon's nature, gender and stats, with the IV calculator. The seed lists are the RNG community's, farmed on each version and shared as public sheets.")
                             .font(.caption).foregroundStyle(.secondary)
                         Link("github.com/Lincoln-LM/ten-lines",
                              destination: URL(string: "https://github.com/Lincoln-LM/ten-lines")!)

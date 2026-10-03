@@ -530,6 +530,23 @@ PFGeneratorState *pf_gamecubeGenerateShadow(uint32_t seed,
                                              const bool natures[25], const bool powers[16],
                                              int *outCount);
 
+PFGeneratorState *pf_staticTemplateGenerate3(uint32_t seed,
+                                              uint32_t initialAdvances,
+                                              uint32_t maxAdvances,
+                                              uint32_t offset,
+                                              uint8_t method,
+                                              int staticType, int staticIndex,
+                                              uint16_t tid, uint16_t sid,
+                                              uint32_t game,
+                                              uint8_t gender, uint8_t shiny,
+                                              const uint8_t ivMin[6], const uint8_t ivMax[6],
+                                              const bool natures[25], const bool powers[16],
+                                              int *outCount);
+
+bool pf_calcIVsStatic3(int staticType, int staticIndex,
+                       const uint8_t *levels, const uint16_t *stats, int count,
+                       uint8_t nature, uint8_t outMin[6], uint8_t outMax[6]);
+
 PFGeneratorState *pf_gamecubeGenerateStatic(uint32_t seed,
                                              uint32_t initialAdvances,
                                              uint32_t maxAdvances,

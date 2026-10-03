@@ -177,4 +177,149 @@ struct FRLGSeedsTests {
         #expect(FRLGVersion.fireRedSwitch.heldButtons(buttonMode: .lr).isEmpty)
         #expect(FRLGVersion.fireRedJPN10.farmedSeedButtons == [.a])
     }
+
+    // MARK: Calibration
+
+    /// An attempt aimed at a seed and advance, that pressed two seeds late
+    /// and five frames late: PokéFinder's generator says what it caught,
+    /// and calibration finds that press and frame from the catch alone.
+    @Test("Calibration finds the seed and frame an attempt hit, and corrects the timer")
+    func calibration() throws {
+        let list = try bundled(.fireRedSwitch)
+        let help = FRLGSetting(sound: .mono, buttonMode: .help, seedButton: .a)
+        let timeline = list.timeline(help, offset: 0)
+        let aimed = timeline[100], late = timeline[102]
+        let attempted = FRLGInitialSeed(seed: aimed.seed, setting: help, held: .none, seedTime: aimed.seedTime,
+                                        advances: 5_000)
+        let made = try #require(PFBridge.staticGenerate3(seed: UInt32(late.seed), initialAdvances: 5_005, maxAdvances: 0,
+                                                         method: .method1, tid: 0, sid: 0,
+                                                         natures: Array(repeating: true, count: 25),
+                                                         powers: Array(repeating: true, count: 16)).first)
+        let caught = FRLGCatch(nature: made.nature, ivMin: made.ivs, ivMax: made.ivs)
+        let bulbasaur = try #require(PFBridge.staticTemplate3(species: 1, game: .fireRed, preferring: 0))
+        let hits = FRLGCalibration.search(list: list, version: .fireRedSwitch, attempted: attempted, targetFrame: 5_000,
+                                          seedLeeway: 5, frames: 4_900...5_100, method: .method1, template: bulbasaur,
+                                          tid: 0, sid: 0, caught: caught)
+        let hit = try #require(hits.first { $0.seed == late.seed && $0.advances == 5_005 })
+        #expect(hit.seedOffset == 2 && hit.pid == made.pid)
+
+        let suite = "FRLGSeedsTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let search = FRLGSeedSearch(defaults: defaults)
+        search.overworldFrames = 0
+        let lateMS = search.seedTimeMS(FRLGInitialSeed(seed: late.seed, setting: help, held: .none, seedTime: late.seedTime))
+        search.calibrate(attempted: attempted, hit: hit)
+        // Pressed late: the seed press comes earlier next time, and so does
+        // the final press, by five GBA frames.
+        #expect(search.seedCalibrationMS == -(lateMS - search.seedTimeMS(attempted)) && search.seedCalibrationMS < 0)
+        #expect(search.frameCalibrationMS == -84)
+        #expect(search.preTimerMS(attempted) == search.seedTimeMS(attempted) + search.seedCalibrationMS)
+        search.resetCalibration()
+        #expect(search.seedCalibrationMS == 0 && search.frameCalibrationMS == 0)
+    }
+
+    /// With any nature, every frame matches, as in Ten Lines: the nearest
+    /// come first, the attempt's own press and frame at the top. Gender
+    /// comes from the template's species.
+    @Test("Calibration's nature, gender and shiny filters")
+    func calibrationFilters() throws {
+        let list = try bundled(.fireRedSwitch)
+        let help = FRLGSetting(sound: .mono, buttonMode: .help, seedButton: .a)
+        let aimed = list.timeline(help, offset: 0)[100]
+        let attempted = FRLGInitialSeed(seed: aimed.seed, setting: help, held: .none, seedTime: aimed.seedTime,
+                                        advances: 5_000)
+        let bulbasaur = try #require(PFBridge.staticTemplate3(species: 1, game: .fireRed, preferring: 0))
+        func hits(_ caught: FRLGCatch) -> [FRLGCalibrationHit] {
+            FRLGCalibration.search(list: list, version: .fireRedSwitch, attempted: attempted, targetFrame: 5_000,
+                                   seedLeeway: 2, frames: 4_990...5_010, method: .method1, template: bulbasaur,
+                                   tid: 0, sid: 0, caught: caught)
+        }
+        let any = hits(FRLGCatch(nature: nil, ivMin: Array(repeating: 31, count: 6)))
+        // Five seeds, 21 frames each, the IVs ignored with any nature.
+        #expect(any.count == 5 * 21)
+        #expect(any.first?.seedOffset == 0 && any.first?.advances == 5_000)
+        let female = hits(FRLGCatch(nature: nil, gender: 1))
+        #expect(!female.isEmpty && female.allSatisfy { $0.gender == 1 })
+        // Bulbasaur is seven in eight male.
+        #expect(female.count < any.count / 4)
+        let shiny = hits(FRLGCatch(nature: nil, shiny: 3))
+        #expect(shiny.allSatisfy { $0.shiny > 0 })
+    }
+
+    /// Ten Lines' IV calculator, worked by hand for a level 5 Bulbasaur
+    /// (base 45/49/49/65/65/45) with 31s: HP 21, the rest 11/11/13/13/11.
+    @Test("IV calculator works out IVs from stats and nature")
+    func ivCalculator() throws {
+        let bulbasaur = try #require(PFBridge.staticTemplate3(species: 1, game: .fireRed, preferring: 0))
+        let level5 = FRLGStatsLine(level: 5, stats: [21, 11, 11, 13, 13, 11])
+        // Hardy is neutral.
+        #expect(FRLGIVCalculator.calculate([level5], template: bulbasaur, nature: 0)
+                == .ivs(min: [30, 22, 22, 30, 30, 30], max: [31, 31, 31, 31, 31, 31]))
+        // Adamant raises Attack and lowers Special Attack: 11 Attack is
+        // 10 before it, and no Special Attack IV makes 13.
+        var adamant = level5
+        adamant.stats[3] = 11
+        #expect(FRLGIVCalculator.calculate([adamant], template: bulbasaur, nature: 3)
+                == .ivs(min: [30, 2, 22, 30, 30, 30], max: [31, 21, 31, 31, 31, 31]))
+        #expect(FRLGIVCalculator.calculate([level5], template: bulbasaur, nature: 3)
+                == .error("No possible Special Attack IV. Check the nature, level and stats."))
+        // A second line, at level 100, narrows it to the 31s.
+        let level100 = FRLGStatsLine(level: 100, stats: [231, 134, 134, 166, 166, 126])
+        #expect(FRLGIVCalculator.calculate([level5, level100], template: bulbasaur, nature: 0)
+                == .ivs(min: Array(repeating: 31, count: 6), max: Array(repeating: 31, count: 6)))
+    }
+
+    @Test("IV calculator checks the stats as Ten Lines does")
+    func ivCalculatorValidation() throws {
+        let bulbasaur = try #require(PFBridge.staticTemplate3(species: 1, game: .fireRed, preferring: 0))
+        func error(_ lines: [FRLGStatsLine]) -> FRLGIVCalculator.Outcome {
+            FRLGIVCalculator.calculate(lines, template: bulbasaur, nature: 0)
+        }
+        let line = FRLGStatsLine(level: 5, stats: [21, 11, 11, 13, 13, 11])
+        #expect(error([FRLGStatsLine(level: nil, stats: line.stats)]) == .error("Enter its level."))
+        #expect(error([FRLGStatsLine(level: 0, stats: line.stats)]) == .error("Level must be 1–100."))
+        #expect(error([FRLGStatsLine(level: 5)]) == .error("Enter its HP."))
+        var high = line
+        high.stats[5] = 480
+        #expect(error([high]) == .error("Speed must be 1–479."))
+        #expect(error([line, FRLGStatsLine(level: 6, stats: [22, nil, nil, nil, nil, nil])])
+                == .error("Line 2: Enter its Attack."))
+        // A line added but not filled in yet is left out.
+        #expect(error([line, FRLGStatsLine(level: 6)]) == error([line]))
+    }
+
+    @Test("Encounters find their PokéFinder template")
+    func templates() throws {
+        let lapras = try #require(PFBridge.staticTemplate3(species: 131, game: .fireRed, preferring: 2))
+        #expect(lapras.type == 2)
+        #expect(PFBridge.staticTemplate3(species: 131, game: .leafGreen) != nil)
+        // Treecko is a Hoenn starter.
+        #expect(PFBridge.staticTemplate3(species: 252, game: .fireRed) == nil)
+        // Every FireRed and LeafGreen encounter the Finder offers, but Mew:
+        // PokéFinder has it only on Emerald's Faraway Island.
+        let all = StaticEncounterCategory.allCases.flatMap { StaticEncounterData.encounters(for: .fireRed, category: $0) }
+        #expect(!all.isEmpty)
+        for encounter in all where encounter.species != 151 {
+            #expect(PFBridge.staticTemplate3(species: encounter.species, game: .fireRed,
+                                             preferring: encounter.category.pfStaticType3) != nil,
+                    "\(encounter.speciesName)")
+        }
+    }
+
+    /// On Switch the overworld advances twice a frame, so the timer aims at
+    /// the continue screen's press.
+    @Test("On Switch the target frame is the continue screen's press")
+    func switchOverworld() throws {
+        let suite = "FRLGSeedsTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let search = FRLGSeedSearch(defaults: defaults)
+        #expect(search.overworldFrames == 600)
+        let seed = FRLGInitialSeed(seed: 0x11C7, setting: FRLGSeedSearch.gameDefaults, held: .none, seedTime: 29_122,
+                                   advances: 5_000)
+        #expect(search.targetFrame(seed).frame == 5_000 - 1_200)
+        search.version = .fireRed
+        #expect(search.targetFrame(seed).frame == 5_000)
+    }
 }

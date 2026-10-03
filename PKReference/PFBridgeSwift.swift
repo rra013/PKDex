@@ -286,6 +286,12 @@ struct PFSeedTime4Swift: Identifiable, Hashable {
     }
 }
 
+/// A Gen 3 static encounter's place in PokéFinder's tables.
+nonisolated struct PFStaticTemplateRef: Hashable, Sendable {
+    let type: Int32
+    let index: Int32
+}
+
 struct PFGeneratorStateSwift: Identifiable {
     let id = UUID()
     let seed: UInt32
@@ -453,6 +459,65 @@ nonisolated enum PFBridge {
                                           hiddenPower: r.hiddenPower,
                                           hiddenPowerStrength: r.hiddenPowerStrength)
         }
+    }
+
+    /// The static encounter of `species` in `game`, as its place in
+    /// PokéFinder's tables (0 starters, 1 fossils, 2 gifts, 3 game corner,
+    /// 4 stationary, 5 legends, 6 events, 7 roamers), looking in `type`
+    /// first.
+    static func staticTemplate3(species: UInt16, game: PFGame, preferring type: Int32? = nil) -> PFStaticTemplateRef? {
+        let types = (type.map { [$0] } ?? []) + (0...7).filter { $0 != type }
+        for type in types {
+            if let index = getStaticEncounters3(type: type)
+                .firstIndex(where: { $0.specie == species && $0.game & game.rawValue != 0 }) {
+                return PFStaticTemplateRef(type: type, index: Int32(index))
+            }
+        }
+        return nil
+    }
+
+    /// Ten Lines' static generator: like `staticGenerate3`, with the
+    /// encounter's own template, so gender comes from its species.
+    static func staticTemplateGenerate3(seed: UInt32, initialAdvances: UInt32, maxAdvances: UInt32, offset: UInt32 = 0,
+                                         method: PFMethod, template: PFStaticTemplateRef,
+                                         tid: UInt16, sid: UInt16, game: PFGame,
+                                         filterGender: UInt8 = 255, filterShiny: UInt8 = 255,
+                                         ivMin: [UInt8] = [0,0,0,0,0,0], ivMax: [UInt8] = [31,31,31,31,31,31],
+                                         natures: [Bool] = Array(repeating: false, count: 25),
+                                         powers: [Bool] = Array(repeating: false, count: 16)) -> [PFGeneratorStateSwift] {
+        var count: Int32 = 0
+        let ptr = pf_staticTemplateGenerate3(seed, initialAdvances, maxAdvances, offset, method.rawValue,
+                                             template.type, template.index, tid, sid, game.rawValue,
+                                             filterGender, filterShiny, ivMin, ivMax, natures, powers, &count)
+        guard let ptr else { return [] }
+        defer { pf_freeResults(ptr) }
+
+        return (0..<Int(count)).map { i in
+            let r = ptr[i]
+            let ivs = [r.ivs.0, r.ivs.1, r.ivs.2, r.ivs.3, r.ivs.4, r.ivs.5]
+            return PFGeneratorStateSwift(seed: r.seed, pid: r.pid, advances: r.advances,
+                                          ivs: ivs, nature: r.nature, ability: r.ability,
+                                          gender: r.gender, shiny: r.shiny,
+                                          hiddenPower: r.hiddenPower,
+                                          hiddenPowerStrength: r.hiddenPowerStrength)
+        }
+    }
+
+    /// Ten Lines' `calc_ivs_static`: the IVs a static encounter's stats
+    /// allow, through PokéFinder's IV checker and the template's base stats.
+    /// Each line is a level and its six stats; more lines (after levelling
+    /// up) narrow it down. Per stat, the lowest and highest IV that fits, or
+    /// nil when none does. Nil when the template isn't there.
+    static func calcIVsStatic3(template: PFStaticTemplateRef, lines: [(level: UInt8, stats: [UInt16])],
+                                nature: UInt8) -> [ClosedRange<UInt8>?]? {
+        guard !lines.isEmpty, lines.allSatisfy({ $0.stats.count == 6 }) else { return nil }
+        let levels = lines.map(\.level)
+        let stats = lines.flatMap(\.stats)
+        var min = [UInt8](repeating: 0, count: 6)
+        var max = [UInt8](repeating: 0, count: 6)
+        guard pf_calcIVsStatic3(template.type, template.index, levels, stats, Int32(lines.count),
+                                nature, &min, &max) else { return nil }
+        return (0..<6).map { min[$0] <= max[$0] && min[$0] < 32 ? min[$0]...max[$0] : nil }
     }
 
     // MARK: Gen 3 Searcher
